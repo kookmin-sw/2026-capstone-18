@@ -1,0 +1,29 @@
+# =========================
+# 1. Data and Models (CRITICAL)
+# =========================
+data/
+checkpoints/
+*.npy
+*.pt
+*.pkl
+*.pth
+
+# =========================
+# 2. Python Caches
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# 3. Jupyter Notebooks
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# 4. Environments & OS
+# =========================
+.env
+venv/
+env/
+.DS_Store
