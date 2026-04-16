@@ -4,6 +4,7 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import accuracy_score, f1_score, classification_report
@@ -14,6 +15,26 @@ from mamba_model import create_model
 
 # speed-up for 4090
 torch.set_float32_matmul_precision('high')
+
+# ==========================================
+# 1. FOCAL LOSS & DATASET
+# ==========================================
+class FocalLoss(nn.Module):
+    def __init__(self, weight=None, gamma=2.0):
+        super(FocalLoss, self).__init__()
+        self.weight = weight # Class weights tensor
+        self.gamma = gamma
+
+    def forward(self, inputs, targets):
+        # Calculate standard Cross Entropy (unreduced)
+        ce_loss = F.cross_entropy(inputs, targets, weight=self.weight, reduction='none')
+        
+        # Calculate the probability of the true class
+        pt = torch.exp(-ce_loss)
+        
+        # Modulate the loss based on how well-classified the sample is
+        focal_loss = ((1 - pt) ** self.gamma) * ce_loss
+        return focal_loss.mean()
 
 class WESADTensorDataset(Dataset):
     def __init__(self, X, y):
@@ -26,7 +47,10 @@ class WESADTensorDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
-def train_one_epoch(model, loader, criterion, optimizer, device):
+# ==========================================
+# 2. TRAINING & EVALUATION LOOPS
+# ==========================================
+def train_one_epoch(model, loader, criterion, optimizer, scheduler, device):
     model.train()
     total_loss, correct, total = 0, 0, 0
 
@@ -40,6 +64,10 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
+        
+        # OneCycleLR must step after every batch
+        if scheduler is not None:
+            scheduler.step()
 
         total_loss += loss.item() * len(y_batch)
         correct += (logits.argmax(1) == y_batch.argmax(1)).sum().item()
@@ -64,7 +92,7 @@ def evaluate(model, loader, criterion, device):
     all_preds, all_labels = np.array(all_preds), np.array(all_labels)
     return (total_loss / len(all_labels),
             accuracy_score(all_labels, all_preds),
-            f1_score(all_labels, all_preds, average='weighted'),
+            f1_score(all_labels, all_preds, average='macro'),
             all_labels, all_preds)
 
 def save_incremental_log(log_path, fold_metrics):
@@ -72,6 +100,9 @@ def save_incremental_log(log_path, fold_metrics):
     with open(log_path, 'w') as f:
         json.dump(fold_metrics, f, indent=4)
 
+# ==========================================
+# 3. K-FOLD VALIDATION PIPELINE
+# ==========================================
 def run_group_kfold(args):
     X = np.load(os.path.join(args.data_dir, 'WESAD_X_calibrated.npy'))
     y = np.load(os.path.join(args.data_dir, 'WESAD_y_labeled.npy'))
@@ -82,9 +113,7 @@ def run_group_kfold(args):
 
     gkf = GroupKFold(n_splits=5)
     
-    # -----------------------------------------------------------------
-    # PERSISTENT LOGGING INITIALIZATION
-    # -----------------------------------------------------------------
+    # Persistent Logging Initialization
     log_path = os.path.join(args.save_dir, 'cv_summary.json')
     fold_metrics = []
     
@@ -118,6 +147,9 @@ def run_group_kfold(args):
 
         y_train_hard = y_train.argmax(axis=1)
         cw = compute_class_weight('balanced', classes=np.array([0, 1, 2]), y=y_train_hard)
+        
+        # Dampen extreme weights using square root
+        cw = np.sqrt(cw)
         cw = torch.tensor(cw, dtype=torch.float32).to(device)
 
         train_loader = DataLoader(WESADTensorDataset(X_train, y_train), batch_size=args.batch_size, shuffle=True, num_workers=8, pin_memory=True)
@@ -140,12 +172,11 @@ def run_group_kfold(args):
             except Exception as e:
                 pass
 
-        criterion = nn.CrossEntropyLoss(weight=cw)
+        # Applied Focal Loss
+        criterion = FocalLoss(weight=cw, gamma=2.0)
         checkpoint_path = os.path.join(args.save_dir, f'fold_{current_fold_num}_best.pt')
 
-        # -----------------------------------------------------------------
-        # RESUME: RECONSTRUCT METRICS FROM .PT FILE
-        # -----------------------------------------------------------------
+        # Resume logic
         if args.resume and os.path.exists(checkpoint_path):
             print(f"[Resume] Reconstructing metrics for Fold {current_fold_num} from checkpoint...")
             model.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
@@ -153,7 +184,6 @@ def run_group_kfold(args):
             
             print(f"★ Recovered Fold {current_fold_num} | Acc: {val_acc:.3f} | F1: {val_f1:.3f}")
             
-            # Append to log dictionary and save to disk
             fold_metrics.append({
                 'fold': current_fold_num, 
                 'train_subjects': train_subs.tolist(),
@@ -172,20 +202,23 @@ def run_group_kfold(args):
                     json.dump(split_data, f, indent=4)
             continue
 
-        # -----------------------------------------------------------------
-        # NORMAL TRAINING LOOP
-        # -----------------------------------------------------------------
+        # Normal Training Loop
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
+        scheduler = optim.lr_scheduler.OneCycleLR(
+            optimizer, 
+            max_lr=args.lr, 
+            steps_per_epoch=len(train_loader), 
+            epochs=args.epochs,
+            pct_start=0.1 # Warmup for first 10% of epochs
+        )
 
         best_fold_f1 = 0
         best_fold_epoch = 0
         best_fold_acc = 0
 
         for epoch in range(1, args.epochs + 1):
-            train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
+            train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device)
             val_loss, val_acc, val_f1, _, _ = evaluate(model, test_loader, criterion, device)
-            scheduler.step()
 
             if val_f1 > best_fold_f1:
                 best_fold_f1 = val_f1
@@ -200,7 +233,6 @@ def run_group_kfold(args):
 
         print(f"\n★ Fold {current_fold_num} Complete: Best F1 = {best_fold_f1:.4f} (Achieved at Epoch {best_fold_epoch})")
         
-        # Log to dictionary and save to disk IMMEDIATELY after fold finishes
         fold_metrics.append({
             'fold': current_fold_num, 
             'train_subjects': train_subs.tolist(),
@@ -218,14 +250,12 @@ def run_group_kfold(args):
             with open(os.path.join(args.save_dir, 'best_qat_split.json'), 'w') as f:
                 json.dump(split_data, f, indent=4)
 
-    # -----------------------------------------------------------------
-    # FINAL SUMMARY
-    # -----------------------------------------------------------------
+    # Final Summary
     print(f"\n{'='*60}")
     print(f"GroupKFold 5-Fold Final Summary")
     print(f"{'='*60}")
     f1_scores = [m['best_f1'] for m in fold_metrics]
-    print(f"Average F1: {np.mean(f1_scores):.4f} ± {np.std(f1_scores):.4f}")
+    print(f"Average Macro F1: {np.mean(f1_scores):.4f} ± {np.std(f1_scores):.4f}")
     
     for m in fold_metrics:
         print(f"Fold {m['fold']} (Test Subs: {m['test_subjects']}): F1 = {m['best_f1']:.4f} | Epoch = {m['best_epoch']}")
@@ -235,14 +265,12 @@ def run_group_kfold(args):
 
 def main():
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
 
     parser = argparse.ArgumentParser(description='MeltdownGuard-Mamba 12/3 KFold')
     
     parser.add_argument('--data_dir', type=str, default=os.path.join(PROJECT_ROOT, 'data', 'processed'))
     parser.add_argument('--save_dir', type=str, default=os.path.join(PROJECT_ROOT, 'checkpoints'))
     
-    # Checkpoint Control Flags
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--resume', action='store_true', help='Skip trained folds, reconstruct metrics, and append to persistent log.')
     
@@ -258,7 +286,7 @@ def main():
     
     parser.add_argument('--batch_size', type=int, default=64) 
     parser.add_argument('--lr', type=float, default=5e-4)
-    parser.add_argument('--wd', type=float, default=1e-3)
+    parser.add_argument('--wd', type=float, default=1e-2)
     parser.add_argument('--gpu', type=int, default=1)
 
     args = parser.parse_args()
