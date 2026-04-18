@@ -29,13 +29,32 @@
 
 본 저장소는 WESAD 데이터셋을 활용하여 사전 스트레스(Pre-Stress)를 예측하기 위해 최적화되고 배포 준비가 완료된 시계열 분류(TSC, Time Series Classification) Mamba 파이프라인을 포함하고 있습니다. 
 
-이 v2 아키텍처는 명시적인 수학적 피처 주입(Feature Injection)과 간소화된 3-Class 상태 머신을 활용하여, 엣지 환경(예: Flutter 애플리케이션)에서의 효율적인 배포를 목적으로 특별히 설계되었습니다.
+이 v2.2 아키텍처는 명시적인 수학적 피처 주입(Feature Injection)과 간소화된 3-Class 상태 머신을 활용하여, 엣지 환경(예: ESP32-S3 및 Flutter 애플리케이션)에서의 INT8 양자화 및 효율적인 추론(Inference)을 목적으로 특별히 설계되었습니다.
 
 ### 주요 기술적 성과 
-* **9-채널 명시적 피처 주입 (Explicit Feature Injection):** 모델이 고주파 노이즈로부터 거시적 추세를 강제로 학습하게 하는 대신, 인과적 지수이동평균(Causal EMA) 및 MACD Delta 기울기를 입력 텐서에 직접 주입합니다.
+* **9-채널 명시적 피처 주입 (Explicit Feature Injection):** 모델이 고주파 노이즈로부터 거시적 추세를 강제로 학습하게 하는 대신, 인과적 지수이동평균(Causal EMA), MACD Delta 기울기, 그리고 후행 노이즈 분산(Trailing Variance)을 입력 텐서에 직접 주입합니다.
 * **배포 지향적 3-Class 시스템:** 노이즈가 많은 기존 5-Class WESAD 프로토콜을 견고한 3-Class 시스템(`0: Baseline`, `1: Pre-Stress`, `2: Stress`)으로 통합했습니다. 사후 스트레스 회복(Cooldown)과 즐거움(Amusement) 상태는 INT8 양자화 경계를 보존하기 위해 알고리즘적으로 Baseline에 매핑됩니다.
-* **Causal MACD 동적 라벨링:** 생리학적 각성 상태의 정확한 시작점을 수학적으로 특정하기 위해, 10초간의 템포럴 디바운싱(Temporal Debouncing)이 적용된 엄격한 인과적 10분 룩백(Lookback) 알고리즘을 구현했습니다.
+* **Causal MACD 동적 라벨링:** 생리학적 각성 상태의 정확한 시작점을 수학적으로 특정하기 위해, 9초간의 Temporal Debouncing이 적용된 엄격한 인과적 15분 Lookback 알고리즘을 구현했습니다.
+* **전역 가속도 스케일링 (Global ACC Scaling):** INT8 양자화 시 스케일 스트레칭을 방지하기 위해, 피험자별 Z-Score 정규화를 제거하고 1g(64.0) 휴식 상태를 기준으로 전역 스케일링(`-3.0` ~ `+3.0`)을 적용했습니다.
 * **Pure PyTorch Mamba:** 제한된 엣지 환경에서의 호환성을 극대화하기 위해 `mamba-ssm` 패키지에 의존하지 않는 순수 PyTorch 구현체를 사용합니다.
+
+### 하드웨어 요구사항 및 9-채널 센서 매핑 (배포 시 필수 확인)
+
+본 모델은 제한된 하드웨어 구성 요소(BOM)와의 1:1 매핑을 전제로 최적화되었습니다. **피부 온도(TEMP) 센서는 사용되지 않으며, 피부 전도도(EDA/GSR) 센서는 작동을 위해 반드시 포함되어야 합니다.** 추론 환경에서 입력 텐서 구성 시, 아래의 배열 순서(Index 0~8)를 정확히 준수해야 합니다.
+
+| 인덱스 | 피처명 | 설명 | 대상 하드웨어 |
+| :---: | :--- | :--- | :--- |
+| **0** | `bvp_calib` | 고주파 원본 BVP (PPG) 신호 | MAX30102 (Red/IR AC Waveform) |
+| **1** | `eda_calib` | 절대 피부 전도도 (Z-Score) | Grove GSR Sensor (Analog Out) |
+| **2** | `acc_mag_global` | 전역 물리적 활동량 (고정 스케일) | MPU6050 (Accelerometer Only) |
+| **3** | `eda_ema_context` | 5분 Causal EMA (EDA 거시적 추세) | *(소프트웨어 연산)* |
+| **4** | `bvp_ema_context` | 5분 Causal EMA (BVP 거시적 추세) | *(소프트웨어 연산)* |
+| **5** | `eda_macd_delta` | EDA Phasic 파생 변수 | *(소프트웨어 연산)* |
+| **6** | `bvp_macd_delta` | BVP Phasic 파생 변수 | *(소프트웨어 연산)* |
+| **7** | `norm_std_eda` | 후행 EDA 노이즈 플로어 (Variance) | *(소프트웨어 연산)* |
+| **8** | `norm_std_bvp` | 후행 BVP 노이즈 플로어 (Variance) | *(소프트웨어 연산)* |
+
+*(주의: 엣지 디바이스의 전력 및 DMA 대역폭 절감을 위해 MPU6050의 Gyroscope 데이터와 MAX30102의 자체 SpO2 연산 기능은 비활성화해야 합니다.)*
 
 ### 2. 소개 영상
 
