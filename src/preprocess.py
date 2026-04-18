@@ -24,7 +24,7 @@ STRIDE_STEPS = STRIDE_SECONDS * TARGET_HZ
 
 # Algorithm & Context Parameters
 LOOKBACK_MINUTES = 15
-SUSTAIN_SECONDS = 10
+SUSTAIN_SECONDS = 9
 FAST_WINDOW_SEC = 10
 SLOW_WINDOW_SEC = 60
 CONTEXT_WINDOW_SEC = 300  # 5-minute global context for EMA
@@ -35,7 +35,7 @@ K_SIGMA = 3.5
 MIN_PRESTRESS_MINUTES = 3.0
 MIN_EDA_DELTA = 0.3
 MIN_BVP_DELTA = 0.2
-MIN_ACC_DELTA = 1.0
+MIN_ACC_DELTA = 0.5  # Adjusted to 0.5g since ACC is now globally scaled
 
 # ==========================================
 # 2. HELPER FUNCTIONS
@@ -70,8 +70,6 @@ def compute_ema(arr, span):
     alpha = 2.0 / (span + 1.0)
     b = [alpha]
     a = [1.0, -(1.0 - alpha)]
-    
-    # Initialize the filter state to match the first value
     zi = lfilter_zi(b, a) * arr[0]
     ema, _ = lfilter(b, a, arr, zi=zi)
     return ema
@@ -107,7 +105,7 @@ def main():
 
     all_X, all_y, all_sub = [], [], []
 
-    print(f"Starting Multi-Sensor 3-Class Preprocessing (9-Channel Input)")
+    print(f"Starting Optimized 9-Channel Preprocessing")
     print(f"Window: {WINDOW_SECONDS}s | Stride: {STRIDE_SECONDS}s")
 
     for subject in subject_folders:
@@ -137,7 +135,7 @@ def main():
         acc_raw = acc_raw[first_valid_idx:]; labels_raw = labels_raw[first_valid_idx:]
         min_len = len(labels_raw)
 
-        # 3.3 Initial Standardization (Z-Score from 60s baseline)
+        # 3.3 Initial Standardization (Z-Score from 60s baseline for autonomic signals)
         baseline_indices = np.where(labels_raw == 1)[0]
         if len(baseline_indices) < WINDOW_STEPS:
             print("Skipped (Insufficient Baseline)", end="")
@@ -148,14 +146,15 @@ def main():
         eda_calib = (eda_raw - np.mean(eda_raw[b_start:b_end])) / (np.std(eda_raw[b_start:b_end]) + 1e-8)
         bvp_calib = (bvp_raw - np.mean(bvp_raw[b_start:b_end])) / (np.std(bvp_raw[b_start:b_end]) + 1e-8)
         
+        # 3.4 Global Accelerometer Standardization (Replaces per-subject Z-Score)
         acc_mag_raw = np.sqrt(np.sum(acc_raw**2, axis=1))
-        acc_mag_calib = (acc_mag_raw - np.mean(acc_mag_raw[b_start:b_end])) / (np.std(acc_mag_raw[b_start:b_end]) + 1e-8)
-
-        acc_3d_mean = np.mean(acc_raw[b_start:b_end], axis=0)
-        acc_3d_std = np.std(acc_raw[b_start:b_end], axis=0) + 1e-8
-        acc_3d_calib = (acc_raw - acc_3d_mean) / acc_3d_std
+        GLOBAL_ACC_MEAN = 64.0  # Approx 1g resting magnitude on E4
+        GLOBAL_ACC_SCALE = 64.0 
         
-        # 3.4 Explicit Feature Computation (EMA & MACD)
+        # Globally scaled and bounded to prevent INT8 scale stretching (-3g to +3g)
+        acc_mag_global = np.clip((acc_mag_raw - GLOBAL_ACC_MEAN) / GLOBAL_ACC_SCALE, -3.0, 3.0)
+        
+        # 3.5 Explicit Feature Computation (EMA & MACD)
         fast_win = FAST_WINDOW_SEC * TARGET_HZ
         slow_win = SLOW_WINDOW_SEC * TARGET_HZ
         context_win = CONTEXT_WINDOW_SEC * TARGET_HZ
@@ -164,7 +163,9 @@ def main():
         ema_eda_slow = compute_ema(eda_calib, slow_win)
         ema_bvp_fast = compute_ema(np.abs(bvp_calib), fast_win)
         ema_bvp_slow = compute_ema(np.abs(bvp_calib), slow_win)
-        ema_acc_fast = compute_ema(acc_mag_calib, fast_win)
+        
+        # EMA of ACC used for dynamic labeling and rejection
+        ema_acc_fast = compute_ema(acc_mag_global, fast_win) 
         
         eda_ema_context = compute_ema(eda_calib, context_win)
         bvp_ema_context = compute_ema(np.abs(bvp_calib), context_win)
@@ -172,24 +173,39 @@ def main():
         eda_macd_delta = ema_eda_fast - ema_eda_slow
         bvp_macd_delta = ema_bvp_fast - ema_bvp_slow
         
-        # Stack all 9 channels
-        continuous_X_calib = np.column_stack([
-            bvp_calib, acc_3d_calib[:, 0], acc_3d_calib[:, 1], acc_3d_calib[:, 2], 
-            eda_calib, eda_ema_context, bvp_ema_context, eda_macd_delta, bvp_macd_delta
-        ])
-
-        # 3.5 Compute Continuous Trailing Baseline Arrays
+        # 3.6 Compute Continuous Trailing Baseline Arrays
         trail_win = TRAILING_BASE_MINUTES * 60 * TARGET_HZ
         mu_eda, std_eda = causal_rolling_stats(eda_macd_delta, trail_win)
         mu_bvp, std_bvp = causal_rolling_stats(bvp_macd_delta, trail_win)
         mu_acc, std_acc = causal_rolling_stats(ema_acc_fast, trail_win)
         
-        # 3.6 Deployment-Ready 3-Class Mapping
-        # Amusement and Cooldown naturally collapse into Class 0 to act as OOD training examples.
+        # 3.7 Log-Compression and Standardization of Variance (For Neural Network Input)
+        log_std_eda = np.log1p(std_eda)
+        log_std_bvp = np.log1p(std_bvp)
+        
+        # Normalize the variance using the first 60 seconds of the variance array itself.
+        # Deployment Replicability: This strictly requires caching only 2 floats (mean and std) per array.
+        norm_std_eda = (log_std_eda - np.mean(log_std_eda[b_start:b_end])) / (np.std(log_std_eda[b_start:b_end]) + 1e-8)
+        norm_std_bvp = (log_std_bvp - np.mean(log_std_bvp[b_start:b_end])) / (np.std(log_std_bvp[b_start:b_end]) + 1e-8)
+
+        # 3.8 Optimal 9-Channel Stack Assembly
+        continuous_X_calib = np.column_stack([
+            bvp_calib,                  # 1: High-freq raw
+            eda_calib,                  # 2: Absolute state
+            acc_mag_global,             # 3: Global physical exertion (Fixed Scale)
+            eda_ema_context,            # 4: 5-min slow trend EDA
+            bvp_ema_context,            # 5: 5-min slow trend BVP
+            eda_macd_delta,             # 6: Phasic derivative EDA
+            bvp_macd_delta,             # 7: Phasic derivative BVP
+            norm_std_eda,               # 8: Trailing EDA noise floor
+            norm_std_bvp                # 9: Trailing BVP noise floor
+        ])
+
+        # 3.9 Deployment-Ready 3-Class Mapping
         mapped_labels = np.zeros_like(labels_raw)
         mapped_labels[labels_raw == 2] = 2  # Map Stress
         
-        # 3.7 Causal MACD Dynamic Pre-Stress Detection
+        # 3.10 Causal MACD Dynamic Pre-Stress Detection
         stress_indices = np.where(labels_raw == 2)[0]
         if len(stress_indices) > 0:
             stress_start = stress_indices[0]
@@ -221,7 +237,6 @@ def main():
                     duration = (len(eda_w) - trigger_idx) / TARGET_HZ / 60
                     
                     if duration < MIN_PRESTRESS_MINUTES:
-                        # Enforce Minimum Floor Window
                         mapped_labels[max(0, stress_start - int(MIN_PRESTRESS_MINUTES * 60 * TARGET_HZ)):stress_start] = 1
                         print(f"[{MIN_PRESTRESS_MINUTES:.1f}m Min FB]", end=" ")
                     else:
@@ -229,14 +244,13 @@ def main():
                         mapped_labels[onset:stress_start] = 1 
                         print(f"[{duration:.1f}m Trigger]", end=" ")
                 else:
-                    # Enforce Maximum Fallback Window
                     mapped_labels[max(0, stress_start - int(MIN_PRESTRESS_MINUTES * 60 * TARGET_HZ)):stress_start] = 1
                     print(f"[{MIN_PRESTRESS_MINUTES:.1f}m Max FB]", end=" ")
             else:
                 mapped_labels[max(0, stress_start - int(MIN_PRESTRESS_MINUTES * 60 * TARGET_HZ)):stress_start] = 1
                 print(f"[{MIN_PRESTRESS_MINUTES:.1f}m Max FB]", end=" ")
 
-        # 3.8 Sliding Window Extraction (Hard Labels)
+        # 3.11 Sliding Window Extraction (Hard Labels)
         chunks = 0
         for i in range(0, min_len - WINDOW_STEPS, STRIDE_STEPS):
             window_end = i + WINDOW_STEPS

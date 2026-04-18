@@ -20,7 +20,7 @@ torch.set_float32_matmul_precision('high')
 # 1. FOCAL LOSS & DATASET
 # ==========================================
 class FocalLoss(nn.Module):
-    def __init__(self, weight=None, gamma=2.0):
+    def __init__(self, weight=None, gamma=3.0):
         super(FocalLoss, self).__init__()
         self.weight = weight # Class weights tensor
         self.gamma = gamma
