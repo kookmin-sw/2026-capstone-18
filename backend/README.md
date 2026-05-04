@@ -86,6 +86,7 @@ Sprint 2 deploys staging only.
 cd backend
 AWS_PROFILE=little-signals-staging ./scripts/bootstrap-terraform-state.sh
 cd infra
+cp backend.hcl.example backend.hcl
 AWS_PROFILE=little-signals-staging terraform init -backend-config=backend.hcl
 AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
 cd ..

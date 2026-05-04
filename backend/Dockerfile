@@ -31,6 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --chown=app:app app/ ./app/
+COPY --chown=app:app alembic/ ./alembic/
+COPY --chown=app:app alembic.ini ./
 
 USER app
 EXPOSE 8000
