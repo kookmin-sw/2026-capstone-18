@@ -80,8 +80,29 @@ poetry run mypy app/
 
 ## Deploy
 
-Production deployment lives on AWS Seoul (`ap-northeast-2`) via Terraform + ECS Fargate. Sprint 2 wires this up. Until then there is no deploy.
+Sprint 2 deploys staging only.
+
+```bash
+cd backend
+AWS_PROFILE=little-signals-staging ./scripts/bootstrap-terraform-state.sh
+cd infra
+AWS_PROFILE=little-signals-staging terraform init -backend-config=backend.hcl
+AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
+cd ..
+AWS_PROFILE=little-signals-staging make ecr-login
+AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.2.0
+cd infra
+AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
+cd ..
+AWS_PROFILE=little-signals-staging ./scripts/enable-rds-timescaledb.sh
+AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
+make smoke-staging
+```
+
+Expected staging URL: `https://api-staging.littlesignals.app`.
+
+Two `terraform apply` invocations are intentional: the first creates ECR + RDS + networking, then we push the image, then we apply again to bring up ECS/ALB referencing the now-real image.
 
 ## Sprint status
 
-Currently in **Sprint 0 — Foundation & Verification**. See [`docs/superpowers/plans/`](docs/superpowers/plans/) for the active plan.
+Currently in **Sprint 2 — First AWS Deploy**. See [`docs/superpowers/plans/`](docs/superpowers/plans/) for the active plan.

@@ -49,3 +49,15 @@ After Task 6 adds `smoke-staging` and the ALB is live, run from `backend/`:
 ```bash
 make smoke-staging
 ```
+
+## Sprint 2 Verification Checklist
+
+- `curl -fsS https://api-staging.littlesignals.app/health` returns `{"status":"ok","version":"0.2.0"}`.
+- `curl -fsS https://api-staging.littlesignals.app/ready` returns `{"status":"ok","database":"ok"}`.
+- ECS service desired count is `1` and running count is `1`.
+- ALB target group shows one healthy target.
+- CloudWatch log group `/ecs/little-signals-staging-backend` has recent logs.
+- RDS `Publicly accessible` is `No`.
+- RDS security group allows inbound `5432` only from the ECS security group.
+- Secrets Manager contains the RDS-managed master user secret for `little-signals-staging-postgres`.
+- ECR repository has image tags `0.2.0` and `latest`.
