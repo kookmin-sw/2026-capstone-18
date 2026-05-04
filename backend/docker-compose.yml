@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: little-signals-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: little_signals
+      POSTGRES_PASSWORD: dev_only_password
+      POSTGRES_DB: little_signals_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U little_signals -d little_signals_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:4
+    container_name: little-signals-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
