@@ -1,6 +1,11 @@
 # little-signals backend dev commands.
 # Run from the backend/ directory (or `make -C backend <target>` from repo root).
 
+-include .env
+
+DATABASE_URL ?= postgresql+asyncpg://little_signals:dev_only_password@localhost:5432/little_signals_dev
+TEST_DATABASE_URL ?= postgresql+asyncpg://little_signals:dev_only_password@localhost:5432/little_signals_test
+
 .PHONY: help install run test test-fast lint format typecheck migrate migrate-test \
         db-up db-down db-logs check clean
 
@@ -32,10 +37,10 @@ typecheck:  ## Run mypy in strict mode against app/.
 check: lint typecheck test  ## Run lint + typecheck + tests. Mirrors CI.
 
 migrate:  ## Apply Alembic migrations to the dev DB.
-	poetry run alembic upgrade head
+	DATABASE_URL="$(DATABASE_URL)" poetry run alembic upgrade head
 
 migrate-test:  ## Apply Alembic migrations to the test DB.
-	DATABASE_URL=$$TEST_DATABASE_URL poetry run alembic upgrade head
+	DATABASE_URL="$(TEST_DATABASE_URL)" poetry run alembic upgrade head
 
 db-up:  ## Start the local Postgres + Adminer stack via docker compose.
 	docker compose up -d
