@@ -7,10 +7,25 @@ export AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 STATE_BUCKET="${STATE_BUCKET:-little-signals-tfstate-apne2}"
 LOCK_TABLE="${LOCK_TABLE:-little-signals-terraform-locks}"
 
-aws s3api create-bucket \
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+BUCKET_ERROR="$TMP_DIR/create-bucket.err"
+if aws s3api create-bucket \
   --bucket "$STATE_BUCKET" \
   --region "$AWS_REGION" \
-  --create-bucket-configuration LocationConstraint="$AWS_REGION" || true
+  --create-bucket-configuration LocationConstraint="$AWS_REGION" \
+  2>"$BUCKET_ERROR"; then
+  :
+else
+  status=$?
+  if grep -q "BucketAlreadyOwnedByYou" "$BUCKET_ERROR"; then
+    echo "Terraform state bucket already exists: $STATE_BUCKET"
+  else
+    cat "$BUCKET_ERROR" >&2
+    exit "$status"
+  fi
+fi
 
 aws s3api put-bucket-versioning \
   --bucket "$STATE_BUCKET" \
@@ -28,12 +43,24 @@ aws s3api put-bucket-encryption \
     ]
   }'
 
-aws dynamodb create-table \
+TABLE_ERROR="$TMP_DIR/create-table.err"
+if aws dynamodb create-table \
   --table-name "$LOCK_TABLE" \
   --attribute-definitions AttributeName=LockID,AttributeType=S \
   --key-schema AttributeName=LockID,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
-  --region "$AWS_REGION" || true
+  --region "$AWS_REGION" \
+  2>"$TABLE_ERROR"; then
+  :
+else
+  status=$?
+  if grep -q "ResourceInUseException" "$TABLE_ERROR"; then
+    echo "Terraform lock table already exists: $LOCK_TABLE"
+  else
+    cat "$TABLE_ERROR" >&2
+    exit "$status"
+  fi
+fi
 
 aws dynamodb wait table-exists \
   --table-name "$LOCK_TABLE" \
