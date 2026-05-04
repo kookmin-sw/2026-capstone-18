@@ -24,7 +24,7 @@ def test_settings_log_level_default_is_info(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h:5432/db")
     monkeypatch.delenv("LOG_LEVEL", raising=False)
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     assert settings.log_level == "INFO"
 
@@ -33,7 +33,7 @@ def test_settings_database_url_required(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_settings_invalid_log_level_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -41,4 +41,4 @@ def test_settings_invalid_log_level_rejected(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("LOG_LEVEL", "VERBOSE")
 
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
