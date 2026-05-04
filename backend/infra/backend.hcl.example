@@ -1,0 +1,5 @@
+bucket         = "little-signals-tfstate-apne2"
+key            = "staging/terraform.tfstate"
+region         = "ap-northeast-2"
+dynamodb_table = "little-signals-terraform-locks"
+encrypt        = true

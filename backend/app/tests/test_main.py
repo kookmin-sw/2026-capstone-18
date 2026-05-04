@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.dependencies import get_db
 from app.main import app
 
 
@@ -18,6 +22,46 @@ async def test_health_returns_ok() -> None:
     body = response.json()
     assert body["status"] == "ok"
     assert "version" in body
+
+
+@pytest.mark.asyncio
+async def test_ready_returns_ok_when_db_responds(db_session: AsyncSession) -> None:
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    original_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[get_db] = _override_get_db
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/ready")
+    finally:
+        app.dependency_overrides = original_overrides
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "database": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_ready_returns_503_when_db_fails() -> None:
+    class BrokenSession:
+        async def execute(self, *args: object, **kwargs: object) -> None:
+            raise RuntimeError("database unavailable")
+
+    async def _override_get_db() -> AsyncGenerator[BrokenSession, None]:
+        yield BrokenSession()
+
+    original_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[get_db] = _override_get_db
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/ready")
+    finally:
+        app.dependency_overrides = original_overrides
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": {"status": "error", "database": "unreachable"}}
 
 
 @pytest.mark.asyncio

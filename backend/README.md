@@ -80,8 +80,31 @@ poetry run mypy app/
 
 ## Deploy
 
-Production deployment lives on AWS Seoul (`ap-northeast-2`) via Terraform + ECS Fargate. Sprint 2 wires this up. Until then there is no deploy.
+Sprint 2 deploys staging only.
+
+```bash
+cd backend
+AWS_PROFILE=little-signals-staging ./scripts/bootstrap-terraform-state.sh
+cd infra
+cp backend.hcl.example backend.hcl
+AWS_PROFILE=little-signals-staging terraform init -backend-config=backend.hcl
+AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
+cd ..
+AWS_PROFILE=little-signals-staging make ecr-login
+AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.2.0
+cd infra
+ECR_URL="$(AWS_PROFILE=little-signals-staging terraform output -raw ecr_repository_url)"
+AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars -var "container_image=$ECR_URL:0.2.0"
+cd ..
+AWS_PROFILE=little-signals-staging ./scripts/enable-rds-timescaledb.sh
+AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
+make smoke-staging
+```
+
+The first `terraform apply` provisions networking, ECR, RDS, and the ALB/ECS service against the placeholder image in `staging.tfvars`. After `make ecr-push` lands a real image, the second apply re-points the ECS task definition at that image via `-var container_image=...` so the service actually rolls out the backend.
+
+Expected staging URL: `https://api-staging.littlesignals.app`.
 
 ## Sprint status
 
-Currently in **Sprint 0 — Foundation & Verification**. See [`docs/superpowers/plans/`](docs/superpowers/plans/) for the active plan.
+Currently in **Sprint 2 — First AWS Deploy**. See [`docs/superpowers/plans/`](docs/superpowers/plans/) for the active plan.

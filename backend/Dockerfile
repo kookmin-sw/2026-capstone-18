@@ -31,10 +31,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --chown=app:app app/ ./app/
+COPY --chown=app:app alembic/ ./alembic/
+COPY --chown=app:app alembic.ini ./
 
 USER app
 EXPOSE 8000
 
-# Sprint 1 will add a real entrypoint; for now this is a placeholder
-# that proves the image builds and runs.
-CMD ["python", "-c", "print('little-signals backend container — replace CMD in Sprint 1')"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

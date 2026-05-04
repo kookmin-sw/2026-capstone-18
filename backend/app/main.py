@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Awaitable, Callable
+from typing import Annotated
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.db.dependencies import get_db
 from app.observability.logging import bind_request_id, clear_request_id, configure_logging
 
 settings = get_settings()
@@ -66,3 +70,16 @@ async def health() -> dict[str, str]:
     and basic dependency status (DB reachable yes/no).
     """
     return {"status": "ok", "version": settings.app_version}
+
+
+@app.get("/ready")
+async def ready(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, str]:
+    """Readiness probe. Returns 200 only when core dependencies respond."""
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"status": "error", "database": "unreachable"},
+        ) from exc
+    return {"status": "ok", "database": "ok"}
