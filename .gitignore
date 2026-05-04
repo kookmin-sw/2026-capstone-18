@@ -27,3 +27,35 @@ __pycache__/
 venv/
 env/
 .DS_Store
+
+# =========================
+# 5. Backend (Python + FastAPI + Terraform + Docker)
+# Added for backend/ subdirectory; complements existing ML rules above.
+# =========================
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+
+# Terraform (Sprint 2+)
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+
+# Docker
+docker-compose.override.yml
