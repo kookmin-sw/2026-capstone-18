@@ -48,3 +48,21 @@ variable "db_username" {
   type        = string
   default     = "little_signals"
 }
+
+variable "rds_deletion_protection" {
+  description = "Whether to enable RDS deletion protection. The default is for disposable staging; production must override this to true."
+  type        = bool
+  default     = false
+}
+
+variable "rds_skip_final_snapshot" {
+  description = "Whether to skip the final RDS snapshot on deletion. The default is for disposable staging; production must override this to false."
+  type        = bool
+  default     = true
+}
+
+variable "rds_apply_immediately" {
+  description = "Whether RDS modifications apply immediately. The default is for disposable staging; production must override this to false."
+  type        = bool
+  default     = true
+}
