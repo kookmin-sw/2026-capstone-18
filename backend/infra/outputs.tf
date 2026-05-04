@@ -34,3 +34,19 @@ output "db_password_secret_arn" {
   value     = aws_db_instance.postgres.master_user_secret[0].secret_arn
   sensitive = true
 }
+
+output "alb_dns_name" {
+  value = aws_lb.api.dns_name
+}
+
+output "api_url" {
+  value = "https://${var.domain_name}"
+}
+
+output "ecs_cluster_name" {
+  value = aws_ecs_cluster.main.name
+}
+
+output "ecs_service_name" {
+  value = aws_ecs_service.backend.name
+}
