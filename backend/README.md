@@ -38,7 +38,29 @@ docker compose down
 > ```
 > Restart afterward with `brew services start postgresql@15`.
 
-> **Note:** The FastAPI app itself is not yet implemented — Sprint 1 adds `app/main.py` and a working `/health` endpoint. For now this README is forward-looking.
+## Endpoints (Sprint 1)
+
+- `GET /health` — liveness probe, returns `{"status": "ok", "version": "0.1.0"}`
+- `GET /` — redirects to `/docs`
+- `GET /docs` — Swagger UI
+- `GET /redoc` — ReDoc UI
+- `GET /openapi.json` — OpenAPI spec
+
+Real CRUD endpoints (events, cycles, settings, etc.) come in Sprint 4.
+
+## Database
+
+Local Postgres runs via `docker compose up -d`. Apply migrations:
+
+```bash
+make migrate
+```
+
+Tests use a separate `little_signals_test` DB. Apply migrations there with:
+
+```bash
+make migrate-test
+```
 
 ## Run tests
 
