@@ -35,7 +35,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = [".venv", "alembic/versions"]
+extend-exclude = [".venv", "alembic/versions", "alembic/script.py.mako"]
 
 [tool.ruff.lint]
 select = [
