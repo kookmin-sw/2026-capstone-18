@@ -19,7 +19,7 @@ OVERRIDES="$(cat <<'JSON'
       "command": [
         "sh",
         "-c",
-        "export DATABASE_URL=\"postgresql+asyncpg://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}\" && python -c \"import asyncio, os; from sqlalchemy.ext.asyncio import create_async_engine; from sqlalchemy import text; async def main():\\n    engine = create_async_engine(os.environ['DATABASE_URL'])\\n    async with engine.begin() as conn:\\n        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE'))\\n    await engine.dispose()\\nasyncio.run(main())\""
+        "export DATABASE_URL=\"postgresql+asyncpg://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}\" && python <<'PY'\nimport asyncio\nimport os\n\nfrom sqlalchemy.ext.asyncio import create_async_engine\nfrom sqlalchemy import text\n\n\nasync def main() -> None:\n    engine = create_async_engine(os.environ[\"DATABASE_URL\"])\n    async with engine.begin() as conn:\n        await conn.execute(text(\"CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE\"))\n    await engine.dispose()\n\n\nasyncio.run(main())\nPY"
       ]
     }
   ]
