@@ -35,6 +35,11 @@ output "db_password_secret_arn" {
   sensitive = true
 }
 
+output "supabase_secret_arn" {
+  value     = aws_secretsmanager_secret.supabase.arn
+  sensitive = true
+}
+
 output "alb_dns_name" {
   value = aws_lb.api.dns_name
 }

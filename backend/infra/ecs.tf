@@ -35,8 +35,11 @@ resource "aws_iam_role" "ecs_task" {
 
 data "aws_iam_policy_document" "ecs_task_secrets" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_db_instance.postgres.master_user_secret[0].secret_arn]
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      aws_db_instance.postgres.master_user_secret[0].secret_arn,
+      aws_secretsmanager_secret.supabase.arn,
+    ]
   }
 }
 
@@ -90,7 +93,27 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name      = "DB_PASSWORD"
           valueFrom = "${aws_db_instance.postgres.master_user_secret[0].secret_arn}:password::"
-        }
+        },
+        {
+          name      = "SUPABASE_URL"
+          valueFrom = "${aws_secretsmanager_secret.supabase.arn}:url::"
+        },
+        {
+          name      = "SUPABASE_ANON_KEY"
+          valueFrom = "${aws_secretsmanager_secret.supabase.arn}:anon_key::"
+        },
+        {
+          name      = "SUPABASE_SERVICE_ROLE_KEY"
+          valueFrom = "${aws_secretsmanager_secret.supabase.arn}:service_role_key::"
+        },
+        {
+          name      = "SUPABASE_JWT_SECRET"
+          valueFrom = "${aws_secretsmanager_secret.supabase.arn}:jwt_secret::"
+        },
+        {
+          name      = "GOOGLE_OAUTH_CLIENT_ID"
+          valueFrom = "${aws_secretsmanager_secret.supabase.arn}:google_oauth_client_id::"
+        },
       ]
       logConfiguration = {
         logDriver = "awslogs"
