@@ -5,7 +5,7 @@ import os
 def main():
     # 1. Dynamically find the project root (assuming download.py is in the 'src' folder)
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+    PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
     
     # Define the target directory relative to the project root
     target_dir = os.path.join(PROJECT_ROOT, 'data', 'raw', 'WESAD')

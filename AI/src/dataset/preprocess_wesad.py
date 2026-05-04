@@ -8,10 +8,11 @@ from scipy.signal import lfilter, lfilter_zi
 # 1. CONFIGURATION & HYPERPARAMETERS
 # ==========================================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+AI_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 
-DATA_DIR = os.path.join(PROJECT_ROOT, 'data', 'raw', 'WESAD')
-SAVE_DIR = os.path.join(PROJECT_ROOT, 'data', 'processed')
+DATA_DIR = os.path.join(AI_ROOT, 'data', 'raw', 'WESAD')
+SAVE_DIR = os.path.join(AI_ROOT, 'data', 'processed', 'WESAD')
+os.makedirs(SAVE_DIR, exist_ok=True)
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 
@@ -23,19 +24,10 @@ WINDOW_STEPS = WINDOW_SECONDS * TARGET_HZ
 STRIDE_STEPS = STRIDE_SECONDS * TARGET_HZ
 
 # Algorithm & Context Parameters
-LOOKBACK_MINUTES = 15
-SUSTAIN_SECONDS = 9
 FAST_WINDOW_SEC = 10
 SLOW_WINDOW_SEC = 60
 CONTEXT_WINDOW_SEC = 300  # 5-minute global context for EMA
 TRAILING_BASE_MINUTES = 5
-
-# Optimized Dynamic Threshold Parameters (Trailing Baseline)
-K_SIGMA = 3.5
-MIN_PRESTRESS_MINUTES = 3.0
-MIN_EDA_DELTA = 0.3
-MIN_BVP_DELTA = 0.2
-MIN_ACC_DELTA = 0.5  # Adjusted to 0.5g since ACC is now globally scaled
 
 # ==========================================
 # 2. HELPER FUNCTIONS
@@ -105,7 +97,7 @@ def main():
 
     all_X, all_y, all_sub = [], [], []
 
-    print(f"Starting Optimized 9-Channel Preprocessing")
+    print(f"Starting Optimized 9-Channel Preprocessing (Binary Classification)")
     print(f"Window: {WINDOW_SECONDS}s | Stride: {STRIDE_SECONDS}s")
 
     for subject in subject_folders:
@@ -164,9 +156,6 @@ def main():
         ema_bvp_fast = compute_ema(np.abs(bvp_calib), fast_win)
         ema_bvp_slow = compute_ema(np.abs(bvp_calib), slow_win)
         
-        # EMA of ACC used for dynamic labeling and rejection
-        ema_acc_fast = compute_ema(acc_mag_global, fast_win) 
-        
         eda_ema_context = compute_ema(eda_calib, context_win)
         bvp_ema_context = compute_ema(np.abs(bvp_calib), context_win)
         
@@ -174,17 +163,18 @@ def main():
         bvp_macd_delta = ema_bvp_fast - ema_bvp_slow
         
         # 3.6 Compute Continuous Trailing Baseline Arrays
+        # (Re-computing ACC EMA solely for the noise floor variance block if needed)
+        ema_acc_fast = compute_ema(acc_mag_global, fast_win) 
+
         trail_win = TRAILING_BASE_MINUTES * 60 * TARGET_HZ
-        mu_eda, std_eda = causal_rolling_stats(eda_macd_delta, trail_win)
-        mu_bvp, std_bvp = causal_rolling_stats(bvp_macd_delta, trail_win)
-        mu_acc, std_acc = causal_rolling_stats(ema_acc_fast, trail_win)
+        _, std_eda = causal_rolling_stats(eda_macd_delta, trail_win)
+        _, std_bvp = causal_rolling_stats(bvp_macd_delta, trail_win)
         
         # 3.7 Log-Compression and Standardization of Variance (For Neural Network Input)
         log_std_eda = np.log1p(std_eda)
         log_std_bvp = np.log1p(std_bvp)
         
         # Normalize the variance using the first 60 seconds of the variance array itself.
-        # Deployment Replicability: This strictly requires caching only 2 floats (mean and std) per array.
         norm_std_eda = (log_std_eda - np.mean(log_std_eda[b_start:b_end])) / (np.std(log_std_eda[b_start:b_end]) + 1e-8)
         norm_std_bvp = (log_std_bvp - np.mean(log_std_bvp[b_start:b_end])) / (np.std(log_std_bvp[b_start:b_end]) + 1e-8)
 
@@ -201,67 +191,23 @@ def main():
             norm_std_bvp                # 9: Trailing BVP noise floor
         ])
 
-        # 3.9 Deployment-Ready 3-Class Mapping
+        # 3.9 Deployment-Ready Binary Mapping
         mapped_labels = np.zeros_like(labels_raw)
-        mapped_labels[labels_raw == 2] = 2  # Map Stress
-        
-        # 3.10 Causal MACD Dynamic Pre-Stress Detection
-        stress_indices = np.where(labels_raw == 2)[0]
-        if len(stress_indices) > 0:
-            stress_start = stress_indices[0]
-            search_start = max(0, stress_start - (LOOKBACK_MINUTES * 60 * TARGET_HZ))
-            
-            # Isolate the target windows for signals and thresholds
-            eda_w = eda_macd_delta[search_start:stress_start]
-            bvp_w = bvp_macd_delta[search_start:stress_start]
-            acc_w = ema_acc_fast[search_start:stress_start]
-            
-            mu_eda_w, std_eda_w = mu_eda[search_start:stress_start], std_eda[search_start:stress_start]
-            mu_bvp_w, std_bvp_w = mu_bvp[search_start:stress_start], std_bvp[search_start:stress_start]
-            mu_acc_w, std_acc_w = mu_acc[search_start:stress_start], std_acc[search_start:stress_start]
-            
-            # Calculate dynamic thresholds natively
-            thresh_eda_w = mu_eda_w + np.maximum(K_SIGMA * std_eda_w, MIN_EDA_DELTA)
-            thresh_bvp_w = mu_bvp_w + np.maximum(K_SIGMA * std_bvp_w, MIN_BVP_DELTA)
-            thresh_acc_w = mu_acc_w + np.maximum(K_SIGMA * std_acc_w, MIN_ACC_DELTA)
-            
-            spike_mask = (eda_w > thresh_eda_w) | (bvp_w > thresh_bvp_w) | (acc_w > thresh_acc_w)
-            
-            sustain_steps = SUSTAIN_SECONDS * TARGET_HZ
-            if len(spike_mask) >= sustain_steps:
-                sustained = np.convolve(spike_mask.astype(int), np.ones(sustain_steps), mode='valid')
-                hits = np.where(sustained == sustain_steps)[0]
-                
-                if len(hits) > 0:
-                    trigger_idx = hits[0]
-                    duration = (len(eda_w) - trigger_idx) / TARGET_HZ / 60
-                    
-                    if duration < MIN_PRESTRESS_MINUTES:
-                        mapped_labels[max(0, stress_start - int(MIN_PRESTRESS_MINUTES * 60 * TARGET_HZ)):stress_start] = 1
-                        print(f"[{MIN_PRESTRESS_MINUTES:.1f}m Min FB]", end=" ")
-                    else:
-                        onset = search_start + trigger_idx
-                        mapped_labels[onset:stress_start] = 1 
-                        print(f"[{duration:.1f}m Trigger]", end=" ")
-                else:
-                    mapped_labels[max(0, stress_start - int(MIN_PRESTRESS_MINUTES * 60 * TARGET_HZ)):stress_start] = 1
-                    print(f"[{MIN_PRESTRESS_MINUTES:.1f}m Max FB]", end=" ")
-            else:
-                mapped_labels[max(0, stress_start - int(MIN_PRESTRESS_MINUTES * 60 * TARGET_HZ)):stress_start] = 1
-                print(f"[{MIN_PRESTRESS_MINUTES:.1f}m Max FB]", end=" ")
+        mapped_labels[labels_raw == 2] = 1  # Map WESAD Stress (2) to Binary Target (1)
+        # All other states (Amusement, Baseline, Meditation) organically collapse to 0.
 
-        # 3.11 Sliding Window Extraction (Hard Labels)
+        # 3.10 Sliding Window Extraction (Hard Labels)
         chunks = 0
         for i in range(0, min_len - WINDOW_STEPS, STRIDE_STEPS):
             window_end = i + WINDOW_STEPS
             # Horizon lookback (5s before window end)
             target_labels = mapped_labels[window_end - (5 * TARGET_HZ) : window_end]
             
-            # Determine majority class to create a Hard Label for Focal Loss
-            hard_label = np.bincount(target_labels.astype(int), minlength=3).argmax()
+            # Determine majority class to create a Hard Label for Binary Loss
+            hard_label = int(np.bincount(target_labels.astype(int), minlength=2).argmax())
             
-            # Convert to float32 one-hot vector
-            one_hot_label = np.zeros(3, dtype=np.float32)
+            # Convert to float32 one-hot vector (Shape: [2])
+            one_hot_label = np.zeros(2, dtype=np.float32)
             one_hot_label[hard_label] = 1.0
             
             all_X.append(continuous_X_calib[i:window_end, :].T)
@@ -276,11 +222,12 @@ def main():
     final_y = np.array(all_y, dtype=np.float32)
     final_sub = np.array(all_sub)
 
-    np.save(os.path.join(SAVE_DIR, 'WESAD_X_calibrated.npy'), final_X)
-    np.save(os.path.join(SAVE_DIR, 'WESAD_y_labeled.npy'), final_y)
-    np.save(os.path.join(SAVE_DIR, 'WESAD_sub_labeled.npy'), final_sub)
-    print(f"\nPreprocessing Complete. Tensors saved to {SAVE_DIR}.")
+    np.save(os.path.join(SAVE_DIR, 'WESAD_X_binary.npy'), final_X)
+    np.save(os.path.join(SAVE_DIR, 'WESAD_y_binary.npy'), final_y)
+    np.save(os.path.join(SAVE_DIR, 'WESAD_sub_binary.npy'), final_sub)
+    print(f"\nPreprocessing Complete. Binary Tensors saved to {SAVE_DIR}.")
     print(f"X: {final_X.shape} | y: {final_y.shape}")
+    print(f"Class Balance (0 vs 1): {np.sum(final_y, axis=0)}")
 
 if __name__ == "__main__":
     main()

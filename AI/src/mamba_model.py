@@ -221,7 +221,7 @@ class MeltdownGuardConfig:
     def __init__(self, **kwargs):
         self.enc_in = kwargs.get('enc_in', 9)
         self.seq_len = kwargs.get('seq_len', 3840)
-        self.num_class = kwargs.get('num_class', 3)
+        self.num_class = kwargs.get('num_class', 2)
 
         self.projected_space = kwargs.get('projected_space', 64)
         self.d_state = kwargs.get('d_state', 16)
