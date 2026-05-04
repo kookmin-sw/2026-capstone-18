@@ -2,6 +2,14 @@
 
 This runbook walks through the one-time external setup Sprint 3 depends on. Steps 1-3 happen outside the codebase (Supabase + Google + AWS dashboards). The remaining sprint code assumes everything here is in place.
 
+## Before You Start
+
+- AWS CLI v2 installed and authenticated. The local profile `little-signals-staging` must be configured with permissions to read/write Secrets Manager and run Terraform against the staging account (set up in Sprint 2).
+- `terraform` >= 1.7.0 (matches the version pinned by Sprint 2's `infra/main.tf`).
+- `jq` available on PATH (used by `scripts/run-staging-migration.sh` and the smoke test).
+- Sprint 2 already merged and applied — the staging RDS, ECS cluster, and Route 53 zone for `littlesignals.app` exist. The smoke test in section 7 depends on `api-staging.littlesignals.app` resolving to the Sprint 2 ALB.
+- Access to the team's shared Supabase account and Google Cloud Console.
+
 ## 1. Create Supabase Project
 
 1. Sign in at <https://supabase.com> with the project's shared account.
@@ -19,11 +27,11 @@ This runbook walks through the one-time external setup Sprint 3 depends on. Step
 In `Authentication → Providers`:
 
 1. **Email**: enable but do not configure SMTP for Sprint 3 (we do not use email login this sprint).
-2. **Anonymous Sign-Ins**: **enable**. (`Authentication → Providers → Email → Allow anonymous sign-ins`.) The backend uses native anonymous sign-in.
+2. **Anonymous Sign-Ins**: **enable**. The toggle has moved between sub-pages over time — search the `Authentication` section for "anonymous" if it isn't where you expect (recent locations include `Authentication → Sign In / Providers`, `Authentication → Settings → User Signups`, and `Authentication → Providers → Email`). The backend uses native anonymous sign-in.
 3. **Google**:
    - Enable.
    - `Client ID for OAuth` and `Client Secret` come from step 3 below.
-   - Authorized client IDs (skip OS-specific lists for now; Android client comes in a later sprint).
+   - Leave the **Authorized Client IDs** field blank. The Android-specific client ID will be added in a later mobile sprint.
 
 ## 3. Configure Google OAuth Client
 
@@ -63,7 +71,7 @@ AWS_PROFILE=little-signals-staging terraform plan -var-file=staging.tfvars
 AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
 ```
 
-Plan should show: one new `aws_secretsmanager_secret`, IAM policy diff, ECS task definition diff. Apply.
+Plan should show: one new `aws_secretsmanager_secret`, IAM policy diff, ECS task definition diff, and a new `supabase_secret_arn` output. Apply.
 
 ## 6. Run the Sprint 3 Migration Against Staging RDS
 
