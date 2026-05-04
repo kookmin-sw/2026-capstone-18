@@ -29,13 +29,14 @@ async def test_ready_returns_ok_when_db_responds(db_session: AsyncSession) -> No
     async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
+    original_overrides = app.dependency_overrides.copy()
     app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)
     try:
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/ready")
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides = original_overrides
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "database": "ok"}
@@ -50,13 +51,14 @@ async def test_ready_returns_503_when_db_fails() -> None:
     async def _override_get_db() -> AsyncGenerator[BrokenSession, None]:
         yield BrokenSession()
 
+    original_overrides = app.dependency_overrides.copy()
     app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)
     try:
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/ready")
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides = original_overrides
 
     assert response.status_code == 503
     assert response.json() == {"detail": {"status": "error", "database": "unreachable"}}
