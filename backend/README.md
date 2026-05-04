@@ -92,16 +92,17 @@ cd ..
 AWS_PROFILE=little-signals-staging make ecr-login
 AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.2.0
 cd infra
-AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
+ECR_URL="$(AWS_PROFILE=little-signals-staging terraform output -raw ecr_repository_url)"
+AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars -var "container_image=$ECR_URL:0.2.0"
 cd ..
 AWS_PROFILE=little-signals-staging ./scripts/enable-rds-timescaledb.sh
 AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
 make smoke-staging
 ```
 
-Expected staging URL: `https://api-staging.littlesignals.app`.
+The first `terraform apply` provisions networking, ECR, RDS, and the ALB/ECS service against the placeholder image in `staging.tfvars`. After `make ecr-push` lands a real image, the second apply re-points the ECS task definition at that image via `-var container_image=...` so the service actually rolls out the backend.
 
-Two `terraform apply` invocations are intentional: the first creates ECR + RDS + networking, then we push the image, then we apply again to bring up ECS/ALB referencing the now-real image.
+Expected staging URL: `https://api-staging.littlesignals.app`.
 
 ## Sprint status
 
