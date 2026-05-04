@@ -14,7 +14,7 @@ DATA_DIR = os.path.join(AI_ROOT, 'data', 'raw', 'WESAD')
 SAVE_DIR = os.path.join(AI_ROOT, 'data', 'processed', 'WESAD')
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-os.makedirs(SAVE_DIR, exist_ok=True)
+FEMALE_SUBJECTS = ['S8', 'S11', 'S17']
 
 TARGET_HZ = 64
 WINDOW_SECONDS = 60
@@ -97,10 +97,14 @@ def main():
 
     all_X, all_y, all_sub = [], [], []
 
-    print(f"Starting Optimized 9-Channel Preprocessing (Binary Classification)")
-    print(f"Window: {WINDOW_SECONDS}s | Stride: {STRIDE_SECONDS}s")
-
     for subject in subject_folders:
+        
+        if subject not in FEMALE_SUBJECTS:
+            continue
+
+        print(f"Starting Optimized 9-Channel Preprocessing (FEMALE ONLY)")
+        print(f"Targeting: {FEMALE_SUBJECTS}")
+
         pkl_path = os.path.join(DATA_DIR, subject, f'{subject}.pkl')
         if not os.path.exists(pkl_path): continue
             
