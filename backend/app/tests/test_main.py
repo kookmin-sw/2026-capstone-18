@@ -40,3 +40,28 @@ async def test_openapi_metadata_present() -> None:
     spec = response.json()
     assert spec["info"]["title"] == "little-signals backend"
     assert spec["info"]["version"]
+
+
+@pytest.mark.asyncio
+async def test_request_id_header_returned() -> None:
+    """Each response carries an X-Request-ID header."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/health")
+
+    request_id = response.headers.get("x-request-id")
+    assert request_id is not None
+    assert len(request_id) == 36  # uuid4 string length
+
+
+@pytest.mark.asyncio
+async def test_client_supplied_request_id_is_honored() -> None:
+    """If the client sends X-Request-ID, the server echoes it back."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/health",
+            headers={"X-Request-ID": "my-correlation-id-1"},
+        )
+
+    assert response.headers["x-request-id"] == "my-correlation-id-1"
