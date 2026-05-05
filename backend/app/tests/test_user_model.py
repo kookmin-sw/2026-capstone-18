@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -66,3 +67,29 @@ async def test_deleted_at_marks_user_as_pending_deletion(db_session: AsyncSessio
     await db_session.flush()
 
     assert user.deleted_at is not None
+
+
+@pytest.mark.asyncio
+async def test_anon_id_is_unique_across_users(db_session: AsyncSession) -> None:
+    shared_anon_id = uuid.uuid4()
+    db_session.add(User(anon_id=shared_anon_id))
+    await db_session.flush()
+
+    # Wrap the conflicting insert in a SAVEPOINT so the IntegrityError only rolls back
+    # the savepoint, leaving the outer per-test transaction intact for teardown.
+    async with db_session.begin_nested():
+        db_session.add(User(anon_id=shared_anon_id))
+        with pytest.raises(IntegrityError):
+            await db_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_supabase_user_id_is_unique_across_users(db_session: AsyncSession) -> None:
+    shared_supabase_id = uuid.uuid4()
+    db_session.add(User(supabase_user_id=shared_supabase_id, anon_id=uuid.uuid4()))
+    await db_session.flush()
+
+    async with db_session.begin_nested():
+        db_session.add(User(supabase_user_id=shared_supabase_id, anon_id=uuid.uuid4()))
+        with pytest.raises(IntegrityError):
+            await db_session.flush()
