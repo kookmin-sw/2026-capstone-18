@@ -61,3 +61,15 @@ make smoke-staging
 - RDS security group allows inbound `5432` only from the ECS security group.
 - Secrets Manager contains the RDS-managed master user secret for `little-signals-staging-postgres`.
 - ECR repository has image tags `0.2.0` and `latest`.
+
+## Sprint 3 Verification Checklist
+
+- `little-signals-staging/supabase` secret in AWS Secrets Manager contains keys `url`, `anon_key`, `service_role_key`, `jwt_secret`, `google_oauth_client_id`.
+- ECS task definition env contains five new entries sourced from `:json-key::` references on the Supabase secret.
+- Alembic migration `expand_users_and_add_user_settings` is applied to staging RDS (`alembic_version` table reflects the new revision).
+- `users` table has `supabase_user_id`, `anon_id`, `role`, `consent_raw_biosignals`, `consent_revoked_at`, `deleted_at` columns.
+- `user_settings` table exists with all spec §6.3 default values.
+- `curl -fsS -X POST https://api-staging.littlesignals.app/api/v1/auth/anon` returns a `TokenResponse` with `is_anonymous: true`.
+- That JWT can hit `https://api-staging.littlesignals.app/api/v1/me` and returns the new user.
+- Posting a real Google ID token to `/api/v1/auth/google` (via the mobile build or `gcloud auth print-identity-token`) returns a non-anonymous JWT.
+- `DELETE /api/v1/account` sets `deleted_at`; subsequent `GET /me` returns 403; `POST /api/v1/account/restore` within 30 days clears the flag.
