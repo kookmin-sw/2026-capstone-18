@@ -37,6 +37,15 @@ TEST_DATABASE_URL = os.environ.get(
 )
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
+# Sprint 3 Supabase fields are required Settings — provide harmless test defaults
+# so test collection works without a populated .env. Individual tests override
+# these via monkeypatch + Settings.cache_clear() when they need real values.
+os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
+os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
+os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
+os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-do-not-use-in-prod")
+os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client.apps.googleusercontent.com")
+
 # Imports below MUST come after the env override above
 from app.db.dependencies import get_db  # noqa: E402
 from app.db.session import engine  # noqa: E402
