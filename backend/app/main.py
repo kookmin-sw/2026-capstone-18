@@ -83,3 +83,8 @@ async def ready(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, str]:
             detail={"status": "error", "database": "unreachable"},
         ) from exc
     return {"status": "ok", "database": "ok"}
+
+
+from app.auth.router import router as auth_router  # noqa: E402
+
+app.include_router(auth_router, prefix="/api/v1")
