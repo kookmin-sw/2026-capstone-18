@@ -130,7 +130,7 @@ async def sign_in_with_google(
         scheme, _, token = auth_header.partition(" ")
         if scheme.lower() == "bearer" and token:
             try:
-                claims = verify_supabase_jwt(token)
+                claims = await verify_supabase_jwt(token)
             except JWTVerificationError:
                 claims = None
             if claims and claims.get("is_anonymous") is True:

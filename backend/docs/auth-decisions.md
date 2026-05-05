@@ -22,13 +22,13 @@ This file records architectural decisions made during Sprint 3 so future sprints
 
 **Why:** Sprint 3 has no per-user data yet, so a "merge" would have nothing to merge. Logging into the existing account preserves the long-tenured user's history once stress_events lands. Revisit when the data model has rows worth merging.
 
-## ADR-4: JWT verification uses HS256 + project JWT secret
+## ADR-4: JWT verification uses JWKS-based ES256/RS256
 
-**Decision:** Use `python-jose` HS256 with `Settings.supabase_jwt_secret`. Do not implement JWKS-based RS256 verification yet.
+**Decision:** Use `python-jose` with the project's JWKS endpoint (`<supabase_url>/auth/v1/.well-known/jwks.json`). The verifier matches the token's `kid` header against the JWK set, retries the fetch once if the key isn't found (cache-rotation safety), and decodes with the algorithm declared by the JWK (`ES256` or `RS256`).
 
-**Why:** Supabase issues HS256 tokens by default with the project JWT secret across all current projects. Asymmetric signing keys are an opt-in beta. HS256 keeps test mocking simple — tests just inject a known secret and re-sign tokens with it.
+**Why:** Sprint 3 originally planned HS256 + the project JWT secret on the assumption that Supabase issued HS256 by default. In practice, Supabase projects now sign with asymmetric keys (ES256 in particular) and the legacy "JWT secret" exposed in the dashboard is no longer what tokens are signed with. JWKS-based verification matches what Supabase actually issues, supports key rotation without code changes, and follows the same pattern already used by `app.auth.google` for Google ID tokens.
 
-**Trade-offs:** When Supabase rotates the JWT secret (rare, opt-in), every running container needs the new secret in its env via the Sprint 3 `aws_secretsmanager_secret.supabase` secret update + ECS rolling deploy.
+**Trade-offs:** Adds a network round trip on the first JWT verification per process (subsequent verifications hit the in-memory cache). Test fixtures generate an ES256 keypair at module load and prime the verifier's `_jwks_cache` directly, so unit tests don't hit the network.
 
 ## ADR-5: 30-day account-deletion grace is enforced lazily
 

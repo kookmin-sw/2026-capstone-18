@@ -46,7 +46,7 @@ async def get_current_user_id(request: Request) -> uuid.UUID:
         )
 
     try:
-        claims = verify_supabase_jwt(token)
+        claims = await verify_supabase_jwt(token)
     except JWTExpiredError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
