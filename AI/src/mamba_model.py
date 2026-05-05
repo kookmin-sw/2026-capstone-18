@@ -7,7 +7,7 @@ mamba-ssm 패키지 없이 순수 PyTorch로 Selective SSM을 구현.
 DLPC 등 패키지 설치가 제한된 환경에서 사용.
 
 데이터 흐름:
-    [B, 5, 3840]
+    [B, 9, 3840]
     → stem: Conv1d(5→64) + GELU + BN → [B, 64, 60]
     → permute → [B, 60, 64]
     → MambaBlock (시간 방향) → [B, 60, 64]
