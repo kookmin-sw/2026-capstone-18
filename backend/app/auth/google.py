@@ -18,6 +18,9 @@ from app.config import get_settings
 GOOGLE_ISSUERS = {"https://accounts.google.com", "accounts.google.com"}
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 
+# Module-level cache. Two concurrent cold-start requests can both fetch and
+# both write, but the writes are idempotent (same JWKS within a rotation
+# window), so we accept the rare double-fetch instead of paying for an asyncio.Lock.
 _jwks_cache: dict[str, Any] | None = None
 
 

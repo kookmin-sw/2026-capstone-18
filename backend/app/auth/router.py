@@ -137,6 +137,7 @@ async def sign_in_with_google(
 
     # Upgrade path.
     if anon_supabase_id is not None:
+        upgraded = False
         try:
             await client.admin_update_user(
                 anon_supabase_id,
@@ -144,9 +145,28 @@ async def sign_in_with_google(
                 user_metadata={"google_sub": google_sub},
                 email_confirm=True,
             )
-            session = await client.sign_in_with_id_token(
-                provider="google", id_token=payload.id_token
-            )
+            upgraded = True
+        except SupabaseAuthError:
+            # Collision: a Google user with this email/sub already exists in Supabase.
+            # Soft-delete the abandoned anon row and fall through to plain Google sign-in
+            # so the caller is logged into the existing Supabase account.
+            await _abandon_anon_user(db, anon_supabase_id)
+
+        if upgraded:
+            # admin_update_user succeeded — issue tokens for the upgraded user.
+            # If sign_in_with_id_token fails here it is a real downstream error and
+            # MUST surface as 502, not as a collision fall-through (the user's anon
+            # row is now mid-upgrade in Supabase and silently abandoning it would
+            # leave a half-upgraded Supabase artifact).
+            try:
+                session = await client.sign_in_with_id_token(
+                    provider="google", id_token=payload.id_token
+                )
+            except SupabaseAuthError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail={"status": "error", "reason": "supabase_unavailable"},
+                ) from exc
             await _ensure_user_row(db, session.user_id, anon_id=None)
             return TokenResponse(
                 access_token=session.access_token,
@@ -154,10 +174,6 @@ async def sign_in_with_google(
                 expires_in=session.expires_in,
                 is_anonymous=session.is_anonymous,
             )
-        except SupabaseAuthError:
-            # Collision: a Google user with this email/sub already exists in Supabase.
-            # Fall through to plain Google sign-in and abandon the anon row.
-            await _abandon_anon_user(db, anon_supabase_id)
 
     # Plain (or post-collision) Google sign-in.
     try:
