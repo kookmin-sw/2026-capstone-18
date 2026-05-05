@@ -104,9 +104,10 @@ def save_incremental_log(log_path, fold_metrics):
 # 3. K-FOLD VALIDATION PIPELINE
 # ==========================================
 def run_group_kfold(args):
-    X = np.load(os.path.join(args.data_dir, 'WESAD_X_calibrated.npy'))
-    y = np.load(os.path.join(args.data_dir, 'WESAD_y_labeled.npy'))
-    sub = np.load(os.path.join(args.data_dir, 'WESAD_sub_labeled.npy'), allow_pickle=True)
+# CHANGE THESE:
+    X = np.load(os.path.join(args.data_dir, 'Merged_X_binary.npy'))
+    y = np.load(os.path.join(args.data_dir, 'Merged_y_binary.npy'))
+    sub = np.load(os.path.join(args.data_dir, 'Merged_sub_binary.npy'), allow_pickle=True)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device} | Total Samples: {X.shape[0]}")
@@ -138,15 +139,15 @@ def run_group_kfold(args):
             
         print(f"\n{'='*60}")
         print(f"Fold {current_fold_num}/5")
-        print(f"Train on 12 Subjects: {train_subs.tolist()}")
-        print(f"Test on 3 Subjects:  {test_subs.tolist()}")
+        print(f"Train on {len(train_subs)} Subjects: {train_subs.tolist()}")
+        print(f"Test on {len(test_subs)} Subjects:  {test_subs.tolist()}")
         print(f"{'='*60}")
 
         X_train, y_train = X[train_idx], y[train_idx]
         X_test, y_test = X[test_idx], y[test_idx]
 
         y_train_hard = y_train.argmax(axis=1)
-        cw = compute_class_weight('balanced', classes=np.array([0, 1, 2]), y=y_train_hard)
+        cw = compute_class_weight('balanced', classes=np.array([0, 1]), y=y_train_hard)
         
         # Dampen extreme weights using square root
         cw = np.sqrt(cw)
@@ -156,7 +157,7 @@ def run_group_kfold(args):
         test_loader = DataLoader(WESADTensorDataset(X_test, y_test), batch_size=args.batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
         model_config = {
-            'enc_in': X.shape[1], 'seq_len': X.shape[2], 'num_class': 3,
+            'enc_in': X.shape[1], 'seq_len': X.shape[2], 'num_class': 2,
             'projected_space': args.projected_space, 'd_state': args.d_state,
             'dconv': args.dconv, 'e_fact': args.e_fact, 'num_mambas': args.num_mambas,
             'dropout': args.dropout, 'patch_len': args.patch_len,
@@ -269,7 +270,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='MeltdownGuard-Mamba 12/3 KFold')
     
-    parser.add_argument('--data_dir', type=str, default=os.path.join(PROJECT_ROOT, 'data', 'processed'))
+    parser.add_argument('--data_dir', type=str, default=os.path.join(PROJECT_ROOT, 'data', 'processed', 'Merged'))
     parser.add_argument('--save_dir', type=str, default=os.path.join(PROJECT_ROOT, 'checkpoints'))
     
     parser.add_argument('--epochs', type=int, default=50)
