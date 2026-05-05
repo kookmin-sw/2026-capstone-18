@@ -1,4 +1,4 @@
-"""Tests for the User model — placeholder fields only in Sprint 1."""
+"""User model tests — fields, defaults, and the UserSettings relationship."""
 
 from __future__ import annotations
 
@@ -7,37 +7,62 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import AsyncSessionLocal
 from app.models.user import User
+from app.models.user_settings import UserSettings
 
 
 @pytest.mark.asyncio
-async def test_create_user_persists_to_db() -> None:
-    user = User()
-    async with AsyncSessionLocal() as session:
-        session.add(user)
-        await session.commit()
-        assert user.id is not None
-        assert isinstance(user.id, uuid.UUID)
-        assert user.created_at is not None
-        assert isinstance(user.created_at, datetime)
+async def test_user_defaults_to_anonymous(db_session: AsyncSession) -> None:
+    user = User(anon_id=uuid.uuid4())
+    db_session.add(user)
+    await db_session.flush()
+
+    assert user.id is not None
+    assert user.supabase_user_id is None
+    assert user.anon_id is not None
+    assert user.role == "user"
+    assert user.consent_raw_biosignals is False
+    assert user.consent_revoked_at is None
+    assert user.deleted_at is None
+    assert isinstance(user.created_at, datetime)
 
 
 @pytest.mark.asyncio
-async def test_query_user_round_trip() -> None:
-    user = User()
-    async with AsyncSessionLocal() as session:
-        session.add(user)
-        await session.commit()
-        original_id = user.id
+async def test_user_can_be_promoted_with_supabase_id(db_session: AsyncSession) -> None:
+    user = User(anon_id=uuid.uuid4(), supabase_user_id=uuid.uuid4())
+    db_session.add(user)
+    await db_session.flush()
 
-    # New session — proves the row really hit the DB
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(User).where(User.id == original_id))
-        fetched = result.scalar_one()
-        assert fetched.id == original_id
-        # created_at should be timezone-aware and recent
-        assert fetched.created_at.tzinfo is not None
-        delta = datetime.now(UTC) - fetched.created_at
-        assert delta.total_seconds() < 60
+    assert user.supabase_user_id is not None
+
+
+@pytest.mark.asyncio
+async def test_user_settings_relationship_is_configured(db_session: AsyncSession) -> None:
+    user = User(anon_id=uuid.uuid4())
+    db_session.add(user)
+    await db_session.flush()
+
+    settings_row = UserSettings(user_id=user.id)
+    db_session.add(settings_row)
+    await db_session.flush()
+
+    refreshed = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
+    await db_session.refresh(refreshed, attribute_names=["settings"])
+    assert refreshed.settings is not None
+    assert refreshed.settings.notification_max_per_day == 5
+    assert refreshed.settings.stress_threshold == pytest.approx(0.75)
+    assert refreshed.settings.language == "ko"
+
+
+@pytest.mark.asyncio
+async def test_deleted_at_marks_user_as_pending_deletion(db_session: AsyncSession) -> None:
+    user = User(anon_id=uuid.uuid4())
+    db_session.add(user)
+    await db_session.flush()
+
+    user.deleted_at = datetime.now(tz=UTC)
+    await db_session.flush()
+
+    assert user.deleted_at is not None

@@ -24,6 +24,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -70,7 +71,10 @@ async def test_engine() -> AsyncIterator:  # type: ignore[type-arg]
     Separate from the production engine so disposing the production engine
     between tests doesn't disturb in-flight transactions on this one.
     """
-    eng = create_async_engine(TEST_DATABASE_URL, pool_pre_ping=True)
+    # NullPool: don't reuse connections across tests. pytest-asyncio creates a
+    # fresh event loop per test, so any pooled connection from a prior test is
+    # bound to a closed loop and explodes on the next pool_pre_ping.
+    eng = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
     yield eng
     await eng.dispose()
 
