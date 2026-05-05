@@ -51,6 +51,7 @@ os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client.apps.googleusercont
 from app.db.dependencies import get_db  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.tests.conftest_jwt import make_jwt, supabase_jwt_secret  # noqa: F401, E402
 
 
 @pytest_asyncio.fixture(autouse=True)
