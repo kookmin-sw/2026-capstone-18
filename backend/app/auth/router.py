@@ -9,6 +9,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -23,7 +24,12 @@ from app.auth.supabase_client import SupabaseAuthClient, SupabaseAuthError
 from app.config import get_settings
 from app.db.dependencies import get_db
 from app.models.user import User
-from app.schemas.auth import GoogleSignInRequest, TokenResponse
+from app.schemas.auth import (
+    GoogleSignInRequest,
+    LogoutResponse,
+    RefreshRequest,
+    TokenResponse,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -191,3 +197,38 @@ async def sign_in_with_google(
         expires_in=session.expires_in,
         is_anonymous=session.is_anonymous,
     )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_session(payload: RefreshRequest) -> TokenResponse:
+    client = _get_supabase_client()
+    try:
+        session = await client.refresh_session(payload.refresh_token)
+    except SupabaseAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"status": "error", "reason": "refresh_failed"},
+        ) from exc
+    return TokenResponse(
+        access_token=session.access_token,
+        refresh_token=session.refresh_token,
+        expires_in=session.expires_in,
+        is_anonymous=session.is_anonymous,
+    )
+
+
+@router.post("/logout", response_model=LogoutResponse)
+async def sign_out(request: Request) -> LogoutResponse:
+    auth_header = request.headers.get("authorization") or ""
+    scheme, _, token = auth_header.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"status": "error", "reason": "missing_authorization_header"},
+        )
+    client = _get_supabase_client()
+    # Best-effort: if Supabase rejects the token (already expired etc.)
+    # the client is still effectively logged out locally.
+    with contextlib.suppress(SupabaseAuthError):
+        await client.sign_out(token)
+    return LogoutResponse(status="ok")

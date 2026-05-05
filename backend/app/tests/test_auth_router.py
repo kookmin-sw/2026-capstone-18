@@ -284,3 +284,43 @@ async def test_anon_to_google_collision_logs_in_existing_and_abandons_anon(
     # Anon row should be abandoned (deleted_at set).
     abandoned = (await db_session.execute(select(User).where(User.id == anon.id))).scalar_one()
     assert abandoned.deleted_at is not None
+
+
+@pytest.mark.asyncio
+async def test_refresh_returns_new_tokens(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    new_session = _supabase_session_for(uuid.uuid4(), anon=True)
+
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.refresh_session.return_value = new_session
+        get_client.return_value = client_mock
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post("/api/v1/auth/refresh", json={"refresh_token": "old-rt"})
+    assert response.status_code == 200
+    assert response.json()["access_token"] == "test-access-token"
+
+
+@pytest.mark.asyncio
+async def test_logout_returns_ok(
+    db_session: AsyncSession,  # noqa: ARG001
+    supabase_jwt_secret: str,  # noqa: ARG001
+    make_jwt: Any,
+) -> None:
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.sign_out.return_value = None
+        get_client.return_value = client_mock
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post(
+                "/api/v1/auth/logout",
+                headers={"Authorization": f"Bearer {make_jwt()}"},
+            )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
