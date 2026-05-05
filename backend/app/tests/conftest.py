@@ -24,6 +24,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -37,10 +38,20 @@ TEST_DATABASE_URL = os.environ.get(
 )
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
+# Sprint 3 Supabase fields are required Settings — provide harmless test defaults
+# so test collection works without a populated .env. Individual tests override
+# these via monkeypatch + Settings.cache_clear() when they need real values.
+os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
+os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
+os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
+os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-do-not-use-in-prod")
+os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client.apps.googleusercontent.com")
+
 # Imports below MUST come after the env override above
 from app.db.dependencies import get_db  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.tests.conftest_jwt import make_jwt, supabase_jwt_secret  # noqa: F401, E402
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -61,7 +72,10 @@ async def test_engine() -> AsyncIterator:  # type: ignore[type-arg]
     Separate from the production engine so disposing the production engine
     between tests doesn't disturb in-flight transactions on this one.
     """
-    eng = create_async_engine(TEST_DATABASE_URL, pool_pre_ping=True)
+    # NullPool: don't reuse connections across tests. pytest-asyncio creates a
+    # fresh event loop per test, so any pooled connection from a prior test is
+    # bound to a closed loop and explodes on the next pool_pre_ping.
+    eng = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
     yield eng
     await eng.dispose()
 

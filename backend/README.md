@@ -107,4 +107,4 @@ Expected staging URL: `https://api-staging.littlesignals.app`.
 
 ## Sprint status
 
-Currently in **Sprint 2 — First AWS Deploy**. See [`docs/superpowers/plans/`](docs/superpowers/plans/) for the active plan.
+Currently in **Sprint 3 — Auth + User Model**. See [`docs/superpowers/plans/`](docs/superpowers/plans/) for the active plan, [`docs/auth-decisions.md`](docs/auth-decisions.md) for sprint-3 decisions, and [`docs/auth-patterns.md`](docs/auth-patterns.md) for the protected-endpoint pattern.

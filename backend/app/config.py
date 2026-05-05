@@ -31,6 +31,21 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     """Reported by /health. Bump on release."""
 
+    supabase_url: str
+    """Project URL, e.g. https://<project-ref>.supabase.co."""
+
+    supabase_anon_key: str
+    """Public anon key. Safe to expose to client builds; treated as a secret here only because it controls API quota."""
+
+    supabase_service_role_key: str
+    """Service-role secret. NEVER ship to clients. Used for admin operations (anon-to-Google upgrade)."""
+
+    supabase_jwt_secret: str
+    """HS256 secret used to verify Supabase-issued JWTs."""
+
+    google_oauth_client_id: str
+    """Google Cloud OAuth client ID. Used as the expected `aud` when verifying Google ID tokens directly."""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
