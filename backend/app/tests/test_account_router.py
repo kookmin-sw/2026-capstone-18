@@ -163,6 +163,68 @@ async def test_restore_account_rejects_after_grace_window(
 
 
 @pytest.mark.asyncio
+async def test_restore_account_returns_404_when_user_missing(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    make_jwt: Any,
+) -> None:
+    # Mint a JWT for a Supabase user_id that has no User row.
+    nonexistent_supabase_id = uuid.uuid4()
+
+    from app.db.dependencies import get_db
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post(
+                "/api/v1/account/restore",
+                headers={"Authorization": f"Bearer {make_jwt(sub=str(nonexistent_supabase_id))}"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["reason"] == "user_not_found"
+
+
+@pytest.mark.asyncio
+async def test_restore_account_is_noop_when_not_deleted(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    make_jwt: Any,
+) -> None:
+    supabase_id = uuid.uuid4()
+    user = User(supabase_user_id=supabase_id, anon_id=uuid.uuid4())
+    db_session.add(user)
+    await db_session.flush()
+
+    from app.db.dependencies import get_db
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post(
+                "/api/v1/account/restore",
+                headers={"Authorization": f"Bearer {make_jwt(sub=str(supabase_id))}"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["deleted_at"] is None
+
+
+@pytest.mark.asyncio
 async def test_me_rejects_deleted_user_with_403(
     db_session: AsyncSession,
     supabase_jwt_secret: str,  # noqa: ARG001

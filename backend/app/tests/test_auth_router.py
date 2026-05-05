@@ -287,6 +287,61 @@ async def test_anon_to_google_collision_logs_in_existing_and_abandons_anon(
 
 
 @pytest.mark.asyncio
+async def test_anon_to_google_post_upgrade_supabase_failure_returns_502(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    google_claims: dict[str, Any],
+) -> None:
+    anon_supabase_id = uuid.uuid4()
+    anon = User(supabase_user_id=anon_supabase_id, anon_id=uuid.uuid4())
+    db_session.add(anon)
+    await db_session.flush()
+
+    from app.auth.supabase_client import SupabaseAuthError
+    from app.tests.conftest_jwt import make_supabase_jwt
+
+    anon_jwt = make_supabase_jwt(sub=str(anon_supabase_id), is_anonymous=True)
+
+    with (
+        patch(
+            "app.auth.router._verify_google_id_token",
+            new=AsyncMock(return_value=google_claims),
+        ),
+        patch("app.auth.router._get_supabase_client") as get_client,
+    ):
+        client_mock = AsyncMock()
+        client_mock.admin_update_user.return_value = {"id": str(anon_supabase_id)}
+        client_mock.sign_in_with_id_token.side_effect = SupabaseAuthError(
+            500, {"msg": "internal error"}
+        )
+        get_client.return_value = client_mock
+
+        from app.db.dependencies import get_db
+
+        async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                response = await http.post(
+                    "/api/v1/auth/google",
+                    json={"id_token": "google-token"},
+                    headers={"Authorization": f"Bearer {anon_jwt}"},
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["reason"] == "supabase_unavailable"
+    # admin_update_user succeeded, so the anon row should NOT have been abandoned —
+    # the 502 surfaces the half-upgrade state to the caller for retry.
+    refreshed = (await db_session.execute(select(User).where(User.id == anon.id))).scalar_one()
+    assert refreshed.deleted_at is None
+
+
+@pytest.mark.asyncio
 async def test_refresh_returns_new_tokens(
     db_session: AsyncSession,
     supabase_jwt_secret: str,  # noqa: ARG001
