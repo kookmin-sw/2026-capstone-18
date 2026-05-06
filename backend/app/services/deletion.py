@@ -109,3 +109,39 @@ async def purge_expired_accounts(db: AsyncSession, *, grace_window_days: int) ->
         cutoff=cutoff.isoformat(),
     )
     return len(expired)
+
+
+async def purge_revoked_biosignals(db: AsyncSession) -> int:
+    """Delete raw biosignal uploads for users whose consent has been revoked.
+
+    Returns count of *users* whose biosignals were purged in this run (each
+    user contributes 0..N S3 deletes). Users without any uploads still in
+    the table contribute 0 to the return — the job is idempotent.
+    """
+    settings = get_settings()
+    rows = (
+        await db.execute(
+            select(RawBiosignalUpload.user_id, RawBiosignalUpload.s3_object_key)
+            .join(User, User.id == RawBiosignalUpload.user_id)
+            .where(User.consent_revoked_at.isnot(None))
+        )
+    ).all()
+
+    if not rows:
+        return 0
+
+    by_user: dict[uuid.UUID, list[str]] = {}
+    for user_id, key in rows:
+        by_user.setdefault(user_id, []).append(key)
+
+    for user_id, keys in by_user.items():
+        await _delete_s3_keys_best_effort([(settings.s3_bucket_biosignals, k) for k in keys])
+        await db.execute(delete(RawBiosignalUpload).where(RawBiosignalUpload.user_id == user_id))
+
+    await db.flush()
+    logger.info(
+        "deletion_purge_revoked_biosignals",
+        users=len(by_user),
+        objects=sum(len(v) for v in by_user.values()),
+    )
+    return len(by_user)

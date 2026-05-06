@@ -228,3 +228,111 @@ async def test_purge_expired_accounts_handles_mixed_batch(
         "Contents", []
     )
     assert contents == []
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_deletes_uploads_for_revoked_user(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_revoked_at=datetime.now(tz=UTC),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    s3_mock.put_object(
+        Bucket="little-signals-biosignals-staging",
+        Key=f"users/{user.id}/biosignals/hrv/a.bin",
+        Body=b"x",
+    )
+    db_session.add(
+        RawBiosignalUpload(
+            user_id=user.id,
+            s3_object_key=f"users/{user.id}/biosignals/hrv/a.bin",
+            signal_type="hrv",
+            recorded_at=datetime.now(tz=UTC),
+        )
+    )
+    await db_session.flush()
+
+    purged = await purge_revoked_biosignals(db_session)
+
+    assert purged == 1
+    remaining = (
+        (
+            await db_session.execute(
+                select(RawBiosignalUpload).where(RawBiosignalUpload.user_id == user.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining == []
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-biosignals-staging").get(
+        "Contents", []
+    )
+    assert contents == []
+    # User row stays — only biosignal data is wiped.
+    surviving = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
+    assert surviving.consent_revoked_at is not None
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_skips_user_without_revocation(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_raw_biosignals=True,
+        consent_revoked_at=None,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(
+        RawBiosignalUpload(
+            user_id=user.id,
+            s3_object_key=f"users/{user.id}/biosignals/hrv/a.bin",
+            signal_type="hrv",
+            recorded_at=datetime.now(tz=UTC),
+        )
+    )
+    await db_session.flush()
+
+    purged = await purge_revoked_biosignals(db_session)
+    assert purged == 0
+    remaining = (
+        (
+            await db_session.execute(
+                select(RawBiosignalUpload).where(RawBiosignalUpload.user_id == user.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(remaining) == 1
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_idempotent(db_session: AsyncSession, s3_mock: Any) -> None:
+    """Second run on an already-cleaned user is a no-op."""
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_revoked_at=datetime.now(tz=UTC),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    first = await purge_revoked_biosignals(db_session)
+    second = await purge_revoked_biosignals(db_session)
+    assert first == 0
+    assert second == 0
