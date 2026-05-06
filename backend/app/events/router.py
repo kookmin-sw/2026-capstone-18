@@ -8,16 +8,25 @@ or the route must 404 (we don't reveal existence).
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
 from app.db.dependencies import get_db
 from app.models.stress_event import StressEvent
 from app.models.user import User
-from app.schemas.events import StressEventCreate, StressEventResponse
+from app.schemas.events import (
+    StressEventCreate,
+    StressEventFilter,
+    StressEventList,
+    StressEventResponse,
+    decode_cursor,
+    encode_cursor,
+)
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -50,3 +59,79 @@ async def create_event(
     await db.flush()
     await db.refresh(event)
     return event
+
+
+@router.get(
+    "",
+    response_model=StressEventList,
+    summary="List the caller's stress events with optional filters",
+)
+async def list_events(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    start: Annotated[datetime | None, Query()] = None,
+    end: Annotated[datetime | None, Query()] = None,
+    logged: Annotated[bool | None, Query()] = None,
+    cycle_phase: Annotated[str | None, Query()] = None,
+    chip: Annotated[str | None, Query()] = None,
+    cursor: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> StressEventList:
+    try:
+        filters = StressEventFilter(
+            start=start,
+            end=end,
+            logged=logged,
+            cycle_phase=cycle_phase,
+            chip=chip,
+            cursor=cursor,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail={"status": "error", "reason": str(exc)}
+        ) from exc
+
+    stmt = select(StressEvent).where(StressEvent.user_id == user.id)
+    if filters.start is not None:
+        stmt = stmt.where(StressEvent.detected_at >= filters.start)
+    if filters.end is not None:
+        stmt = stmt.where(StressEvent.detected_at <= filters.end)
+    if filters.logged is not None:
+        stmt = stmt.where(StressEvent.logged.is_(filters.logged))
+    if filters.cycle_phase is not None:
+        stmt = stmt.where(StressEvent.cycle_phase == filters.cycle_phase)
+    if filters.chip is not None:
+        stmt = stmt.where(StressEvent.log_chips.contains([filters.chip]))
+
+    if filters.cursor is not None:
+        try:
+            cur_at, cur_id = decode_cursor(filters.cursor)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"status": "error", "reason": "invalid_cursor"},
+            ) from exc
+        # Keyset pagination: rows strictly older than the cursor in (detected_at, id) order.
+        stmt = stmt.where(
+            or_(
+                StressEvent.detected_at < cur_at,
+                and_(StressEvent.detected_at == cur_at, StressEvent.id < cur_id),
+            )
+        )
+
+    stmt = stmt.order_by(StressEvent.detected_at.desc(), StressEvent.id.desc())
+    stmt = stmt.limit(filters.limit + 1)  # +1 to detect "is there more"
+    rows = (await db.execute(stmt)).scalars().all()
+
+    has_more = len(rows) > filters.limit
+    items = rows[: filters.limit]
+    next_cursor = (
+        encode_cursor(detected_at=items[-1].detected_at, event_id=items[-1].id)
+        if has_more and items
+        else None
+    )
+    return StressEventList(
+        items=[StressEventResponse.model_validate(item) for item in items],
+        next_cursor=next_cursor,
+    )
