@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -94,3 +95,80 @@ async def test_delete_s3_keys_best_effort_swallows_errors(
     )
 
     assert deleted == 0
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_accounts_deletes_user_past_grace(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_expired_accounts
+
+    expired_at = datetime.now(tz=UTC) - timedelta(days=31)
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=expired_at,
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    s3_mock.put_object(
+        Bucket="little-signals-sync-staging",
+        Key=f"users/{user.id}/backup/a.bin",
+        Body=b"x",
+    )
+    db_session.add(
+        SyncBlob(
+            user_id=user.id,
+            s3_object_key=f"users/{user.id}/backup/a.bin",
+            kind="backup",
+            byte_size=1,
+        )
+    )
+    await db_session.flush()
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+
+    assert purged == 1
+    rows = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one_or_none()
+    assert rows is None
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-sync-staging").get("Contents", [])
+    assert contents == []
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_accounts_skips_user_within_grace(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_expired_accounts
+
+    recent = datetime.now(tz=UTC) - timedelta(days=5)
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=recent,
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+
+    assert purged == 0
+    surviving = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
+    assert surviving.deleted_at == recent
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_accounts_skips_active_user(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_expired_accounts
+
+    user = User(supabase_user_id=uuid.uuid4(), anon_id=uuid.uuid4(), deleted_at=None)
+    db_session.add(user)
+    await db_session.flush()
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+    assert purged == 0
+    surviving = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
+    assert surviving.deleted_at is None
