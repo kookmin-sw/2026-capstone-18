@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     websocket_idle_timeout_seconds: int = 300
     """Connections with no heartbeat for this long are considered stale."""
 
+    account_grace_window_days: int = 30
+    """Days a soft-deleted user has to call POST /account/restore before the
+    purge job hard-deletes them. Sprint 3's `delete_account` writes
+    `users.deleted_at`; Sprint 6's `purge_expired_accounts` walks the table."""
+
+    purge_interval_seconds: int = 3600
+    """How often the lifespan loop runs the deletion jobs. Sprint 6 keeps the
+    jobs in-process; Sprint 7 (EventBridge) will retire this knob."""
+
     firebase_credentials_json: str | None = None
     """JSON-encoded Firebase service account credentials. Injected from
     Secrets Manager in staging/prod. Optional locally — when absent, the

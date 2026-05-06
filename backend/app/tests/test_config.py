@@ -76,3 +76,13 @@ def test_settings_loads_supabase_fields(monkeypatch: pytest.MonkeyPatch) -> None
     assert s.supabase_service_role_key == "service-role-secret"
     assert s.supabase_jwt_secret == "super-secret"
     assert s.google_oauth_client_id == "1234.apps.googleusercontent.com"
+
+
+def test_settings_have_purge_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sprint 6 adds two purge-job knobs with sensible defaults."""
+    from app.config import Settings, get_settings
+
+    get_settings.cache_clear()
+    s = Settings()
+    assert s.account_grace_window_days == 30
+    assert s.purge_interval_seconds == 3600
