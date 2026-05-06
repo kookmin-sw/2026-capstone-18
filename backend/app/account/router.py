@@ -26,14 +26,18 @@ GRACE_WINDOW = timedelta(days=30)
 router = APIRouter(tags=["account"])
 
 
-@router.get("/me", response_model=CurrentUserResponse)
+@router.get(
+    "/me", response_model=CurrentUserResponse, summary="Return the authenticated user's profile"
+)
 async def me(
     user: Annotated[User, Depends(get_current_user)],
 ) -> CurrentUserResponse:
     return CurrentUserResponse.model_validate(user)
 
 
-@router.delete("/account", response_model=AccountActionResponse)
+@router.delete(
+    "/account", response_model=AccountActionResponse, summary="Initiate the 30-day grace deletion"
+)
 async def delete_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -43,7 +47,11 @@ async def delete_account(
     return AccountActionResponse(status="ok", deleted_at=user.deleted_at)
 
 
-@router.post("/account/restore", response_model=AccountActionResponse)
+@router.post(
+    "/account/restore",
+    response_model=AccountActionResponse,
+    summary="Cancel a pending deletion within the grace window",
+)
 async def restore_account(
     user_id: Annotated[uuid.UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],

@@ -30,6 +30,7 @@ from app.schemas.auth import (
     RefreshRequest,
     TokenResponse,
 )
+from app.services.user_settings import ensure_user_settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -57,10 +58,12 @@ async def _ensure_user_row(
         await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
     ).scalar_one_or_none()
     if existing is not None:
+        await ensure_user_settings(db, existing)
         return existing
     user = User(supabase_user_id=supabase_user_id, anon_id=anon_id)
     db.add(user)
     await db.flush()
+    await ensure_user_settings(db, user)
     return user
 
 
@@ -74,7 +77,7 @@ async def _abandon_anon_user(db: AsyncSession, supabase_user_id: uuid.UUID) -> N
         await db.flush()
 
 
-@router.post("/anon", response_model=TokenResponse)
+@router.post("/anon", response_model=TokenResponse, summary="Issue a JWT for an anonymous user")
 async def sign_in_anonymously(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
@@ -97,6 +100,7 @@ async def sign_in_anonymously(
         )
         db.add(user)
         await db.flush()
+        await ensure_user_settings(db, user)
 
     return TokenResponse(
         access_token=session.access_token,
@@ -106,7 +110,11 @@ async def sign_in_anonymously(
     )
 
 
-@router.post("/google", response_model=TokenResponse)
+@router.post(
+    "/google",
+    response_model=TokenResponse,
+    summary="Exchange a Google ID token for a Supabase session",
+)
 async def sign_in_with_google(
     payload: GoogleSignInRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -199,7 +207,7 @@ async def sign_in_with_google(
     )
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, summary="Refresh an expired access token")
 async def refresh_session(payload: RefreshRequest) -> TokenResponse:
     client = _get_supabase_client()
     try:
@@ -217,7 +225,7 @@ async def refresh_session(payload: RefreshRequest) -> TokenResponse:
     )
 
 
-@router.post("/logout", response_model=LogoutResponse)
+@router.post("/logout", response_model=LogoutResponse, summary="Revoke the caller's session")
 async def sign_out(request: Request) -> LogoutResponse:
     auth_header = request.headers.get("authorization") or ""
     scheme, _, token = auth_header.partition(" ")

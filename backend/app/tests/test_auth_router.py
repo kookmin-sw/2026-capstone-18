@@ -334,7 +334,7 @@ async def test_anon_to_google_post_upgrade_supabase_failure_returns_502(
             app.dependency_overrides.clear()
 
     assert response.status_code == 502
-    assert response.json()["detail"]["reason"] == "supabase_unavailable"
+    assert response.json()["reason"] == "supabase_unavailable"
     # admin_update_user succeeded, so the anon row should NOT have been abandoned —
     # the 502 surfaces the half-upgrade state to the caller for retry.
     refreshed = (await db_session.execute(select(User).where(User.id == anon.id))).scalar_one()

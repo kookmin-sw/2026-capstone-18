@@ -107,3 +107,48 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+import uuid as _uuid_helpers  # noqa: E402
+from typing import Any as _Any  # noqa: E402
+
+import pytest as _pytest  # noqa: E402
+
+from app.models.user import User as _User  # noqa: E402
+
+
+@_pytest.fixture
+def auth_headers(make_jwt: _Any) -> _Any:  # noqa: ANN401, F811
+    """Return a callable: `auth_headers(sub)` -> dict suitable for httpx.
+
+    Usage:
+        headers = auth_headers(str(user.supabase_user_id))
+    """
+
+    def _build(sub: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {make_jwt(sub=sub)}"}
+
+    return _build
+
+
+@_pytest.fixture
+async def make_user(db_session):  # type: ignore[no-untyped-def]
+    """Insert a User row in the test session and return it.
+
+    Usage:
+        user = await make_user()
+        user = await make_user(deleted_at=datetime.now(tz=UTC))
+    """
+
+    async def _build(**overrides: _Any) -> _User:
+        defaults = {
+            "supabase_user_id": _uuid_helpers.uuid4(),
+            "anon_id": _uuid_helpers.uuid4(),
+        }
+        defaults.update(overrides)
+        user = _User(**defaults)
+        db_session.add(user)
+        await db_session.flush()
+        return user
+
+    return _build

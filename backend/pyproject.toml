@@ -77,3 +77,10 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 addopts = "-ra --strict-markers"
 testpaths = ["app/tests"]
+
+[tool.coverage.run]
+# PEP 669 sys.monitoring tracer (Python 3.12+) follows coroutines across
+# asyncio task resumes; the default C-trace tracer drops coverage on every
+# `await` boundary, which makes async route handlers look uncovered even
+# when their tests pass.
+core = "sysmon"

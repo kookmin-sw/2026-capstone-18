@@ -107,4 +107,8 @@ Expected staging URL: `https://api-staging.friendlykr.com`.
 
 ## Sprint status
 
-Currently in **Sprint 3 — Auth + User Model**. See [`docs/superpowers/plans/`](docs/superpowers/plans/) for the active plan, [`docs/auth-decisions.md`](docs/auth-decisions.md) for sprint-3 decisions, and [`docs/auth-patterns.md`](docs/auth-patterns.md) for the protected-endpoint pattern.
+Currently in **Sprint 4 — Core Data Endpoints (in progress)**.
+
+Endpoints in this sprint: `/api/v1/events`, `/api/v1/cycles`, `/api/v1/settings`, `/api/v1/consent`. See [`docs/sprint-4-deploy-runbook.md`](docs/sprint-4-deploy-runbook.md) for the staging deploy + smoke-test procedure.
+
+Earlier sprint references: [`docs/superpowers/plans/`](docs/superpowers/plans/) for active plans, [`docs/auth-decisions.md`](docs/auth-decisions.md) for sprint-3 auth decisions, and [`docs/auth-patterns.md`](docs/auth-patterns.md) for the protected-endpoint pattern.
