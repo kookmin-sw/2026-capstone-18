@@ -87,6 +87,8 @@ async def ready(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, str]:
 
 from app.account.router import router as account_router  # noqa: E402
 from app.auth.router import router as auth_router  # noqa: E402
+from app.events.router import router as events_router  # noqa: E402
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(account_router, prefix="/api/v1")
+app.include_router(events_router, prefix="/api/v1")
