@@ -62,7 +62,7 @@ AWS_REGION ?= ap-northeast-2
 AWS_PROFILE ?= little-signals-staging
 IMAGE_TAG ?= 0.2.0
 ECR_REPOSITORY_URL ?= $(shell cd infra && AWS_PROFILE=$(AWS_PROFILE) terraform output -raw ecr_repository_url 2>/dev/null)
-STAGING_API_URL ?= https://api-staging.littlesignals.app
+STAGING_API_URL ?= https://api-staging.friendlykr.com
 
 _require-ecr-url:
 	@if [ -z "$(ECR_REPOSITORY_URL)" ]; then \
@@ -70,8 +70,8 @@ _require-ecr-url:
 	  exit 1; \
 	fi
 
-docker-build:  ## Build the backend Docker image.
-	docker build -t little-signals-backend:$(IMAGE_TAG) .
+docker-build:  ## Build the backend Docker image (pinned to linux/amd64 for ECS Fargate).
+	docker build --platform linux/amd64 -t little-signals-backend:$(IMAGE_TAG) .
 
 ecr-login: _require-ecr-url  ## Authenticate Docker to AWS ECR.
 	aws ecr get-login-password --region $(AWS_REGION) --profile $(AWS_PROFILE) | \
