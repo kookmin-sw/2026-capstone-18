@@ -7,11 +7,13 @@ Run locally with:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated
 
+import structlog
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
@@ -26,6 +28,8 @@ from app.realtime.cleanup import clear_task_connections, sweep_stale_connections
 settings = get_settings()
 
 configure_logging(level=settings.log_level)
+
+logger = structlog.get_logger(__name__)
 
 
 async def _sweep_loop() -> None:
@@ -44,7 +48,7 @@ async def _sweep_loop() -> None:
                 )
                 await db.commit()
         except Exception:  # noqa: BLE001
-            pass
+            logger.exception("websocket_sweep_failed")
         await asyncio.sleep(60)
 
 
@@ -61,6 +65,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         sweep_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await sweep_task
 
 
 app = FastAPI(
