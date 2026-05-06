@@ -146,6 +146,7 @@ from app.devices.router import router as devices_router  # noqa: E402
 from app.events.router import router as events_router  # noqa: E402
 from app.realtime.router import router as realtime_router  # noqa: E402
 from app.settings_api.router import router as settings_router  # noqa: E402
+from app.sync.router import router as sync_router  # noqa: E402
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(account_router, prefix="/api/v1")
@@ -154,4 +155,5 @@ app.include_router(cycles_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(consent_router, prefix="/api/v1")
 app.include_router(devices_router, prefix="/api/v1")
+app.include_router(sync_router, prefix="/api/v1")
 app.include_router(realtime_router)
