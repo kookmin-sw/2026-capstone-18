@@ -54,10 +54,36 @@ def upgrade() -> None:
     op.execute(
         "SELECT create_hypertable('stress_events', 'detected_at', if_not_exists => TRUE)"
     )
+    op.create_table(
+        "cycles",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("period_start_date", sa.Date(), nullable=False),
+        sa.Column("period_end_date", sa.Date(), nullable=True),
+        sa.Column("cycle_length_days", sa.Integer(), nullable=True),
+        sa.Column("auto_detected", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column("user_corrected", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "ix_cycles_user_period_start",
+        "cycles",
+        ["user_id", "period_start_date"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.drop_index("ix_cycles_user_period_start", table_name="cycles")
+    op.drop_table("cycles")
     op.drop_index("ix_stress_events_user_detected", table_name="stress_events")
     op.drop_index("ix_stress_events_id", table_name="stress_events")
     op.drop_table("stress_events")
