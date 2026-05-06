@@ -11,7 +11,9 @@ from app.auth.dependencies import get_current_user
 from app.db.dependencies import get_db
 from app.models.user import User
 from app.models.user_settings import UserSettings
+from app.schemas.realtime import OutboundMessage
 from app.schemas.settings import UserSettingsResponse, UserSettingsUpdate
+from app.services.notifications import notifier
 from app.services.user_settings import ensure_user_settings
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -63,4 +65,9 @@ async def patch_settings(
         settings.language = payload.language
     await db.flush()
     await db.refresh(settings)
+    await notifier.notify_user(
+        db,
+        user_id=user.id,
+        message=OutboundMessage(type="settings.updated", data={}),
+    )
     return settings

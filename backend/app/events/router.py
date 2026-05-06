@@ -28,6 +28,8 @@ from app.schemas.events import (
     decode_cursor,
     encode_cursor,
 )
+from app.schemas.realtime import OutboundMessage
+from app.services.notifications import notifier
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -59,6 +61,11 @@ async def create_event(
     db.add(event)
     await db.flush()
     await db.refresh(event)
+    await notifier.notify_user(
+        db,
+        user_id=user.id,
+        message=OutboundMessage(type="events.created", data={"id": str(event.id)}),
+    )
     return event
 
 
@@ -203,6 +210,11 @@ async def patch_event(
         row.user_response = payload.user_response
     await db.flush()
     await db.refresh(row)
+    await notifier.notify_user(
+        db,
+        user_id=user.id,
+        message=OutboundMessage(type="events.updated", data={"id": str(row.id)}),
+    )
     return row
 
 
@@ -229,6 +241,11 @@ async def delete_event(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"status": "error", "reason": "event_not_found"},
         )
+    await notifier.notify_user(
+        db,
+        user_id=user.id,
+        message=OutboundMessage(type="events.deleted", data={"id": str(event_id)}),
+    )
     await db.delete(row)
     await db.flush()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

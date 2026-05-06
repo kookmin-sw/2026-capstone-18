@@ -20,7 +20,9 @@ from app.schemas.cycles import (
     CycleResponse,
     CycleUpdate,
 )
+from app.schemas.realtime import OutboundMessage
 from app.services.cycle_phase import compute_phase
+from app.services.notifications import notifier
 
 router = APIRouter(prefix="/cycles", tags=["cycles"])
 
@@ -50,6 +52,17 @@ async def period_start(
     db.add(cycle)
     await db.flush()
     await db.refresh(cycle)
+    await notifier.notify_user(
+        db,
+        user_id=user.id,
+        message=OutboundMessage(
+            type="cycles.period_started",
+            data={
+                "id": str(cycle.id),
+                "period_start_date": cycle.period_start_date.isoformat(),
+            },
+        ),
+    )
     return cycle
 
 
