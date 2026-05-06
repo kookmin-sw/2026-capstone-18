@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 from typing import Annotated, Literal
 
 import structlog
@@ -13,9 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.config import get_settings
 from app.db.dependencies import get_db
+from app.models.raw_biosignal_upload import RawBiosignalUpload
 from app.models.sync_blob import SyncBlob
 from app.models.user import User
 from app.schemas.sync import (
+    BiosignalUploadRequest,
+    BiosignalUploadResponse,
     SyncDownloadResponse,
     SyncUploadRequest,
     SyncUploadResponse,
@@ -127,3 +131,51 @@ async def sync_wipe(
     await db.execute(delete(SyncBlob).where(SyncBlob.user_id == user.id))
     await db.flush()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/biosignals",
+    response_model=BiosignalUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Get a presigned URL to upload an opt-in raw biosignal blob",
+)
+async def biosignals_upload(
+    payload: BiosignalUploadRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> BiosignalUploadResponse:
+    if not user.consent_raw_biosignals or user.consent_revoked_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"status": "error", "reason": "consent_required"},
+        )
+
+    settings = get_settings()
+    upload_id = uuid.uuid4()
+    object_key = f"users/{user.id}/biosignals/{payload.signal_type}/{upload_id}.bin"
+    expires_at = payload.recorded_at + timedelta(days=365)
+
+    row = RawBiosignalUpload(
+        id=upload_id,
+        user_id=user.id,
+        s3_object_key=object_key,
+        signal_type=payload.signal_type,
+        recorded_at=payload.recorded_at,
+        expires_at=expires_at,
+    )
+    db.add(row)
+    await db.flush()
+
+    url = await presign_put(
+        bucket=settings.s3_bucket_biosignals,
+        key=object_key,
+        content_length=payload.byte_size,
+        expires_in=settings.s3_presign_expiry_seconds,
+    )
+    return BiosignalUploadResponse(
+        upload_id=upload_id,
+        s3_object_key=object_key,
+        presigned_put_url=url,
+        expires_in=settings.s3_presign_expiry_seconds,
+        expires_at=expires_at,
+    )

@@ -33,3 +33,21 @@ class SyncDownloadResponse(BaseModel):
     presigned_get_url: str
     byte_size: int
     created_at: datetime
+
+
+SignalType = Literal["hrv", "ppg", "eda", "temp", "accel"]
+
+
+class BiosignalUploadRequest(BaseModel):
+    signal_type: SignalType
+    recorded_at: datetime
+    byte_size: int = Field(gt=0, le=MAX_BLOB_BYTES)
+    content_hash: str = Field(min_length=1, max_length=128)
+
+
+class BiosignalUploadResponse(BaseModel):
+    upload_id: uuid.UUID
+    s3_object_key: str
+    presigned_put_url: str
+    expires_in: int
+    expires_at: datetime
