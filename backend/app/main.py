@@ -24,6 +24,7 @@ from app.db.dependencies import get_db
 from app.db.session import AsyncSessionLocal
 from app.observability.logging import bind_request_id, clear_request_id, configure_logging
 from app.realtime.cleanup import clear_task_connections, sweep_stale_connections
+from app.services.deletion import purge_expired_accounts, purge_revoked_biosignals
 from app.services.fcm import init_firebase
 
 settings = get_settings()
@@ -53,6 +54,25 @@ async def _sweep_loop() -> None:
         await asyncio.sleep(60)
 
 
+async def _purge_loop() -> None:
+    """Background task: hard-delete expired accounts and revoked biosignals.
+
+    Sprint 6 runs this in-process. Sprint 7 (EventBridge) will replace it
+    with a managed cron, same plan as `_sweep_loop`. Errors are swallowed
+    so a transient DB or S3 hiccup never wedges the loop.
+    """
+    cfg = get_settings()
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                await purge_expired_accounts(db, grace_window_days=cfg.account_grace_window_days)
+                await purge_revoked_biosignals(db)
+                await db.commit()
+        except Exception:  # noqa: BLE001
+            logger.exception("purge_loop_failed")
+        await asyncio.sleep(cfg.purge_interval_seconds)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """App lifespan: clear this task's stale rows on startup, then sweep periodically."""
@@ -63,12 +83,15 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         await db.commit()
 
     sweep_task = asyncio.create_task(_sweep_loop())
+    purge_task = asyncio.create_task(_purge_loop())
     try:
         yield
     finally:
         sweep_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await sweep_task
+        purge_task.cancel()
+        for task in (sweep_task, purge_task):
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 app = FastAPI(
