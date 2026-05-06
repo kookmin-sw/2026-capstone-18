@@ -103,7 +103,7 @@ make smoke-staging
 
 The first `terraform apply` provisions networking, ECR, RDS, and the ALB/ECS service against the placeholder image in `staging.tfvars`. After `make ecr-push` lands a real image, the second apply re-points the ECS task definition at that image via `-var container_image=...` so the service actually rolls out the backend.
 
-Expected staging URL: `https://api-staging.littlesignals.app`.
+Expected staging URL: `https://api-staging.friendlykr.com`.
 
 ## Sprint status
 

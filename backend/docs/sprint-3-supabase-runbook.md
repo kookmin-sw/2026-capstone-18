@@ -7,7 +7,7 @@ This runbook walks through the one-time external setup Sprint 3 depends on. Step
 - AWS CLI v2 installed and authenticated. The local profile `little-signals-staging` must be configured with permissions to read/write Secrets Manager and run Terraform against the staging account (set up in Sprint 2).
 - `terraform` >= 1.7.0 (matches the version pinned by Sprint 2's `infra/main.tf`).
 - `jq` available on PATH (used by `scripts/run-staging-migration.sh` and the smoke test).
-- Sprint 2 already merged and applied — the staging RDS, ECS cluster, and Route 53 zone for `littlesignals.app` exist. The smoke test in section 7 depends on `api-staging.littlesignals.app` resolving to the Sprint 2 ALB.
+- Sprint 2 already merged and applied — the staging RDS, ECS cluster, and Route 53 zone for `friendlykr.com` exist. The smoke test in section 7 depends on `api-staging.friendlykr.com` resolving to the Sprint 2 ALB.
 - Access to the team's shared Supabase account and Google Cloud Console.
 
 ## 1. Create Supabase Project
@@ -86,10 +86,10 @@ Expected: migration applies, exit code 0. Confirm by inspecting the alembic_vers
 
 ```bash
 # Get an anonymous JWT.
-ANON_TOKEN=$(curl -fsS -X POST https://api-staging.littlesignals.app/api/v1/auth/anon | jq -r '.access_token')
+ANON_TOKEN=$(curl -fsS -X POST https://api-staging.friendlykr.com/api/v1/auth/anon | jq -r '.access_token')
 
 # Hit /me with it.
-curl -fsS -H "Authorization: Bearer $ANON_TOKEN" https://api-staging.littlesignals.app/api/v1/me
+curl -fsS -H "Authorization: Bearer $ANON_TOKEN" https://api-staging.friendlykr.com/api/v1/me
 ```
 
 Expected: the second curl returns `{"id":"...","supabase_user_id":"...","anon_id":"...",...}`.

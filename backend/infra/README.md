@@ -52,8 +52,8 @@ make smoke-staging
 
 ## Sprint 2 Verification Checklist
 
-- `curl -fsS https://api-staging.littlesignals.app/health` returns `{"status":"ok","version":"0.2.0"}`.
-- `curl -fsS https://api-staging.littlesignals.app/ready` returns `{"status":"ok","database":"ok"}`.
+- `curl -fsS https://api-staging.friendlykr.com/health` returns `{"status":"ok","version":"0.2.0"}`.
+- `curl -fsS https://api-staging.friendlykr.com/ready` returns `{"status":"ok","database":"ok"}`.
 - ECS service desired count is `1` and running count is `1`.
 - ALB target group shows one healthy target.
 - CloudWatch log group `/ecs/little-signals-staging-backend` has recent logs.
@@ -69,7 +69,7 @@ make smoke-staging
 - Alembic migration `expand_users_and_add_user_settings` is applied to staging RDS (`alembic_version` table reflects the new revision).
 - `users` table has `supabase_user_id`, `anon_id`, `role`, `consent_raw_biosignals`, `consent_revoked_at`, `deleted_at` columns.
 - `user_settings` table exists with all spec §6.3 default values.
-- `curl -fsS -X POST https://api-staging.littlesignals.app/api/v1/auth/anon` returns a `TokenResponse` with `is_anonymous: true`.
-- That JWT can hit `https://api-staging.littlesignals.app/api/v1/me` and returns the new user.
+- `curl -fsS -X POST https://api-staging.friendlykr.com/api/v1/auth/anon` returns a `TokenResponse` with `is_anonymous: true`.
+- That JWT can hit `https://api-staging.friendlykr.com/api/v1/me` and returns the new user.
 - Posting a real Google ID token to `/api/v1/auth/google` (via the mobile build or `gcloud auth print-identity-token`) returns a non-anonymous JWT.
 - `DELETE /api/v1/account` sets `deleted_at`; subsequent `GET /me` returns 403; `POST /api/v1/account/restore` within 30 days clears the flag.
