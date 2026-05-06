@@ -107,7 +107,9 @@ Expected staging URL: `https://api-staging.friendlykr.com`.
 
 ## Sprint status
 
-Currently in **Sprint 5 — Real-time + Sync (in progress)**.
+Currently in **Sprint 6 — Privacy + Deletion (in progress)**.
+
+Sprint 6 reference: [`docs/sprint-6-deploy-runbook.md`](docs/sprint-6-deploy-runbook.md) for the deletion jobs (`app.services.deletion`) and CLI entrypoints (`app.jobs.purge_accounts`, `app.jobs.purge_biosignals`).
 
 Endpoints in this sprint: `/ws/realtime`, `/api/v1/devices/fcm-token`, `/api/v1/sync/{upload,download}`, `DELETE /api/v1/sync`, `/api/v1/sync/biosignals`. See [`docs/sprint-5-deploy-runbook.md`](docs/sprint-5-deploy-runbook.md) for the staging deploy + smoke-test procedure, and [`docs/sprint-5-firebase-runbook.md`](docs/sprint-5-firebase-runbook.md) for the FCM setup.
 
