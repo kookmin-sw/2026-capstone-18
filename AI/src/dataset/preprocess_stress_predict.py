@@ -11,11 +11,11 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 AI_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 
 RAW_DIR = os.path.join(AI_ROOT, 'data', 'raw', 'StressPredict')
-SAVE_DIR = os.path.join(AI_ROOT, 'data', 'processed')
+SAVE_DIR = os.path.join(AI_ROOT, 'data', 'processed', 'StressPredict')
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 TARGET_HZ = 64
-WINDOW_SECONDS = 60
+WINDOW_SECONDS = 180
 STRIDE_SECONDS = 5
 
 WINDOW_STEPS = WINDOW_SECONDS * TARGET_HZ
@@ -140,12 +140,11 @@ def main():
                 print(f"  Warning: No baseline found for {sub_folder}. Skipping.")
                 continue
 
-            baseline_eda = eda_64[baseline_mask][:TARGET_HZ * 60] # First 60 seconds
-            baseline_bvp = bvp_64[baseline_mask][:TARGET_HZ * 60]
-            
-            # Find the actual indices where the baseline occurred to calibrate variance later
+            baseline_eda = eda_64[baseline_mask][:WINDOW_STEPS] 
+            baseline_bvp = bvp_64[baseline_mask][:WINDOW_STEPS]
+
             b_start_idx = np.where(baseline_mask)[0][0]
-            b_end_idx = b_start_idx + (60 * TARGET_HZ)
+            b_end_idx = b_start_idx + WINDOW_STEPS
 
             eda_mean, eda_std = np.mean(baseline_eda), np.std(baseline_eda)
             bvp_mean, bvp_std = np.mean(baseline_bvp), np.std(baseline_bvp)
@@ -153,6 +152,12 @@ def main():
             # Feature 1-3: Base Calibration & Global ACC Scaling
             eda_calib = (eda_64 - eda_mean) / (eda_std + 1e-8)
             bvp_calib = (bvp_64 - bvp_mean) / (bvp_std + 1e-8)
+
+
+            CLIP_MIN = -35.0
+            CLIP_MAX = 35.0
+            eda_calib = np.clip(eda_calib, CLIP_MIN, CLIP_MAX)
+            bvp_calib = np.clip(bvp_calib, CLIP_MIN, CLIP_MAX)
             
             acc_mag_raw = np.sqrt(acc_64[:, 0]**2 + acc_64[:, 1]**2 + acc_64[:, 2]**2)
             GLOBAL_ACC_MEAN = 64.0  # Approx 1g resting magnitude on E4
