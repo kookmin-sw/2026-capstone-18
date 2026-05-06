@@ -72,10 +72,33 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("user_id", "token", name="pk_fcm_tokens"),
     )
     op.create_index("ix_fcm_tokens_user_id", "fcm_tokens", ["user_id"])
+    op.create_table(
+        "sync_blobs",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("s3_object_key", sa.String(length=512), nullable=False),
+        sa.Column("kind", sa.String(length=32), nullable=False),
+        sa.Column("byte_size", sa.BigInteger(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "ix_sync_blobs_user_kind_created",
+        "sync_blobs",
+        ["user_id", "kind", "created_at"],
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.drop_index("ix_sync_blobs_user_kind_created", table_name="sync_blobs")
+    op.drop_table("sync_blobs")
     op.drop_constraint("ck_fcm_tokens_platform", "fcm_tokens", type_="check")
     op.drop_index("ix_fcm_tokens_user_id", table_name="fcm_tokens")
     op.drop_table("fcm_tokens")

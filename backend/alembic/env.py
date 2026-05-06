@@ -14,7 +14,14 @@ from app.config import get_settings
 from app.db.base import Base
 
 # Import models so Base.metadata sees them for autogenerate
-from app.models import Cycle, FcmToken, StressEvent, User, WebsocketConnection  # noqa: F401
+from app.models import (  # noqa: F401
+    Cycle,
+    FcmToken,
+    StressEvent,
+    SyncBlob,
+    User,
+    WebsocketConnection,
+)
 
 # Alembic Config object provides access to values within the .ini file in use
 config = context.config

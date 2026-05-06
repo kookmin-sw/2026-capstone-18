@@ -132,6 +132,33 @@ def auth_headers(make_jwt: _Any) -> _Any:  # noqa: ANN401, F811
 
 
 @_pytest.fixture
+def s3_mock():  # type: ignore[no-untyped-def]
+    """Spin up an in-process S3 mock and create the two Sprint 5 buckets.
+
+    Resets the cached boto3 client so each test gets a fresh connection.
+    """
+    from moto import mock_aws
+
+    with mock_aws():
+        import boto3
+
+        from app.services.s3 import _client
+
+        _client.cache_clear()
+        client = boto3.client("s3", region_name="ap-northeast-2")
+        client.create_bucket(
+            Bucket="little-signals-sync-staging",
+            CreateBucketConfiguration={"LocationConstraint": "ap-northeast-2"},
+        )
+        client.create_bucket(
+            Bucket="little-signals-biosignals-staging",
+            CreateBucketConfiguration={"LocationConstraint": "ap-northeast-2"},
+        )
+        yield client
+        _client.cache_clear()
+
+
+@_pytest.fixture
 async def make_user(db_session):  # type: ignore[no-untyped-def]
     """Insert a User row in the test session and return it.
 

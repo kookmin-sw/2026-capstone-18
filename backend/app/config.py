@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     Secrets Manager in staging/prod. Optional locally — when absent, the
     FCM service short-circuits to a no-op for tests."""
 
+    s3_bucket_sync: str = "little-signals-sync-staging"
+    s3_bucket_biosignals: str = "little-signals-biosignals-staging"
+    s3_presign_expiry_seconds: int = 3600
+    aws_region: str = "ap-northeast-2"
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
