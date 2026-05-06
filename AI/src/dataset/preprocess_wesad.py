@@ -17,7 +17,7 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 FEMALE_SUBJECTS = ['S8', 'S11', 'S17']
 
 TARGET_HZ = 64
-WINDOW_SECONDS = 60
+WINDOW_SECONDS = 180
 STRIDE_SECONDS = 5
 
 WINDOW_STEPS = WINDOW_SECONDS * TARGET_HZ
@@ -141,6 +141,11 @@ def main():
         
         eda_calib = (eda_raw - np.mean(eda_raw[b_start:b_end])) / (np.std(eda_raw[b_start:b_end]) + 1e-8)
         bvp_calib = (bvp_raw - np.mean(bvp_raw[b_start:b_end])) / (np.std(bvp_raw[b_start:b_end]) + 1e-8)
+    
+        CLIP_MIN = -35.0
+        CLIP_MAX = 35.0
+        eda_calib = np.clip(eda_calib, CLIP_MIN, CLIP_MAX)
+        bvp_calib = np.clip(bvp_calib, CLIP_MIN, CLIP_MAX)
         
         # 3.4 Global Accelerometer Standardization (Replaces per-subject Z-Score)
         acc_mag_raw = np.sqrt(np.sum(acc_raw**2, axis=1))
