@@ -172,3 +172,59 @@ async def test_purge_expired_accounts_skips_active_user(
     assert purged == 0
     surviving = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
     assert surviving.deleted_at is None
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_accounts_handles_mixed_batch(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    """Two expired users in one call: one has biosignals, one has no S3 data."""
+    from app.services.deletion import purge_expired_accounts
+
+    expired_at = datetime.now(tz=UTC) - timedelta(days=31)
+
+    user_with_biosignals = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=expired_at,
+    )
+    user_with_no_data = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=expired_at,
+    )
+    db_session.add_all([user_with_biosignals, user_with_no_data])
+    await db_session.flush()
+
+    s3_mock.put_object(
+        Bucket="little-signals-biosignals-staging",
+        Key=f"users/{user_with_biosignals.id}/biosignals/hrv/a.bin",
+        Body=b"x",
+    )
+    db_session.add(
+        RawBiosignalUpload(
+            user_id=user_with_biosignals.id,
+            s3_object_key=f"users/{user_with_biosignals.id}/biosignals/hrv/a.bin",
+            signal_type="hrv",
+            recorded_at=datetime.now(tz=UTC),
+        )
+    )
+    await db_session.flush()
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+
+    assert purged == 2
+    remaining_users = (
+        (
+            await db_session.execute(
+                select(User).where(User.id.in_([user_with_biosignals.id, user_with_no_data.id]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining_users == []
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-biosignals-staging").get(
+        "Contents", []
+    )
+    assert contents == []
