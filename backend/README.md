@@ -107,8 +107,10 @@ Expected staging URL: `https://api-staging.friendlykr.com`.
 
 ## Sprint status
 
-Currently in **Sprint 4 — Core Data Endpoints (in progress)**.
+Currently in **Sprint 5 — Real-time + Sync (in progress)**.
 
-Endpoints in this sprint: `/api/v1/events`, `/api/v1/cycles`, `/api/v1/settings`, `/api/v1/consent`. See [`docs/sprint-4-deploy-runbook.md`](docs/sprint-4-deploy-runbook.md) for the staging deploy + smoke-test procedure.
+Endpoints in this sprint: `/ws/realtime`, `/api/v1/devices/fcm-token`, `/api/v1/sync/{upload,download}`, `DELETE /api/v1/sync`, `/api/v1/sync/biosignals`. See [`docs/sprint-5-deploy-runbook.md`](docs/sprint-5-deploy-runbook.md) for the staging deploy + smoke-test procedure, and [`docs/sprint-5-firebase-runbook.md`](docs/sprint-5-firebase-runbook.md) for the FCM setup.
+
+Sprint 4 reference: [`docs/sprint-4-deploy-runbook.md`](docs/sprint-4-deploy-runbook.md) for the core data endpoints (`/api/v1/events`, `/api/v1/cycles`, `/api/v1/settings`, `/api/v1/consent`).
 
 Earlier sprint references: [`docs/superpowers/plans/`](docs/superpowers/plans/) for active plans, [`docs/auth-decisions.md`](docs/auth-decisions.md) for sprint-3 auth decisions, and [`docs/auth-patterns.md`](docs/auth-patterns.md) for the protected-endpoint pattern.
