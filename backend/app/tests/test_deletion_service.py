@@ -336,3 +336,64 @@ async def test_purge_revoked_biosignals_idempotent(db_session: AsyncSession, s3_
     second = await purge_revoked_biosignals(db_session)
     assert first == 0
     assert second == 0
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_handles_multiple_uploads_then_idempotent(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    """Multi-upload grouping + post-cleanup idempotency in one shot."""
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_revoked_at=datetime.now(tz=UTC),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    keys = [
+        f"users/{user.id}/biosignals/hrv/a.bin",
+        f"users/{user.id}/biosignals/hrv/b.bin",
+    ]
+    for key in keys:
+        s3_mock.put_object(Bucket="little-signals-biosignals-staging", Key=key, Body=b"x")
+    db_session.add_all(
+        [
+            RawBiosignalUpload(
+                user_id=user.id,
+                s3_object_key=keys[0],
+                signal_type="hrv",
+                recorded_at=datetime.now(tz=UTC),
+            ),
+            RawBiosignalUpload(
+                user_id=user.id,
+                s3_object_key=keys[1],
+                signal_type="hrv",
+                recorded_at=datetime.now(tz=UTC) - timedelta(seconds=1),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    first = await purge_revoked_biosignals(db_session)
+    assert first == 1
+    remaining = (
+        (
+            await db_session.execute(
+                select(RawBiosignalUpload).where(RawBiosignalUpload.user_id == user.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining == []
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-biosignals-staging").get(
+        "Contents", []
+    )
+    assert contents == []
+
+    # Second run on the cleaned-up state must be a no-op.
+    second = await purge_revoked_biosignals(db_session)
+    assert second == 0
