@@ -17,6 +17,7 @@ from app.db.base import Base
 from app.models import (  # noqa: F401
     Cycle,
     FcmToken,
+    RawBiosignalUpload,
     StressEvent,
     SyncBlob,
     User,

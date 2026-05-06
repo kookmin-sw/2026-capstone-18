@@ -93,10 +93,44 @@ def upgrade() -> None:
         "sync_blobs",
         ["user_id", "kind", "created_at"],
     )
+    op.create_table(
+        "raw_biosignal_uploads",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("s3_object_key", sa.String(length=512), nullable=False),
+        sa.Column("signal_type", sa.String(length=16), nullable=False),
+        sa.Column("recorded_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "uploaded_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id", "recorded_at", name="pk_raw_biosignal_uploads"),
+    )
+    op.create_index(
+        "ix_raw_biosignal_uploads_id", "raw_biosignal_uploads", ["id"], unique=False
+    )
+    op.create_index(
+        "ix_raw_biosignal_uploads_user_recorded",
+        "raw_biosignal_uploads",
+        ["user_id", "recorded_at"],
+        unique=False,
+    )
+    op.execute(
+        "SELECT create_hypertable('raw_biosignal_uploads', 'recorded_at', if_not_exists => TRUE)"
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.drop_index(
+        "ix_raw_biosignal_uploads_user_recorded", table_name="raw_biosignal_uploads"
+    )
+    op.drop_index("ix_raw_biosignal_uploads_id", table_name="raw_biosignal_uploads")
+    op.drop_table("raw_biosignal_uploads")
     op.drop_index("ix_sync_blobs_user_kind_created", table_name="sync_blobs")
     op.drop_table("sync_blobs")
     op.drop_constraint("ck_fcm_tokens_platform", "fcm_tokens", type_="check")

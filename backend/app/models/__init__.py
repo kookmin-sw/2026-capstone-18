@@ -2,6 +2,7 @@
 
 from app.models.cycle import Cycle
 from app.models.fcm_token import FcmToken
+from app.models.raw_biosignal_upload import RawBiosignalUpload
 from app.models.stress_event import StressEvent
 from app.models.sync_blob import SyncBlob
 from app.models.user import User
@@ -11,6 +12,7 @@ from app.models.websocket_connection import WebsocketConnection
 __all__ = [
     "Cycle",
     "FcmToken",
+    "RawBiosignalUpload",
     "StressEvent",
     "SyncBlob",
     "User",
