@@ -78,7 +78,7 @@ async def current_cycle(
     phase, day = compute_phase(
         today=_today(),
         period_start_date=row.period_start_date,
-        cycle_length_days=row.cycle_length_days or 28,
+        cycle_length_days=(row.cycle_length_days if row.cycle_length_days is not None else 28),
     )
     return CurrentCycleResponse(
         cycle=CycleResponse.model_validate(row),
