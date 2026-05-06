@@ -1,7 +1,10 @@
 """FcmToken model — one row per (user, device-token) pair.
 
-The natural key is (user_id, token) — same user can have multiple devices,
-same token cannot belong to multiple users (Firebase guarantees uniqueness).
+The natural key is (user_id, token) — same user can have multiple devices.
+Token uniqueness across users is guaranteed by Firebase itself; we do not
+enforce it at the DB level (a unique constraint on `token` alone would
+break the composite-PK pattern and add no value over what Firebase
+already provides).
 """
 
 from __future__ import annotations
@@ -10,7 +13,15 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, PrimaryKeyConstraint, String, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    PrimaryKeyConstraint,
+    String,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +36,10 @@ class FcmToken(Base):
     __table_args__ = (
         PrimaryKeyConstraint("user_id", "token", name="pk_fcm_tokens"),
         Index("ix_fcm_tokens_user_id", "user_id"),
+        CheckConstraint(
+            "platform IN ('android', 'ios')",
+            name="ck_fcm_tokens_platform",
+        ),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(

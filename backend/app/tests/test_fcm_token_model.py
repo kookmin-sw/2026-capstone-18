@@ -44,3 +44,15 @@ async def test_fcm_token_user_token_pair_is_unique(db_session: AsyncSession) -> 
     with pytest.raises(IntegrityError):
         await db_session.flush()
     await db_session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_fcm_token_rejects_unknown_platform(db_session: AsyncSession) -> None:
+    user = User(supabase_user_id=uuid.uuid4(), anon_id=uuid.uuid4())
+    db_session.add(user)
+    await db_session.flush()
+
+    db_session.add(FcmToken(user_id=user.id, token="x", platform="windows"))
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+    await db_session.rollback()

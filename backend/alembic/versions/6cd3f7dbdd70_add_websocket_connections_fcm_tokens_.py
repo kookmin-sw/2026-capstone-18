@@ -65,6 +65,10 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.CheckConstraint(
+            "platform IN ('android', 'ios')",
+            name="ck_fcm_tokens_platform",
+        ),
         sa.PrimaryKeyConstraint("user_id", "token", name="pk_fcm_tokens"),
     )
     op.create_index("ix_fcm_tokens_user_id", "fcm_tokens", ["user_id"])
@@ -72,6 +76,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.drop_constraint("ck_fcm_tokens_platform", "fcm_tokens", type_="check")
     op.drop_index("ix_fcm_tokens_user_id", table_name="fcm_tokens")
     op.drop_table("fcm_tokens")
     op.drop_index("ix_websocket_connections_last_seen_at", table_name="websocket_connections")
