@@ -24,6 +24,7 @@ from app.schemas.events import (
     StressEventFilter,
     StressEventList,
     StressEventResponse,
+    StressEventUpdate,
     decode_cursor,
     encode_cursor,
 )
@@ -160,4 +161,46 @@ async def get_event(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"status": "error", "reason": "event_not_found"},
         )
+    return row
+
+
+@router.patch(
+    "/{event_id}",
+    response_model=StressEventResponse,
+    summary="Patch a stress event (e.g. log it after the fact)",
+)
+async def patch_event(
+    event_id: uuid.UUID,
+    payload: StressEventUpdate,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> StressEvent:
+    if payload.is_empty():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"status": "error", "reason": "empty_patch_body"},
+        )
+    row = (
+        await db.execute(
+            select(StressEvent).where(
+                StressEvent.id == event_id,
+                StressEvent.user_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "event_not_found"},
+        )
+    if payload.logged is not None:
+        row.logged = payload.logged
+    if payload.log_chips is not None:
+        row.log_chips = payload.log_chips
+    if payload.log_text is not None:
+        row.log_text = payload.log_text
+    if payload.user_response is not None:
+        row.user_response = payload.user_response
+    await db.flush()
+    await db.refresh(row)
     return row
