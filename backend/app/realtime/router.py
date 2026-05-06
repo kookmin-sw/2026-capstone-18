@@ -65,18 +65,19 @@ async def ws_realtime(
     await websocket.accept()
 
     settings = get_settings()
-    connection_id = await register(db, user_id=user.id, task_id=settings.task_id)
-    manager.attach(connection_id=connection_id, user_id=user.id, websocket=websocket)
-    logger.info(
-        "websocket_connected",
-        connection_id=str(connection_id),
-        user_id=str(user.id),
-        task_id=settings.task_id,
-    )
-
-    await websocket.send_json(OutboundMessage(type="system.heartbeat").model_dump())
-
+    connection_id: uuid.UUID | None = None
     try:
+        connection_id = await register(db, user_id=user.id, task_id=settings.task_id)
+        manager.attach(connection_id=connection_id, user_id=user.id, websocket=websocket)
+        logger.info(
+            "websocket_connected",
+            connection_id=str(connection_id),
+            user_id=str(user.id),
+            task_id=settings.task_id,
+        )
+
+        await websocket.send_json(OutboundMessage(type="system.heartbeat").model_dump())
+
         while True:
             msg = await websocket.receive_json()
             if isinstance(msg, dict) and msg.get("type") == "ping":
@@ -87,10 +88,12 @@ async def ws_realtime(
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "websocket_loop_error",
-            connection_id=str(connection_id),
+            connection_id=str(connection_id) if connection_id else None,
             error=str(exc),
+            exc_type=type(exc).__name__,
         )
     finally:
-        manager.detach(connection_id=connection_id)
-        await unregister(db, connection_id=connection_id)
-        logger.info("websocket_disconnected", connection_id=str(connection_id))
+        if connection_id is not None:
+            manager.detach(connection_id=connection_id)
+            await unregister(db, connection_id=connection_id)
+            logger.info("websocket_disconnected", connection_id=str(connection_id))
