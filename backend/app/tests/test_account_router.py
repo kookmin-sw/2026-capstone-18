@@ -188,7 +188,7 @@ async def test_restore_account_returns_404_when_user_missing(
         app.dependency_overrides.clear()
 
     assert response.status_code == 404
-    assert response.json()["detail"]["reason"] == "user_not_found"
+    assert response.json()["reason"] == "user_not_found"
 
 
 @pytest.mark.asyncio

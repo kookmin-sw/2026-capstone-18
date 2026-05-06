@@ -35,6 +35,10 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
+from app.observability.exception_handlers import install_exception_handlers  # noqa: E402
+
+install_exception_handlers(app)
+
 
 @app.middleware("http")
 async def request_id_middleware(
@@ -80,7 +84,7 @@ async def ready(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, str]:
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"status": "error", "database": "unreachable"},
+            detail={"status": "error", "reason": "database_unreachable"},
         ) from exc
     return {"status": "ok", "database": "ok"}
 

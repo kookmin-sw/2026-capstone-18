@@ -61,7 +61,7 @@ async def test_ready_returns_503_when_db_fails() -> None:
         app.dependency_overrides = original_overrides
 
     assert response.status_code == 503
-    assert response.json() == {"detail": {"status": "error", "database": "unreachable"}}
+    assert response.json() == {"status": "error", "reason": "database_unreachable"}
 
 
 @pytest.mark.asyncio
