@@ -720,6 +720,24 @@ socks = ["socksio (==1.*)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
+name = "httpx-ws"
+version = "0.9.0"
+description = "WebSockets support for HTTPX"
+optional = false
+python-versions = ">=3.10"
+groups = ["dev"]
+files = [
+    {file = "httpx_ws-0.9.0-py3-none-any.whl", hash = "sha256:71640d2fb1bf9a225775015b33cd755cfd4c5f7e21c885192fe3adc4c387b248"},
+    {file = "httpx_ws-0.9.0.tar.gz", hash = "sha256:797373326f70eec1ae96f6e43ae9f12002fd7d73aee139a4985eaab964338a08"},
+]
+
+[package.dependencies]
+anyio = ">=4"
+httpcore = ">=1.0.4"
+httpx = ">=0.23.1"
+wsproto = "*"
+
+[[package]]
 name = "identify"
 version = "2.6.19"
 description = "File identification library for Python"
@@ -2107,7 +2125,22 @@ files = [
     {file = "websockets-16.0.tar.gz", hash = "sha256:5f6261a5e56e8d5c42a4497b364ea24d94d9563e8fbd44e78ac40879c60179b5"},
 ]
 
+[[package]]
+name = "wsproto"
+version = "1.3.2"
+description = "Pure-Python WebSocket protocol implementation"
+optional = false
+python-versions = ">=3.10"
+groups = ["dev"]
+files = [
+    {file = "wsproto-1.3.2-py3-none-any.whl", hash = "sha256:61eea322cdf56e8cc904bd3ad7573359a242ba65688716b0710a5eb12beab584"},
+    {file = "wsproto-1.3.2.tar.gz", hash = "sha256:b86885dcf294e15204919950f666e06ffc6c7c114ca900b060d6e16293528294"},
+]
+
+[package.dependencies]
+h11 = ">=0.16.0,<1"
+
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "c99a09e50dcfdae6de12e562500a75c689862410241330cee3accf48c0adcf11"
+content-hash = "3ad06475c608383d50e6c6617bc915213a2a86db533afd8989ef9b1b4162d04b"

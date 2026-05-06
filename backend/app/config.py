@@ -6,9 +6,11 @@ All other modules read settings via `get_settings()` rather than calling `os.env
 
 from __future__ import annotations
 
+import uuid
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,6 +47,16 @@ class Settings(BaseSettings):
 
     google_oauth_client_id: str
     """Google Cloud OAuth client ID. Used as the expected `aud` when verifying Google ID tokens directly."""
+
+    task_id: str = Field(
+        default_factory=lambda: f"local-{uuid.uuid4().hex[:8]}",
+        description=(
+            "Identifier for this ECS task / local process. Used by the "
+            "WebSocket connection registry to know which rows it owns."
+        ),
+    )
+    websocket_idle_timeout_seconds: int = 300
+    """Connections with no heartbeat for this long are considered stale."""
 
 
 @lru_cache(maxsize=1)

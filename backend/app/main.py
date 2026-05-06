@@ -94,6 +94,7 @@ from app.auth.router import router as auth_router  # noqa: E402
 from app.consent.router import router as consent_router  # noqa: E402
 from app.cycles.router import router as cycles_router  # noqa: E402
 from app.events.router import router as events_router  # noqa: E402
+from app.realtime.router import router as realtime_router  # noqa: E402
 from app.settings_api.router import router as settings_router  # noqa: E402
 
 app.include_router(auth_router, prefix="/api/v1")
@@ -102,3 +103,4 @@ app.include_router(events_router, prefix="/api/v1")
 app.include_router(cycles_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(consent_router, prefix="/api/v1")
+app.include_router(realtime_router)
