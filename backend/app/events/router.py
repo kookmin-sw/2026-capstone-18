@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -204,3 +204,31 @@ async def patch_event(
     await db.flush()
     await db.refresh(row)
     return row
+
+
+@router.delete(
+    "/{event_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a stress event",
+)
+async def delete_event(
+    event_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
+    row = (
+        await db.execute(
+            select(StressEvent).where(
+                StressEvent.id == event_id,
+                StressEvent.user_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "event_not_found"},
+        )
+    await db.delete(row)
+    await db.flush()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
