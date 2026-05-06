@@ -7,6 +7,7 @@ knows about connections in this process.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import TYPE_CHECKING
 
@@ -28,6 +29,8 @@ class ConnectionManager:
         self._sockets: dict[uuid.UUID, WebSocket] = {}
         # user_id -> set of connection_ids
         self._by_user: dict[uuid.UUID, set[uuid.UUID]] = {}
+        # connection_id -> per-socket send lock (Starlette send is not concurrent-safe)
+        self._locks: dict[uuid.UUID, asyncio.Lock] = {}
 
     def attach(
         self,
@@ -38,9 +41,11 @@ class ConnectionManager:
     ) -> None:
         self._sockets[connection_id] = websocket
         self._by_user.setdefault(user_id, set()).add(connection_id)
+        self._locks[connection_id] = asyncio.Lock()
 
     def detach(self, *, connection_id: uuid.UUID) -> None:
         ws = self._sockets.pop(connection_id, None)
+        self._locks.pop(connection_id, None)
         if ws is None:
             return
         for user_id, ids in list(self._by_user.items()):
@@ -63,8 +68,13 @@ class ConnectionManager:
             ws = self._sockets.get(cid)
             if ws is None:
                 continue
+            lock = self._locks.get(cid)
             try:
-                await ws.send_json(payload)
+                if lock is not None:
+                    async with lock:
+                        await ws.send_json(payload)
+                else:
+                    await ws.send_json(payload)
                 delivered += 1
             except Exception as exc:  # noqa: BLE001
                 logger.warning(

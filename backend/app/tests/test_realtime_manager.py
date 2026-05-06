@@ -73,6 +73,42 @@ async def test_broadcast_swallows_send_failure_and_detaches() -> None:
     assert mgr.has_local_connections(user_id) is False
 
 
+@pytest.mark.asyncio
+async def test_concurrent_broadcasts_to_same_user_serialize_per_socket() -> None:
+    """Two overlapping broadcasts to the same user must not interleave
+    send_json calls on the same WebSocket — Starlette's send is not concurrent-safe."""
+    import asyncio as _asyncio
+
+    mgr = ConnectionManager()
+    user_id = uuid.uuid4()
+    in_flight = 0
+    max_concurrent = 0
+    lock_witness = _asyncio.Lock()
+
+    async def _instrumented_send(payload: dict[str, Any]) -> None:
+        nonlocal in_flight, max_concurrent
+        async with lock_witness:
+            in_flight += 1
+            max_concurrent = max(max_concurrent, in_flight)
+        # Yield control so concurrent callers have a chance to interleave.
+        await _asyncio.sleep(0)
+        async with lock_witness:
+            in_flight -= 1
+
+    ws: Any = AsyncMock()
+    ws.send_json = _instrumented_send
+    mgr.attach(connection_id=uuid.uuid4(), user_id=user_id, websocket=ws)
+
+    msg = _outbound()
+    await _asyncio.gather(
+        mgr.broadcast_to_user(user_id, msg),
+        mgr.broadcast_to_user(user_id, msg),
+        mgr.broadcast_to_user(user_id, msg),
+    )
+    # If the lock works, send_json was never reentered concurrently.
+    assert max_concurrent == 1
+
+
 def test_outbound_message_serializes_with_iso_ts() -> None:
     msg = OutboundMessage(type="events.created", data={"foo": "bar"})
     payload = msg.model_dump()
