@@ -58,18 +58,24 @@ async def _purge_loop() -> None:
     """Background task: hard-delete expired accounts and revoked biosignals.
 
     Sprint 6 runs this in-process. Sprint 7 (EventBridge) will replace it
-    with a managed cron, same plan as `_sweep_loop`. Errors are swallowed
-    so a transient DB or S3 hiccup never wedges the loop.
+    with a managed cron, same plan as `_sweep_loop`. Each service runs in
+    its own session + commit so a failure in one doesn't roll back the
+    other; both errors are logged separately for operator clarity.
     """
     cfg = get_settings()
     while True:
         try:
             async with AsyncSessionLocal() as db:
                 await purge_expired_accounts(db, grace_window_days=cfg.account_grace_window_days)
+                await db.commit()
+        except Exception:  # noqa: BLE001
+            logger.exception("purge_accounts_iteration_failed")
+        try:
+            async with AsyncSessionLocal() as db:
                 await purge_revoked_biosignals(db)
                 await db.commit()
         except Exception:  # noqa: BLE001
-            logger.exception("purge_loop_failed")
+            logger.exception("purge_biosignals_iteration_failed")
         await asyncio.sleep(cfg.purge_interval_seconds)
 
 
