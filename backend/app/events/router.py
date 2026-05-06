@@ -135,3 +135,29 @@ async def list_events(
         items=[StressEventResponse.model_validate(item) for item in items],
         next_cursor=next_cursor,
     )
+
+
+@router.get(
+    "/{event_id}",
+    response_model=StressEventResponse,
+    summary="Get a single stress event",
+)
+async def get_event(
+    event_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> StressEvent:
+    row = (
+        await db.execute(
+            select(StressEvent).where(
+                StressEvent.id == event_id,
+                StressEvent.user_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "event_not_found"},
+        )
+    return row
