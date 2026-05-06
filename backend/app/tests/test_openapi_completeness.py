@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-# (path, method) pairs we expect in the OpenAPI doc as of Sprint 4.
+# (path, method) pairs we expect in the OpenAPI doc as of Sprint 5.
 EXPECTED_ENDPOINTS = [
     ("/api/v1/auth/anon", "post"),
     ("/api/v1/auth/google", "post"),
@@ -27,6 +27,11 @@ EXPECTED_ENDPOINTS = [
     ("/api/v1/settings", "patch"),
     ("/api/v1/consent", "get"),
     ("/api/v1/consent", "patch"),
+    ("/api/v1/devices/fcm-token", "post"),
+    ("/api/v1/sync/upload", "post"),
+    ("/api/v1/sync/download", "get"),
+    ("/api/v1/sync", "delete"),
+    ("/api/v1/sync/biosignals", "post"),
 ]
 
 
@@ -43,6 +48,6 @@ async def test_openapi_lists_every_sprint_4_endpoint(client: AsyncClient) -> Non
 
 
 @pytest.mark.asyncio
-async def test_openapi_reports_app_version_0_4_0(client: AsyncClient) -> None:
+async def test_openapi_reports_app_version_0_5_0(client: AsyncClient) -> None:
     resp = await client.get("/openapi.json")
-    assert resp.json()["info"]["version"] == "0.4.0"
+    assert resp.json()["info"]["version"] == "0.5.0"
