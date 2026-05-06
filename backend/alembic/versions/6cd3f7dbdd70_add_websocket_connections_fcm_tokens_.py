@@ -47,10 +47,33 @@ def upgrade() -> None:
         "websocket_connections",
         ["last_seen_at"],
     )
+    op.create_table(
+        "fcm_tokens",
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("token", sa.String(length=512), nullable=False),
+        sa.Column("platform", sa.String(length=16), nullable=False),
+        sa.Column(
+            "registered_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "last_seen_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("user_id", "token", name="pk_fcm_tokens"),
+    )
+    op.create_index("ix_fcm_tokens_user_id", "fcm_tokens", ["user_id"])
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.drop_index("ix_fcm_tokens_user_id", table_name="fcm_tokens")
+    op.drop_table("fcm_tokens")
     op.drop_index("ix_websocket_connections_last_seen_at", table_name="websocket_connections")
     op.drop_index("ix_websocket_connections_task_id", table_name="websocket_connections")
     op.drop_index("ix_websocket_connections_user_id", table_name="websocket_connections")
