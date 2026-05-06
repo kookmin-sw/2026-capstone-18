@@ -30,6 +30,7 @@ from app.schemas.auth import (
     RefreshRequest,
     TokenResponse,
 )
+from app.services.user_settings import ensure_user_settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -57,10 +58,12 @@ async def _ensure_user_row(
         await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
     ).scalar_one_or_none()
     if existing is not None:
+        await ensure_user_settings(db, existing)
         return existing
     user = User(supabase_user_id=supabase_user_id, anon_id=anon_id)
     db.add(user)
     await db.flush()
+    await ensure_user_settings(db, user)
     return user
 
 
@@ -97,6 +100,7 @@ async def sign_in_anonymously(
         )
         db.add(user)
         await db.flush()
+        await ensure_user_settings(db, user)
 
     return TokenResponse(
         access_token=session.access_token,
