@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     """Logging verbosity for the structlog root logger."""
 
-    app_version: str = "0.1.0"
+    app_version: str = "0.4.0"
     """Reported by /health. Bump on release."""
 
     supabase_url: str
