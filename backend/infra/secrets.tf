@@ -3,3 +3,9 @@ resource "aws_secretsmanager_secret" "supabase" {
   description             = "Supabase project URL, anon key, service-role key, JWT secret, Google OAuth client ID. Populated manually post-apply."
   recovery_window_in_days = 7
 }
+
+resource "aws_secretsmanager_secret" "firebase" {
+  name                    = "${local.name_prefix}/firebase"
+  description             = "Firebase service-account JSON for FCM push. Populated manually post-apply."
+  recovery_window_in_days = 7
+}

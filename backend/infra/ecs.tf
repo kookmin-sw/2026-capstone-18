@@ -39,6 +39,7 @@ data "aws_iam_policy_document" "ecs_task_secrets" {
     resources = [
       aws_db_instance.postgres.master_user_secret[0].secret_arn,
       aws_secretsmanager_secret.supabase.arn,
+      aws_secretsmanager_secret.firebase.arn,
     ]
   }
 }
@@ -87,7 +88,10 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "DB_HOST", value = aws_db_instance.postgres.address },
         { name = "DB_PORT", value = "5432" },
         { name = "DB_NAME", value = var.db_name },
-        { name = "DB_USERNAME", value = var.db_username }
+        { name = "DB_USERNAME", value = var.db_username },
+        { name = "S3_BUCKET_SYNC", value = aws_s3_bucket.sync.id },
+        { name = "S3_BUCKET_BIOSIGNALS", value = aws_s3_bucket.biosignals.id },
+        { name = "TASK_ID", value = "ecs-${var.environment}" },
       ]
       secrets = [
         {
@@ -113,6 +117,10 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name      = "GOOGLE_OAUTH_CLIENT_ID"
           valueFrom = "${aws_secretsmanager_secret.supabase.arn}:google_oauth_client_id::"
+        },
+        {
+          name      = "FIREBASE_CREDENTIALS_JSON"
+          valueFrom = aws_secretsmanager_secret.firebase.arn
         },
       ]
       logConfiguration = {

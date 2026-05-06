@@ -63,3 +63,16 @@ output "ecs_security_group_id" {
 output "ecs_task_definition_arn" {
   value = aws_ecs_task_definition.backend.arn
 }
+
+output "s3_bucket_sync_arn" {
+  value = aws_s3_bucket.sync.arn
+}
+
+output "s3_bucket_biosignals_arn" {
+  value = aws_s3_bucket.biosignals.arn
+}
+
+output "firebase_secret_arn" {
+  value     = aws_secretsmanager_secret.firebase.arn
+  sensitive = true
+}
