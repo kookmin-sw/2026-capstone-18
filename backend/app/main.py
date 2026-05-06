@@ -6,8 +6,10 @@ Run locally with:
 
 from __future__ import annotations
 
+import asyncio
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
@@ -17,11 +19,49 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db.dependencies import get_db
+from app.db.session import AsyncSessionLocal
 from app.observability.logging import bind_request_id, clear_request_id, configure_logging
+from app.realtime.cleanup import clear_task_connections, sweep_stale_connections
 
 settings = get_settings()
 
 configure_logging(level=settings.log_level)
+
+
+async def _sweep_loop() -> None:
+    """Background task: sweep stale websocket_connections rows every 60s.
+
+    Sprint 5 runs this in-process. Sprint 7 (Privacy + Audit) will replace
+    it with an EventBridge cron. Exceptions are swallowed so the loop never
+    crashes — log spam is fine, a wedged loop is not.
+    """
+    cfg = get_settings()
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                await sweep_stale_connections(
+                    db, idle_timeout_seconds=cfg.websocket_idle_timeout_seconds
+                )
+                await db.commit()
+        except Exception:  # noqa: BLE001
+            pass
+        await asyncio.sleep(60)
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """App lifespan: clear this task's stale rows on startup, then sweep periodically."""
+    cfg = get_settings()
+    async with AsyncSessionLocal() as db:
+        await clear_task_connections(db, task_id=cfg.task_id)
+        await db.commit()
+
+    sweep_task = asyncio.create_task(_sweep_loop())
+    try:
+        yield
+    finally:
+        sweep_task.cancel()
+
 
 app = FastAPI(
     title="little-signals backend",
@@ -33,6 +73,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    lifespan=_lifespan,
 )
 
 from app.observability.exception_handlers import install_exception_handlers  # noqa: E402
