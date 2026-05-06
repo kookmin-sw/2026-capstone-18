@@ -24,6 +24,7 @@ from app.db.dependencies import get_db
 from app.db.session import AsyncSessionLocal
 from app.observability.logging import bind_request_id, clear_request_id, configure_logging
 from app.realtime.cleanup import clear_task_connections, sweep_stale_connections
+from app.services.fcm import init_firebase
 
 settings = get_settings()
 
@@ -55,6 +56,7 @@ async def _sweep_loop() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """App lifespan: clear this task's stale rows on startup, then sweep periodically."""
+    init_firebase()
     cfg = get_settings()
     async with AsyncSessionLocal() as db:
         await clear_task_connections(db, task_id=cfg.task_id)

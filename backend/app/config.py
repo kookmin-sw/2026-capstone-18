@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     websocket_idle_timeout_seconds: int = 300
     """Connections with no heartbeat for this long are considered stale."""
 
+    firebase_credentials_json: str | None = None
+    """JSON-encoded Firebase service account credentials. Injected from
+    Secrets Manager in staging/prod. Optional locally — when absent, the
+    FCM service short-circuits to a no-op for tests."""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
