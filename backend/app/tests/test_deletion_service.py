@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,3 +51,46 @@ async def test_collect_user_s3_keys_returns_sync_and_biosignal_keys(
         f"users/{user.id}/biosignals/hrv/bbb.bin",
     ) in keys
     assert len(keys) == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_s3_keys_best_effort_deletes_each_key(s3_mock: Any) -> None:
+    from app.services.deletion import _delete_s3_keys_best_effort
+
+    s3_mock.put_object(Bucket="little-signals-sync-staging", Key="users/u1/backup/a.bin", Body=b"x")
+    s3_mock.put_object(
+        Bucket="little-signals-biosignals-staging",
+        Key="users/u1/biosignals/hrv/b.bin",
+        Body=b"y",
+    )
+
+    deleted = await _delete_s3_keys_best_effort(
+        [
+            ("little-signals-sync-staging", "users/u1/backup/a.bin"),
+            ("little-signals-biosignals-staging", "users/u1/biosignals/hrv/b.bin"),
+        ]
+    )
+
+    assert deleted == 2
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-sync-staging").get("Contents", [])
+    assert contents == []
+
+
+@pytest.mark.asyncio
+async def test_delete_s3_keys_best_effort_swallows_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failing S3 delete logs a warning but does not raise."""
+    from app.services import deletion as deletion_module
+    from app.services.deletion import _delete_s3_keys_best_effort
+
+    async def boom(*, bucket: str, key: str) -> None:
+        raise RuntimeError(f"s3 down: {bucket}/{key}")
+
+    monkeypatch.setattr(deletion_module, "delete_object", boom)
+
+    deleted = await _delete_s3_keys_best_effort(
+        [("any-bucket", "any-key"), ("any-bucket", "other-key")]
+    )
+
+    assert deleted == 0

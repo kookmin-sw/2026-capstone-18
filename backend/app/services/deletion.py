@@ -20,8 +20,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.models.raw_biosignal_upload import RawBiosignalUpload
 from app.models.sync_blob import SyncBlob
+from app.services.s3 import delete_object
 
 logger = structlog.get_logger(__name__)
+
+
+async def _delete_s3_keys_best_effort(keys: list[tuple[str, str]]) -> int:
+    """Delete each (bucket, key). Return count successfully deleted.
+
+    Errors are logged but never raised — the caller wants to proceed with
+    the DB delete even if S3 is flaky.
+    """
+    success = 0
+    for bucket, key in keys:
+        try:
+            await delete_object(bucket=bucket, key=key)
+            success += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "deletion_s3_object_failed",
+                bucket=bucket,
+                key=key,
+                error=str(exc),
+            )
+    return success
 
 
 async def _collect_user_s3_keys(db: AsyncSession, *, user_id: uuid.UUID) -> list[tuple[str, str]]:
