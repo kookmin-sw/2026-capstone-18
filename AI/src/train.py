@@ -9,7 +9,6 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 from sklearn.model_selection import GroupKFold
-from sklearn.utils.class_weight import compute_class_weight
 
 from mamba_model import create_model
 
@@ -22,17 +21,12 @@ torch.set_float32_matmul_precision('high')
 class FocalLoss(nn.Module):
     def __init__(self, weight=None, gamma=3.0):
         super(FocalLoss, self).__init__()
-        self.weight = weight # Class weights tensor
+        self.weight = weight 
         self.gamma = gamma
 
     def forward(self, inputs, targets):
-        # Calculate standard Cross Entropy (unreduced)
         ce_loss = F.cross_entropy(inputs, targets, weight=self.weight, reduction='none')
-        
-        # Calculate the probability of the true class
         pt = torch.exp(-ce_loss)
-        
-        # Modulate the loss based on how well-classified the sample is
         focal_loss = ((1 - pt) ** self.gamma) * ce_loss
         return focal_loss.mean()
 
@@ -65,7 +59,6 @@ def train_one_epoch(model, loader, criterion, optimizer, scheduler, device):
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         
-        # OneCycleLR must step after every batch
         if scheduler is not None:
             scheduler.step()
 
@@ -90,13 +83,16 @@ def evaluate(model, loader, criterion, device):
         all_labels.extend(y_batch.argmax(1).cpu().numpy())
 
     all_preds, all_labels = np.array(all_preds), np.array(all_labels)
+    
+    # Calculate standard F1 strictly for Class 1 (Stress)
+    f1_stress = f1_score(all_labels, all_preds, pos_label=1, average='binary', zero_division=0)
+    
     return (total_loss / len(all_labels),
             accuracy_score(all_labels, all_preds),
-            f1_score(all_labels, all_preds, average='macro'),
+            f1_stress,
             all_labels, all_preds)
 
 def save_incremental_log(log_path, fold_metrics):
-    """Safely overwrites the JSON log to disk to prevent data loss on crashes."""
     with open(log_path, 'w') as f:
         json.dump(fold_metrics, f, indent=4)
 
@@ -104,17 +100,17 @@ def save_incremental_log(log_path, fold_metrics):
 # 3. K-FOLD VALIDATION PIPELINE
 # ==========================================
 def run_group_kfold(args):
-# CHANGE THESE:
-    X = np.load(os.path.join(args.data_dir, 'Merged_X_binary.npy'))
-    y = np.load(os.path.join(args.data_dir, 'Merged_y_binary.npy'))
-    sub = np.load(os.path.join(args.data_dir, 'Merged_sub_binary.npy'), allow_pickle=True)
+    # Dynamic loading based on prefix
+    X = np.load(os.path.join(args.data_dir, f'{args.prefix}_X_binary.npy'))
+    y = np.load(os.path.join(args.data_dir, f'{args.prefix}_y_binary.npy'))
+    sub = np.load(os.path.join(args.data_dir, f'{args.prefix}_sub_binary.npy'), allow_pickle=True)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Device: {device} | Total Samples: {X.shape[0]}")
+    print(f"Device: {device} | Total Samples: {X.shape[0]} | Dataset: {args.prefix}")
 
-    gkf = GroupKFold(n_splits=5)
+    # Configurable folds
+    gkf = GroupKFold(n_splits=args.folds)
     
-    # Persistent Logging Initialization
     log_path = os.path.join(args.save_dir, 'cv_summary.json')
     fold_metrics = []
     
@@ -123,7 +119,6 @@ def run_group_kfold(args):
         with open(log_path, 'r') as f:
             fold_metrics = json.load(f)
             
-    # Track the globally best fold across resumes
     best_overall_f1 = max([m['best_f1'] for m in fold_metrics]) if fold_metrics else 0
     best_fold_idx = max(fold_metrics, key=lambda x:x['best_f1'])['fold'] if fold_metrics else 0
 
@@ -132,13 +127,12 @@ def run_group_kfold(args):
         train_subs = np.unique(sub[train_idx])
         test_subs = np.unique(sub[test_idx])
         
-        # Check if this fold is already logged in the JSON
         if any(m['fold'] == current_fold_num for m in fold_metrics):
             print(f"[*] Fold {current_fold_num} already exists in log file. Skipping...")
             continue
             
         print(f"\n{'='*60}")
-        print(f"Fold {current_fold_num}/5")
+        print(f"Fold {current_fold_num}/{args.folds}")
         print(f"Train on {len(train_subs)} Subjects: {train_subs.tolist()}")
         print(f"Test on {len(test_subs)} Subjects:  {test_subs.tolist()}")
         print(f"{'='*60}")
@@ -146,12 +140,8 @@ def run_group_kfold(args):
         X_train, y_train = X[train_idx], y[train_idx]
         X_test, y_test = X[test_idx], y[test_idx]
 
-        y_train_hard = y_train.argmax(axis=1)
-        cw = compute_class_weight('balanced', classes=np.array([0, 1]), y=y_train_hard)
-        
-        # Dampen extreme weights using square root
-        cw = np.sqrt(cw)
-        cw = torch.tensor(cw, dtype=torch.float32).to(device)
+        # The 'Balanced Conservative' Loss Weights
+        cw = torch.tensor([1.0, 0.5], dtype=torch.float32).to(device)
 
         train_loader = DataLoader(WESADTensorDataset(X_train, y_train), batch_size=args.batch_size, shuffle=True, num_workers=8, pin_memory=True)
         test_loader = DataLoader(WESADTensorDataset(X_test, y_test), batch_size=args.batch_size, shuffle=False, num_workers=8, pin_memory=True)
@@ -173,11 +163,9 @@ def run_group_kfold(args):
             except Exception as e:
                 pass
 
-        # Applied Focal Loss
         criterion = FocalLoss(weight=cw, gamma=2.0)
         checkpoint_path = os.path.join(args.save_dir, f'fold_{current_fold_num}_best.pt')
 
-        # Resume logic
         if args.resume and os.path.exists(checkpoint_path):
             print(f"[Resume] Reconstructing metrics for Fold {current_fold_num} from checkpoint...")
             model.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
@@ -203,14 +191,13 @@ def run_group_kfold(args):
                     json.dump(split_data, f, indent=4)
             continue
 
-        # Normal Training Loop
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
         scheduler = optim.lr_scheduler.OneCycleLR(
             optimizer, 
             max_lr=args.lr, 
             steps_per_epoch=len(train_loader), 
             epochs=args.epochs,
-            pct_start=0.1 # Warmup for first 10% of epochs
+            pct_start=0.1 
         )
 
         best_fold_f1 = 0
@@ -251,30 +238,28 @@ def run_group_kfold(args):
             with open(os.path.join(args.save_dir, 'best_qat_split.json'), 'w') as f:
                 json.dump(split_data, f, indent=4)
 
-    # Final Summary
     print(f"\n{'='*60}")
-    print(f"GroupKFold 5-Fold Final Summary")
+    print(f"GroupKFold {args.folds}-Fold Final Summary")
     print(f"{'='*60}")
     f1_scores = [m['best_f1'] for m in fold_metrics]
-    print(f"Average Macro F1: {np.mean(f1_scores):.4f} ± {np.std(f1_scores):.4f}")
+    print(f"Average Stress F1: {np.mean(f1_scores):.4f} ± {np.std(f1_scores):.4f}")
     
     for m in fold_metrics:
         print(f"Fold {m['fold']} (Test Subs: {m['test_subjects']}): F1 = {m['best_f1']:.4f} | Epoch = {m['best_epoch']}")
-    
-    print(f"\n>>> Full persistent log saved to: {log_path}")
-    print(f">>> Locked Baseline Split for QAT: Fold {best_fold_idx} (saved as best_qat_split.json)")
 
 def main():
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
 
-    parser = argparse.ArgumentParser(description='MeltdownGuard-Mamba 12/3 KFold')
+    parser = argparse.ArgumentParser(description='MeltdownGuard-Mamba Universal Training Harness')
     
     parser.add_argument('--data_dir', type=str, default=os.path.join(PROJECT_ROOT, 'data', 'processed', 'Merged'))
+    parser.add_argument('--prefix', type=str, default='Merged', help='Prefix of the numpy files (e.g. Merged or StressPredict)')
     parser.add_argument('--save_dir', type=str, default=os.path.join(PROJECT_ROOT, 'checkpoints'))
     
     parser.add_argument('--epochs', type=int, default=50)
-    parser.add_argument('--resume', action='store_true', help='Skip trained folds, reconstruct metrics, and append to persistent log.')
+    parser.add_argument('--folds', type=int, default=10, help='Number of cross-validation folds')
+    parser.add_argument('--resume', action='store_true')
     
     parser.add_argument('--projected_space', type=int, default=64)
     parser.add_argument('--d_state', type=int, default=16)
