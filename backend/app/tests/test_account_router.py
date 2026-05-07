@@ -255,3 +255,39 @@ async def test_me_rejects_deleted_user_with_403(
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_me_returns_display_name_when_set(
+    client: AsyncClient,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user(display_name="Amy")
+
+    resp = await client.get(
+        "/api/v1/me",
+        headers=auth_headers(str(me.supabase_user_id)),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["display_name"] == "Amy"
+
+
+@pytest.mark.asyncio
+async def test_me_returns_null_display_name_for_new_user(
+    client: AsyncClient,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+
+    resp = await client.get(
+        "/api/v1/me",
+        headers=auth_headers(str(me.supabase_user_id)),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "display_name" in body
+    assert body["display_name"] is None
