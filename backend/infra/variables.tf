@@ -66,3 +66,8 @@ variable "rds_apply_immediately" {
   type        = bool
   default     = true
 }
+
+variable "alert_email" {
+  description = "Email address to subscribe to the alerts SNS topic. Subscription is auto-confirmed by clicking the confirmation link AWS sends."
+  type        = string
+}

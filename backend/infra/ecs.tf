@@ -40,6 +40,7 @@ data "aws_iam_policy_document" "ecs_task_secrets" {
       aws_db_instance.postgres.master_user_secret[0].secret_arn,
       aws_secretsmanager_secret.supabase.arn,
       aws_secretsmanager_secret.firebase.arn,
+      aws_secretsmanager_secret.sentry.arn,
     ]
   }
 }
@@ -92,6 +93,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "S3_BUCKET_SYNC", value = aws_s3_bucket.sync.id },
         { name = "S3_BUCKET_BIOSIGNALS", value = aws_s3_bucket.biosignals.id },
         { name = "TASK_ID", value = "ecs-${var.environment}" },
+        { name = "ENVIRONMENT", value = var.environment },
+        { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://localhost:4317" },
       ]
       secrets = [
         {
@@ -121,6 +124,10 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name      = "FIREBASE_CREDENTIALS_JSON"
           valueFrom = aws_secretsmanager_secret.firebase.arn
+        },
+        {
+          name      = "SENTRY_DSN"
+          valueFrom = aws_secretsmanager_secret.sentry.arn
         },
       ]
       logConfiguration = {
