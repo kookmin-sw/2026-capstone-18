@@ -6,6 +6,7 @@ import com.samsung.android.service.health.tracking.ConnectionListener
 import com.samsung.android.service.health.tracking.HealthTrackerException
 import com.samsung.android.service.health.tracking.HealthTrackingService
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONObject
 import timber.log.Timber
@@ -32,7 +33,13 @@ import kotlin.coroutines.resumeWithException
  *   metadata.json
  * After completion, a sibling <isoStartTs>.zip is written next to the directory.
  */
-class CaptureSession(private val ctx: Context) {
+class CaptureSession(
+    private val ctx: Context,
+    private val live: MutableStateFlow<LiveSnapshot> = MutableStateFlow(LiveSnapshot()),
+) {
+
+    /** Latest readings from each channel, for the UI to observe. */
+    val liveSnapshot: kotlinx.coroutines.flow.StateFlow<LiveSnapshot> = live
 
     suspend fun run(
         durationMs: Long,
@@ -44,7 +51,7 @@ class CaptureSession(private val ctx: Context) {
         val service = connectService()
         val recorders = ChannelRecorder.all()
         try {
-            recorders.forEach { it.start(captureDir, service) }
+            recorders.forEach { it.start(captureDir, service, live) }
             countdown(durationMs, onProgress)
         } finally {
             recorders.forEach {

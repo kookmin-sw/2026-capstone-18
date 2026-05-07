@@ -5,20 +5,24 @@ import com.samsung.android.service.health.tracking.HealthTrackingService
 import com.samsung.android.service.health.tracking.data.DataPoint
 import com.samsung.android.service.health.tracking.data.HealthTrackerType
 import com.samsung.android.service.health.tracking.data.ValueKey
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import timber.log.Timber
 import java.io.BufferedWriter
 import java.io.File
+import kotlin.math.sqrt
 
 /**
  * One ChannelRecorder per Samsung Health Sensor SDK tracker channel.
- * Subscribes via HealthTracker.setEventListener and writes each DataPoint
- * as a CSV row.
+ * Subscribes via HealthTracker.setEventListener, writes each DataPoint
+ * as a CSV row, and pushes the latest reading into a shared LiveSnapshot
+ * StateFlow so the UI can render real-time data.
  *
  * Sample-rate facts (Galaxy Watch 8, SDK 1.4.1):
  *   HEART_RATE_CONTINUOUS  ~1 Hz event-driven
  *   PPG_GREEN              ~25 Hz
- *   EDA_CONTINUOUS         ~25 Hz
- *   ACCELEROMETER_CONTINUOUS  ~25-50 Hz
+ *   EDA_CONTINUOUS         ~1 Hz
+ *   ACCELEROMETER_CONTINUOUS  ~25 Hz
  */
 sealed class ChannelRecorder(
     val name: String,
@@ -39,7 +43,14 @@ sealed class ChannelRecorder(
     abstract fun header(): String
     abstract fun formatRow(point: DataPoint): String?
 
-    fun start(captureDir: File, service: HealthTrackingService) {
+    /** Override to push the just-received DataPoint into the live snapshot. */
+    protected open fun publishLive(point: DataPoint, live: MutableStateFlow<LiveSnapshot>) = Unit
+
+    fun start(
+        captureDir: File,
+        service: HealthTrackingService,
+        live: MutableStateFlow<LiveSnapshot>,
+    ) {
         val file = File(captureDir, "$name.csv")
         writer = file.bufferedWriter().apply {
             write(header())
@@ -66,6 +77,11 @@ sealed class ChannelRecorder(
                             val ts = dp.timestamp
                             if (firstSampleTsMs == null) firstSampleTsMs = ts
                             lastSampleTsMs = ts
+                            try {
+                                publishLive(dp, live)
+                            } catch (t: Throwable) {
+                                Timber.w(t, "publishLive failed in %s", name)
+                            }
                         }
                     }
                 }
@@ -107,6 +123,20 @@ sealed class ChannelRecorder(
             val status = point.getValue(ValueKey.HeartRateSet.HEART_RATE_STATUS)
             return "$ts,$hr,$ibi,$status"
         }
+
+        override fun publishLive(point: DataPoint, live: MutableStateFlow<LiveSnapshot>) {
+            val hr = point.getValue(ValueKey.HeartRateSet.HEART_RATE) ?: return
+            val status = point.getValue(ValueKey.HeartRateSet.HEART_RATE_STATUS) ?: 0
+            // Only surface to UI when the sensor reports a locked reading (status == 1).
+            if (hr > 0 && status == 1) {
+                live.update {
+                    it.copy(
+                        hrBpm = hr,
+                        hrTickMs = System.currentTimeMillis(),
+                    )
+                }
+            }
+        }
     }
 
     object PpgGreen : ChannelRecorder("ppg_green", HealthTrackerType.PPG_GREEN) {
@@ -117,6 +147,18 @@ sealed class ChannelRecorder(
             val status = point.getValue(ValueKey.PpgGreenSet.STATUS)
             return "$ts,$v,$status"
         }
+
+        override fun publishLive(point: DataPoint, live: MutableStateFlow<LiveSnapshot>) {
+            val v = point.getValue(ValueKey.PpgGreenSet.PPG_GREEN) ?: return
+            live.update {
+                val next = if (it.ppgRecent.size >= LiveSnapshot.PPG_WINDOW_SIZE) {
+                    it.ppgRecent.drop(1) + v
+                } else {
+                    it.ppgRecent + v
+                }
+                it.copy(ppgRecent = next)
+            }
+        }
     }
 
     object Eda : ChannelRecorder("eda", HealthTrackerType.EDA_CONTINUOUS) {
@@ -126,6 +168,11 @@ sealed class ChannelRecorder(
             val v = point.getValue(ValueKey.EdaSet.SKIN_CONDUCTANCE)
             val status = point.getValue(ValueKey.EdaSet.STATUS)
             return "$ts,$v,$status"
+        }
+
+        override fun publishLive(point: DataPoint, live: MutableStateFlow<LiveSnapshot>) {
+            val v = point.getValue(ValueKey.EdaSet.SKIN_CONDUCTANCE) ?: return
+            live.update { it.copy(edaUs = v) }
         }
     }
 
@@ -140,6 +187,14 @@ sealed class ChannelRecorder(
             val y = point.getValue(ValueKey.AccelerometerSet.ACCELEROMETER_Y)
             val z = point.getValue(ValueKey.AccelerometerSet.ACCELEROMETER_Z)
             return "$ts,$x,$y,$z"
+        }
+
+        override fun publishLive(point: DataPoint, live: MutableStateFlow<LiveSnapshot>) {
+            val x = (point.getValue(ValueKey.AccelerometerSet.ACCELEROMETER_X) ?: 0).toFloat()
+            val y = (point.getValue(ValueKey.AccelerometerSet.ACCELEROMETER_Y) ?: 0).toFloat()
+            val z = (point.getValue(ValueKey.AccelerometerSet.ACCELEROMETER_Z) ?: 0).toFloat()
+            val mag = sqrt(x * x + y * y + z * z)
+            live.update { it.copy(accelMag = mag) }
         }
     }
 
