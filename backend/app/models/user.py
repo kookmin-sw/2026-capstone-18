@@ -48,6 +48,10 @@ class User(Base):
         nullable=False,
         server_default="user",
     )
+    display_name: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
     consent_raw_biosignals: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
