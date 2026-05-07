@@ -86,3 +86,19 @@ def test_settings_have_purge_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     s = Settings(_env_file=None)
 
     assert s.account_grace_window_days == 30
+
+
+def test_settings_observability_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sprint 8a adds Sentry, OTEL, and environment settings — all disabled by default."""
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h:5432/db")
+    _set_required_supabase_env(monkeypatch)
+    monkeypatch.delenv("SENTRY_DSN", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.sentry_dsn is None
+    assert settings.otel_exporter_otlp_endpoint is None
+    assert settings.environment == "local"
+    assert settings.app_version == "0.8.0"
