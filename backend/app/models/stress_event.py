@@ -58,6 +58,14 @@ class StressEvent(Base):
         nullable=False,
     )
     model_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    user_stress_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mood_chips: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("trigger_categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     cycle_phase: Mapped[str | None] = mapped_column(String(16), nullable=True)
     cycle_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
     logged: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")

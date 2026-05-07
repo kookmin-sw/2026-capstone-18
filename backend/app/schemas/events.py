@@ -23,6 +23,9 @@ class StressEventCreate(BaseModel):
 
     detected_at: datetime
     model_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    user_stress_level: int | None = Field(default=None, ge=0, le=100)
+    mood_chips: list[str] | None = None
+    category_id: uuid.UUID | None = None
     cycle_phase: Literal["menstrual", "follicular", "ovulation", "luteal"] | None = None
     cycle_day: int | None = Field(default=None, ge=1, le=60)
     logged: bool = False
@@ -36,12 +39,16 @@ class StressEventUpdate(BaseModel):
     """PATCH body — `None` means "leave unchanged"."""
 
     logged: bool | None = None
+    user_stress_level: int | None = Field(default=None, ge=0, le=100)
+    mood_chips: list[str] | None = None
+    category_id: uuid.UUID | None = None
     log_chips: list[str] | None = None
     log_text: str | None = Field(default=None, max_length=2000)
     user_response: Literal["breathe", "log", "skip", "ignore"] | None = None
 
     def is_empty(self) -> bool:
-        return all(v is None for v in self.model_dump().values())
+        # An explicitly-set field (even None) counts as a real edit.
+        return len(self.model_fields_set) == 0
 
 
 class StressEventFilter(BaseModel):
@@ -71,6 +78,9 @@ class StressEventResponse(BaseModel):
     user_id: uuid.UUID
     detected_at: datetime
     model_confidence: float | None
+    user_stress_level: int | None
+    mood_chips: list[str] | None
+    category_id: uuid.UUID | None
     cycle_phase: str | None
     cycle_day: int | None
     logged: bool

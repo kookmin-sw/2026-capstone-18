@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.db.dependencies import get_db
 from app.models.stress_event import StressEvent
+from app.models.trigger_category import TriggerCategory
 from app.models.user import User
 from app.observability.metrics import events_created_total
 from app.schemas.events import (
@@ -46,11 +47,29 @@ async def create_event(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> StressEvent:
+    if payload.category_id is not None:
+        owns = (
+            await db.execute(
+                select(TriggerCategory.id).where(
+                    TriggerCategory.id == payload.category_id,
+                    TriggerCategory.user_id == user.id,
+                    TriggerCategory.archived_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if owns is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"status": "error", "reason": "category_not_found"},
+            )
     event = StressEvent(
         id=uuid.uuid4(),
         user_id=user.id,
         detected_at=payload.detected_at,
         model_confidence=payload.model_confidence,
+        user_stress_level=payload.user_stress_level,
+        mood_chips=payload.mood_chips,
+        category_id=payload.category_id,
         cycle_phase=payload.cycle_phase,
         cycle_day=payload.cycle_day,
         logged=payload.logged,
@@ -210,6 +229,27 @@ async def patch_event(
         row.log_text = payload.log_text
     if payload.user_response is not None:
         row.user_response = payload.user_response
+    if payload.user_stress_level is not None:
+        row.user_stress_level = payload.user_stress_level
+    if payload.mood_chips is not None:
+        row.mood_chips = payload.mood_chips
+    if "category_id" in payload.model_fields_set:
+        if payload.category_id is not None:
+            owns = (
+                await db.execute(
+                    select(TriggerCategory.id).where(
+                        TriggerCategory.id == payload.category_id,
+                        TriggerCategory.user_id == user.id,
+                        TriggerCategory.archived_at.is_(None),
+                    )
+                )
+            ).scalar_one_or_none()
+            if owns is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"status": "error", "reason": "category_not_found"},
+                )
+        row.category_id = payload.category_id
     await db.flush()
     await db.refresh(row)
     await notifier.notify_user(

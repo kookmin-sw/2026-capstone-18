@@ -15,6 +15,7 @@ class CurrentUserResponse(BaseModel):
     supabase_user_id: uuid.UUID | None
     anon_id: uuid.UUID | None
     role: str
+    display_name: str | None
     consent_raw_biosignals: bool
     consent_revoked_at: datetime | None
     deleted_at: datetime | None
