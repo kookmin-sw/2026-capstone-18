@@ -231,6 +231,36 @@ async def test_purge_expired_accounts_handles_mixed_batch(
 
 
 @pytest.mark.asyncio
+async def test_purge_expired_accounts_writes_audit_row(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    """One audit_log row per hard-deleted user, with action=hard_delete_user."""
+    from app.models.audit_log import AuditLog
+    from app.services.deletion import purge_expired_accounts
+
+    expired_at = datetime.now(tz=UTC) - timedelta(days=31)
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=expired_at,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    user_id = user.id
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+    await db_session.flush()
+    assert purged == 1
+
+    rows = (await db_session.execute(select(AuditLog))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].actor == "system:purge_accounts"
+    assert rows[0].action == "hard_delete_user"
+    assert rows[0].target_user_id == user_id
+    assert rows[0].metadata_["grace_window_days"] == 30
+
+
+@pytest.mark.asyncio
 async def test_purge_revoked_biosignals_deletes_uploads_for_revoked_user(
     db_session: AsyncSession, s3_mock: Any
 ) -> None:
