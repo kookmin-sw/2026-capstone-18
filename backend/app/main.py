@@ -161,6 +161,7 @@ async def ready(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, str]:
 
 from app.account.router import router as account_router  # noqa: E402
 from app.auth.router import router as auth_router  # noqa: E402
+from app.categories.router import router as categories_router  # noqa: E402
 from app.consent.router import router as consent_router  # noqa: E402
 from app.cycles.router import router as cycles_router  # noqa: E402
 from app.devices.router import router as devices_router  # noqa: E402
@@ -173,6 +174,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(account_router, prefix="/api/v1")
 app.include_router(events_router, prefix="/api/v1")
 app.include_router(cycles_router, prefix="/api/v1")
+app.include_router(categories_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(consent_router, prefix="/api/v1")
 app.include_router(devices_router, prefix="/api/v1")
