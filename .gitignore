@@ -33,9 +33,8 @@ env/
 # Added for backend/ subdirectory; complements existing ML rules above.
 # =========================
 
-# Local-only working areas: sprint plans/decisions live in superpowers/, vendored Samsung Health SDK lives in 1.4.1/.
-backend/docs/superpowers/
-backend/docs/1.4.1/
+# Local-only docs: sprint plans, runbooks, auth decisions, vendored Samsung Health SDK.
+backend/docs/
 
 # Python project artifacts
 .venv/
