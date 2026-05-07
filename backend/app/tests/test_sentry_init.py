@@ -14,6 +14,38 @@ def test_init_sentry_noop_when_dsn_missing() -> None:
     mock_init.assert_not_called()
 
 
+def test_init_sentry_noop_when_dsn_blank() -> None:
+    """Blank-string DSN — same outcome as None.
+
+    Secrets Manager rejects empty values, so the smallest-possible seed
+    is a single space. We must treat that as 'unset', not pass it to the
+    SDK (which raises BadDsn on missing scheme).
+    """
+    for dsn in ("", " ", "   ", "\t\n"):
+        with patch("app.observability.sentry.sentry_sdk.init") as mock_init:
+            init_sentry(dsn=dsn, environment="local", release="0.8.0")
+        mock_init.assert_not_called()
+
+
+def test_init_sentry_noop_when_dsn_is_placeholder() -> None:
+    """Placeholder DSNs seeded into Secrets Manager pre-launch must be ignored."""
+    for dsn in (
+        "https://noop@noop.invalid/0",
+        "https://x@example.com/1",
+        "HTTPS://NOOP@NOOP.INVALID/0",  # case-insensitive
+    ):
+        with patch("app.observability.sentry.sentry_sdk.init") as mock_init:
+            init_sentry(dsn=dsn, environment="staging", release="0.8.0")
+        mock_init.assert_not_called()
+
+
+def test_init_sentry_noop_when_dsn_lacks_http_scheme() -> None:
+    """A DSN without http(s):// is malformed — skip rather than crash."""
+    with patch("app.observability.sentry.sentry_sdk.init") as mock_init:
+        init_sentry(dsn="not-a-url", environment="staging", release="0.8.0")
+    mock_init.assert_not_called()
+
+
 def test_init_sentry_passes_config_when_dsn_set() -> None:
     """DSN set → init with environment, release, send_default_pii=False."""
     with patch("app.observability.sentry.sentry_sdk.init") as mock_init:
