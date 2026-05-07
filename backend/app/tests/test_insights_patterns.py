@@ -125,3 +125,72 @@ async def test_patterns_excludes_below_threshold_or_low_count(
         to=date(2026, 5, 31),
     )
     assert body.patterns == []  # below event-count floor
+
+
+@pytest.mark.asyncio
+async def test_patterns_excludes_archived_categories(
+    db_session: AsyncSession,
+    make_user: Any,
+) -> None:
+    """An archived category should not surface in patterns even if the user
+    has historical events still tagged with its UUID (shouldn't happen since
+    delete_category clears category_id, but guard against drift)."""
+    from datetime import UTC
+
+    from app.services.insights.patterns import compute_patterns
+
+    me = await make_user()
+    db_session.add(
+        Cycle(
+            id=uuid.uuid4(),
+            user_id=me.id,
+            period_start_date=date(2026, 5, 1),
+            cycle_length_days=28,
+        )
+    )
+    archived_cat = TriggerCategory(
+        id=uuid.uuid4(),
+        user_id=me.id,
+        name="Old Job",
+        color="#888888",
+        sort_order=0,
+        archived_at=datetime(2026, 5, 10, tzinfo=UTC),
+    )
+    db_session.add(archived_cat)
+    await db_session.flush()
+
+    # Many luteal events that would qualify as a pattern
+    for _ in range(5):
+        db_session.add(
+            StressEvent(
+                id=uuid.uuid4(),
+                user_id=me.id,
+                detected_at=datetime(2026, 5, 19, 10, tzinfo=UTC),
+                logged=True,
+                user_stress_level=80,
+                category_id=archived_cat.id,
+            )
+        )
+    # Also some baseline events to make overall_avg meaningful
+    for _ in range(5):
+        db_session.add(
+            StressEvent(
+                id=uuid.uuid4(),
+                user_id=me.id,
+                detected_at=datetime(2026, 5, 3, 10, tzinfo=UTC),
+                logged=True,
+                user_stress_level=40,
+            )
+        )
+    await db_session.flush()
+
+    body = await compute_patterns(
+        db_session,
+        user_id=me.id,
+        frm=date(2026, 5, 1),
+        to=date(2026, 5, 31),
+    )
+    # The archived category should NOT have its name shown. If any pattern
+    # qualifies for that category_id, it should fall back to "Uncategorized".
+    names = [p.category_name for p in body.patterns]
+    assert "Old Job" not in names

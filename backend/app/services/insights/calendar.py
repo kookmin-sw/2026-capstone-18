@@ -57,6 +57,7 @@ async def compute_calendar(
             StressEvent.user_id == user_id,
             StressEvent.detected_at >= start_dt,
             StressEvent.detected_at <= end_dt,
+            StressEvent.logged.is_(True),
         )
         .group_by(day_col)
     )

@@ -54,7 +54,14 @@ async def compute_patterns(
     )
 
     cats = (
-        (await db.execute(select(TriggerCategory).where(TriggerCategory.user_id == user_id)))
+        (
+            await db.execute(
+                select(TriggerCategory).where(
+                    TriggerCategory.user_id == user_id,
+                    TriggerCategory.archived_at.is_(None),
+                )
+            )
+        )
         .scalars()
         .all()
     )
@@ -69,6 +76,7 @@ async def compute_patterns(
                     StressEvent.detected_at >= start_dt,
                     StressEvent.detected_at <= end_dt,
                     StressEvent.user_stress_level.is_not(None),
+                    StressEvent.logged.is_(True),
                 )
             )
         )

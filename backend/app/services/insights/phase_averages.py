@@ -52,6 +52,7 @@ async def compute_phase_averages(
                     StressEvent.detected_at >= start_dt,
                     StressEvent.detected_at <= end_dt,
                     StressEvent.user_stress_level.is_not(None),
+                    StressEvent.logged.is_(True),
                 )
             )
         )

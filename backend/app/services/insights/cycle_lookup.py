@@ -34,10 +34,19 @@ def classify(*, cycles: list[CycleSnapshot]) -> Callable[[datetime], PhaseTuple]
         target = at.date()
         for cyc in sorted_cycles:
             if cyc.period_start_date <= target:
+                length = cyc.cycle_length_days or 28
+                # Staleness guard: if the most recent period is more than 1.5x
+                # cycle_length stale, treat this event as outside any known
+                # cycle. Without this guard, compute_phase silently classifies
+                # every event past day 16 as "luteal day N", which corrupts
+                # phase-grouped aggregates for users who haven't logged in months.
+                days_since = (target - cyc.period_start_date).days
+                if days_since > length * 1.5:
+                    return ("pre_period", 0)
                 return compute_phase(
                     today=target,
                     period_start_date=cyc.period_start_date,
-                    cycle_length_days=cyc.cycle_length_days or 28,
+                    cycle_length_days=length,
                 )
         return ("pre_period", 0)
 
