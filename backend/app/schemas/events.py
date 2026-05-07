@@ -23,6 +23,8 @@ class StressEventCreate(BaseModel):
 
     detected_at: datetime
     model_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    user_stress_level: int | None = Field(default=None, ge=0, le=100)
+    mood_chips: list[str] | None = None
     cycle_phase: Literal["menstrual", "follicular", "ovulation", "luteal"] | None = None
     cycle_day: int | None = Field(default=None, ge=1, le=60)
     logged: bool = False
@@ -36,6 +38,8 @@ class StressEventUpdate(BaseModel):
     """PATCH body — `None` means "leave unchanged"."""
 
     logged: bool | None = None
+    user_stress_level: int | None = Field(default=None, ge=0, le=100)
+    mood_chips: list[str] | None = None
     log_chips: list[str] | None = None
     log_text: str | None = Field(default=None, max_length=2000)
     user_response: Literal["breathe", "log", "skip", "ignore"] | None = None
@@ -71,6 +75,8 @@ class StressEventResponse(BaseModel):
     user_id: uuid.UUID
     detected_at: datetime
     model_confidence: float | None
+    user_stress_level: int | None
+    mood_chips: list[str] | None
     cycle_phase: str | None
     cycle_day: int | None
     logged: bool
