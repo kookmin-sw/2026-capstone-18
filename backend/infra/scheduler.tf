@@ -228,23 +228,3 @@ resource "aws_scheduler_schedule" "purge_biosignals" {
     })
   }
 }
-
-resource "aws_cloudwatch_metric_alarm" "scheduler_dlq_depth" {
-  alarm_name          = "${local.name_prefix}-scheduler-dlq-depth"
-  alarm_description   = "Sprint 7: any message in the scheduler DLQ means a cron run failed all retries."
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "ApproximateNumberOfMessagesVisible"
-  namespace           = "AWS/SQS"
-  period              = 300
-  statistic           = "Maximum"
-  threshold           = 0
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    QueueName = aws_sqs_queue.scheduler_dlq.name
-  }
-
-  # No SNS action wired in Sprint 7 — set up by hand if/when on-call paging is in scope.
-  # Alarm state is visible in CloudWatch Alarms console; the runbook references it directly.
-}
