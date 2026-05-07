@@ -85,3 +85,8 @@ output "gha_staging_role_arn" {
   value       = aws_iam_role.gha_staging.arn
   description = "IAM role ARN for GitHub Actions to assume via OIDC for staging deploys."
 }
+
+output "gha_production_role_arn" {
+  value       = aws_iam_role.gha_production.arn
+  description = "IAM role ARN for GitHub Actions to assume via OIDC for production deploys."
+}
