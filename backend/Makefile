@@ -11,7 +11,7 @@ TEST_DATABASE_URL ?= postgresql+asyncpg://little_signals:dev_only_password@local
         docker-build ecr-login ecr-push smoke-staging smoke-sprint-8a _require-ecr-url
 
 help:  ## Show this help.
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
 	awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Install Python dependencies via Poetry.
