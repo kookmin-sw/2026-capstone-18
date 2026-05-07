@@ -166,6 +166,22 @@ async def test_post_event_persists_user_stress_level_zero_boundary(
     assert refreshed.user_stress_level == 0
 
 
+def test_update_is_empty_false_for_explicit_null_field() -> None:
+    """Pins the new is_empty() semantic: an explicitly-set field (even None)
+    counts as a real edit, so the field's presence in the JSON body is what
+    matters — not whether the value resolves to None.
+    """
+    from app.schemas.events import StressEventUpdate
+
+    # Old `all(v is None ...)` returned True; new `len(model_fields_set) == 0` returns False.
+    update = StressEventUpdate.model_validate({"category_id": None})
+    assert update.is_empty() is False
+
+    # Truly empty body still reports True.
+    truly_empty = StressEventUpdate.model_validate({})
+    assert truly_empty.is_empty() is True
+
+
 @pytest.mark.asyncio
 async def test_patch_partial_user_stress_does_not_clear_mood_chips(
     client: AsyncClient,

@@ -47,7 +47,8 @@ class StressEventUpdate(BaseModel):
     user_response: Literal["breathe", "log", "skip", "ignore"] | None = None
 
     def is_empty(self) -> bool:
-        return all(v is None for v in self.model_dump().values())
+        # An explicitly-set field (even None) counts as a real edit.
+        return len(self.model_fields_set) == 0
 
 
 class StressEventFilter(BaseModel):

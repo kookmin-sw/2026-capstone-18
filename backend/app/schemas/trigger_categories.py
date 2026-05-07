@@ -57,7 +57,7 @@ class TriggerCategoryUpdate(BaseModel):
         return v.upper()
 
     def is_empty(self) -> bool:
-        return all(v is None for v in self.model_dump().values())
+        return len(self.model_fields_set) == 0
 
 
 class TriggerCategoryResponse(BaseModel):
