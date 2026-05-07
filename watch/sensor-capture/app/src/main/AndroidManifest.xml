@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <!-- Android 15 and below: BODY_SENSORS is the runtime permission for HR/PPG/EDA via the Health Sensor SDK -->
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <!-- Android 16+ (Galaxy Watch 8 runs API 36): Samsung relocated raw sensor access behind these dedicated permissions -->
+    <uses-permission android:name="com.samsung.android.hardware.sensormanager.permission.READ_ADDITIONAL_HEALTH_DATA" />
+    <!-- HR tracker on Android 16+ now routes through Health Connect; needs the data-type read permission -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <!-- Required by Sensor SDK 1.4.x -->
+    <uses-permission android:name="com.samsung.android.permission.HEALTH_DATA" />
+    <!-- Required for accel sample rates >200 Hz on Android 12+ -->
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+    <!-- Android 16+: ACCELEROMETER_CONTINUOUS tracker is gated by ACTIVITY_RECOGNITION
+         (per Samsung Health Sensor SDK 1.4 release notes for API 36) -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- Foreground service for the 10-min capture loop so the OS doesn't kill us -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <queries>
+        <!-- Allow binding to the Samsung Health platform service -->
+        <package android:name="com.samsung.android.service.health" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SensorCapture">
+
+        <uses-library
+            android:name="com.google.android.wearable"
+            android:required="true" />
+
+        <activity
+            android:name=".CaptureActivity"
+            android:exported="true"
+            android:theme="@style/Theme.SensorCapture">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>
