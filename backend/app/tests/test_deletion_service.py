@@ -427,3 +427,49 @@ async def test_purge_revoked_biosignals_handles_multiple_uploads_then_idempotent
     # Second run on the cleaned-up state must be a no-op.
     second = await purge_revoked_biosignals(db_session)
     assert second == 0
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_writes_audit_per_user(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    """One audit_log row per *user* whose biosignals were purged (not per object)."""
+    from app.models.audit_log import AuditLog
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_revoked_at=datetime.now(tz=UTC),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    user_id = user.id
+
+    # Three uploads for the same user — one audit row should land, with objects_collected=3.
+    for i in range(3):
+        s3_mock.put_object(
+            Bucket="little-signals-biosignals-staging",
+            Key=f"users/{user_id}/biosignals/hrv/{i}.bin",
+            Body=b"x",
+        )
+        db_session.add(
+            RawBiosignalUpload(
+                user_id=user_id,
+                s3_object_key=f"users/{user_id}/biosignals/hrv/{i}.bin",
+                signal_type="hrv",
+                recorded_at=datetime.now(tz=UTC),
+            )
+        )
+    await db_session.flush()
+
+    purged = await purge_revoked_biosignals(db_session)
+    await db_session.flush()
+    assert purged == 1
+
+    rows = (await db_session.execute(select(AuditLog))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].actor == "system:purge_biosignals"
+    assert rows[0].action == "purge_biosignals"
+    assert rows[0].target_user_id == user_id
+    assert rows[0].metadata_["objects_collected"] == 3
