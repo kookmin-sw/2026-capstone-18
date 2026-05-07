@@ -51,6 +51,8 @@ async def create_event(
         user_id=user.id,
         detected_at=payload.detected_at,
         model_confidence=payload.model_confidence,
+        user_stress_level=payload.user_stress_level,
+        mood_chips=payload.mood_chips,
         cycle_phase=payload.cycle_phase,
         cycle_day=payload.cycle_day,
         logged=payload.logged,
@@ -210,6 +212,10 @@ async def patch_event(
         row.log_text = payload.log_text
     if payload.user_response is not None:
         row.user_response = payload.user_response
+    if payload.user_stress_level is not None:
+        row.user_stress_level = payload.user_stress_level
+    if payload.mood_chips is not None:
+        row.mood_chips = payload.mood_chips
     await db.flush()
     await db.refresh(row)
     await notifier.notify_user(
