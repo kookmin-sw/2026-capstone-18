@@ -48,8 +48,8 @@ call DELETE /api/v1/account 200 "$AUTH" >/dev/null
 step "4. /me — must now be 403 (deleted_at set)"
 call GET /api/v1/me 403 "$AUTH" >/dev/null
 
-step "5. run purge_accounts CLI with grace=0 to force hard-delete"
-poetry run python -m app.jobs.purge_accounts --grace-window-days 0
+step "5. run purge_accounts CLI with grace=-1 to force hard-delete"
+poetry run python -m app.jobs.purge_accounts --grace-window-days -1
 echo "OK"
 
 step "6. /me — must now be 403 still (token sub no longer maps to a user)"
