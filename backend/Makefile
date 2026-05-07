@@ -8,7 +8,7 @@ TEST_DATABASE_URL ?= postgresql+asyncpg://little_signals:dev_only_password@local
 
 .PHONY: help install run test test-fast lint format typecheck migrate migrate-test \
         db-up db-down db-logs check clean \
-        docker-build ecr-login ecr-push smoke-staging _require-ecr-url
+        docker-build ecr-login ecr-push smoke-staging smoke-sprint-8a _require-ecr-url
 
 help:  ## Show this help.
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -86,3 +86,6 @@ ecr-push: docker-build ecr-login  ## Tag and push the backend image to ECR.
 smoke-staging:  ## Check staging health and DB readiness.
 	curl -fsS "$(STAGING_API_URL)/health"
 	curl -fsS "$(STAGING_API_URL)/ready"
+
+smoke-sprint-8a:  ## Run sprint-8a observability smoke against staging.
+	./scripts/sprint-8a-smoke.sh
