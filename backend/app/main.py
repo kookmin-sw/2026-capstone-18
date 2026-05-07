@@ -84,6 +84,10 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+from app.observability.metrics import setup_metrics  # noqa: E402
+
+setup_metrics(app)
+
 from app.observability.exception_handlers import install_exception_handlers  # noqa: E402
 
 install_exception_handlers(app)
