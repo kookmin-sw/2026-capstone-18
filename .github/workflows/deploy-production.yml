@@ -1,0 +1,153 @@
+name: Deploy to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_sha:
+        description: 'Git SHA whose image to promote (must already exist in staging ECR)'
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  STAGING_ECR_REPO: little-signals-staging-backend
+  PROD_ECR_REPO: little-signals-production-backend
+  PROD_ECS_CLUSTER: little-signals-production-cluster
+  PROD_ECS_SERVICE: little-signals-production-backend
+  PROD_ECS_TASK_FAMILY: little-signals-production-backend
+  ECS_CONTAINER: backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://api.friendlykr.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/little-signals-staging-gha-production-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ECR login
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Promote image from staging ECR to production ECR
+        run: |
+          set -euo pipefail
+          SHA="${{ github.event.inputs.image_sha }}"
+          STAGING_URI="${{ steps.ecr.outputs.registry }}/${STAGING_ECR_REPO}:${SHA}"
+          PROD_URI="${{ steps.ecr.outputs.registry }}/${PROD_ECR_REPO}:${SHA}"
+          docker pull "$STAGING_URI"
+          docker tag "$STAGING_URI" "$PROD_URI"
+          docker tag "$STAGING_URI" "${{ steps.ecr.outputs.registry }}/${PROD_ECR_REPO}:latest"
+          docker push "$PROD_URI"
+          docker push "${{ steps.ecr.outputs.registry }}/${PROD_ECR_REPO}:latest"
+          echo "PROD_URI=$PROD_URI" >> "$GITHUB_ENV"
+
+      - name: Discover production ECS networking
+        id: net
+        run: |
+          set -euo pipefail
+          SVC_JSON=$(aws ecs describe-services \
+            --cluster "$PROD_ECS_CLUSTER" \
+            --services "$PROD_ECS_SERVICE" \
+            --query 'services[0]' --output json)
+          SUBNETS=$(echo "$SVC_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SG=$(echo "$SVC_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups[0]')
+          echo "subnets=$SUBNETS" >> "$GITHUB_OUTPUT"
+          echo "security_group=$SG" >> "$GITHUB_OUTPUT"
+
+      - name: Register new production task definition
+        id: render
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition \
+            --task-definition "$PROD_ECS_TASK_FAMILY" \
+            --query 'taskDefinition' --output json > td.json
+          jq --arg img "$PROD_URI" --arg name "$ECS_CONTAINER" \
+            '.containerDefinitions |= map(if .name == $name then .image = $img else . end)
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            td.json > td.new.json
+          NEW_REV=$(aws ecs register-task-definition \
+            --cli-input-json file://td.new.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def_arn=$NEW_REV" >> "$GITHUB_OUTPUT"
+
+      - name: Run migrations against production DB
+        run: |
+          set -euo pipefail
+          OVERRIDES=$(cat <<JSON
+          {
+            "containerOverrides": [
+              {
+                "name": "${ECS_CONTAINER}",
+                "command": [
+                  "sh", "-c",
+                  "export DATABASE_URL=\"postgresql+asyncpg://\${DB_USERNAME}:\${DB_PASSWORD}@\${DB_HOST}:\${DB_PORT}/\${DB_NAME}\" && alembic upgrade head"
+                ]
+              }
+            ]
+          }
+          JSON
+          )
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$PROD_ECS_CLUSTER" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.render.outputs.task_def_arn }}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.net.outputs.subnets }}],securityGroups=[${{ steps.net.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --overrides "$OVERRIDES" \
+            --query 'tasks[0].taskArn' --output text)
+          aws ecs wait tasks-stopped --cluster "$PROD_ECS_CLUSTER" --tasks "$TASK_ARN"
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$PROD_ECS_CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "Production migration failed; aborting deploy."
+            exit 1
+          fi
+
+      - name: Roll the production ECS service
+        run: |
+          aws ecs update-service \
+            --cluster "$PROD_ECS_CLUSTER" \
+            --service "$PROD_ECS_SERVICE" \
+            --task-definition "${{ steps.render.outputs.task_def_arn }}" \
+            --force-new-deployment >/dev/null
+
+      - name: Wait for production service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster "$PROD_ECS_CLUSTER" \
+            --services "$PROD_ECS_SERVICE"
+          ACTUAL_TD=$(aws ecs describe-services \
+            --cluster "$PROD_ECS_CLUSTER" \
+            --services "$PROD_ECS_SERVICE" \
+            --query 'services[0].taskDefinition' --output text)
+          if [[ "$ACTUAL_TD" != "${{ steps.render.outputs.task_def_arn }}" ]]; then
+            echo "Service stabilized on a different task definition ($ACTUAL_TD) — circuit breaker rolled back."
+            exit 1
+          fi
+
+      - name: Production smoke
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            if curl -fsS https://api.friendlykr.com/health | grep -q '"status":"ok"'; then
+              echo "Production health green."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Production health never went green."
+          exit 1

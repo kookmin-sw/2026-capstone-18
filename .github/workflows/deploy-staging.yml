@@ -1,0 +1,163 @@
+name: Deploy to staging
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      image_sha:
+        description: 'Override SHA to deploy (default: current HEAD)'
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY_NAME: little-signals-staging-backend
+  ECS_CLUSTER: little-signals-staging-cluster
+  ECS_SERVICE: little-signals-staging-backend
+  ECS_TASK_FAMILY: little-signals-staging-backend
+  ECS_CONTAINER: backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Skip when CI failed; manual dispatch always runs.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    environment:
+      name: staging
+      url: https://api-staging.friendlykr.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # workflow_run runs against the default branch tip; check out the SHA the CI ran on.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/little-signals-staging-gha-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve image SHA
+        id: sha
+        run: |
+          SHA="${{ github.event.inputs.image_sha || github.event.workflow_run.head_sha || github.sha }}"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "short=${SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: ECR login
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_NAME }}:${{ steps.sha.outputs.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Discover ECS networking
+        id: net
+        run: |
+          set -euo pipefail
+          SVC_JSON=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0]' --output json)
+          SUBNETS=$(echo "$SVC_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SG=$(echo "$SVC_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups[0]')
+          echo "subnets=$SUBNETS" >> "$GITHUB_OUTPUT"
+          echo "security_group=$SG" >> "$GITHUB_OUTPUT"
+
+      - name: Render new task definition with new image
+        id: render
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_TASK_FAMILY" \
+            --query 'taskDefinition' --output json > td.json
+          NEW_IMAGE="${{ steps.ecr.outputs.registry }}/${ECR_REPOSITORY_NAME}:${{ steps.sha.outputs.sha }}"
+          jq --arg img "$NEW_IMAGE" \
+             --arg name "$ECS_CONTAINER" \
+            '.containerDefinitions |= map(if .name == $name then .image = $img else . end)
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            td.json > td.new.json
+          NEW_REV=$(aws ecs register-task-definition \
+            --cli-input-json file://td.new.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def_arn=$NEW_REV" >> "$GITHUB_OUTPUT"
+
+      - name: Run Alembic migrations as a one-shot ECS task
+        run: |
+          set -euo pipefail
+          OVERRIDES=$(cat <<JSON
+          {
+            "containerOverrides": [
+              {
+                "name": "${ECS_CONTAINER}",
+                "command": [
+                  "sh", "-c",
+                  "export DATABASE_URL=\"postgresql+asyncpg://\${DB_USERNAME}:\${DB_PASSWORD}@\${DB_HOST}:\${DB_PORT}/\${DB_NAME}\" && alembic upgrade head"
+                ]
+              }
+            ]
+          }
+          JSON
+          )
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.render.outputs.task_def_arn }}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.net.outputs.subnets }}],securityGroups=[${{ steps.net.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --overrides "$OVERRIDES" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "Migration task exited with code $EXIT_CODE — failing deploy."
+            exit 1
+          fi
+
+      - name: Update ECS service with new task definition
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "${{ steps.render.outputs.task_def_arn }}" \
+            --force-new-deployment >/dev/null
+
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            if curl -fsS https://api-staging.friendlykr.com/health | grep -q '"status":"ok"'; then
+              echo "Health check passed."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Health check never went green."
+          exit 1

@@ -659,4 +659,14 @@ Expected staging URL: `https://api-staging.friendlykr.com`. Smoke output should 
 | 8c | Production environment (separate TF state, prod RDS/ECS/ALB) | ⏳ |
 | 9 | Hardening + beta-ready (rate limiting, load test, admin) | ⏳ |
 
-Latest deploy runbook: [`docs/sprint-7-deploy-runbook.md`](docs/sprint-7-deploy-runbook.md). Sprint 8a runbook lives at `backend/docs/sprint-8a-deploy-runbook.md` locally (gitignored).
+Latest deploy runbook: [`docs/sprint-7-deploy-runbook.md`](docs/sprint-7-deploy-runbook.md). Sprint 8a/8b runbooks live at `backend/docs/sprint-8{a,b}-*.md` locally (gitignored).
+
+## CI/CD
+
+CI runs on every PR and on every push to master. Three workflows live in `.github/workflows/`:
+
+- `ci.yml` — lint, typecheck, pytest with TimescaleDB Postgres, Docker build, Trivy scan.
+- `deploy-staging.yml` — fires after CI succeeds on master; deploys to staging end-to-end.
+- `deploy-production.yml` — manual `workflow_dispatch`; gated on the `production` GitHub Environment approval.
+
+Authentication uses GitHub OIDC against an IAM role (no long-lived AWS keys in the repo). One-time operator setup is captured in `backend/docs/sprint-8b-cicd-runbook.md` (gitignored, local).

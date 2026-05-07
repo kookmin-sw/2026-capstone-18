@@ -11,3 +11,4 @@ rds_deletion_protection = false
 rds_skip_final_snapshot = true
 rds_apply_immediately   = true
 alert_email             = "anu.bnda@gmail.com"
+gha_repo_full_name      = "kookmin-sw/2026-capstone-18"
