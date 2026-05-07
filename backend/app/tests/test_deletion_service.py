@@ -1,0 +1,399 @@
+"""Tests for app.services.deletion."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import get_settings
+from app.models.raw_biosignal_upload import RawBiosignalUpload
+from app.models.sync_blob import SyncBlob
+from app.models.user import User
+from app.services.deletion import _collect_user_s3_keys
+
+
+@pytest.mark.asyncio
+async def test_collect_user_s3_keys_returns_sync_and_biosignal_keys(
+    db_session: AsyncSession,
+) -> None:
+    settings = get_settings()
+    user = User(supabase_user_id=uuid.uuid4(), anon_id=uuid.uuid4())
+    db_session.add(user)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            SyncBlob(
+                user_id=user.id,
+                s3_object_key=f"users/{user.id}/backup/aaa.bin",
+                kind="backup",
+                byte_size=10,
+            ),
+            RawBiosignalUpload(
+                user_id=user.id,
+                s3_object_key=f"users/{user.id}/biosignals/hrv/bbb.bin",
+                signal_type="hrv",
+                recorded_at=datetime.now(tz=UTC),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    keys = await _collect_user_s3_keys(db_session, user_id=user.id)
+
+    assert (settings.s3_bucket_sync, f"users/{user.id}/backup/aaa.bin") in keys
+    assert (
+        settings.s3_bucket_biosignals,
+        f"users/{user.id}/biosignals/hrv/bbb.bin",
+    ) in keys
+    assert len(keys) == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_s3_keys_best_effort_deletes_each_key(s3_mock: Any) -> None:
+    from app.services.deletion import _delete_s3_keys_best_effort
+
+    s3_mock.put_object(Bucket="little-signals-sync-staging", Key="users/u1/backup/a.bin", Body=b"x")
+    s3_mock.put_object(
+        Bucket="little-signals-biosignals-staging",
+        Key="users/u1/biosignals/hrv/b.bin",
+        Body=b"y",
+    )
+
+    deleted = await _delete_s3_keys_best_effort(
+        [
+            ("little-signals-sync-staging", "users/u1/backup/a.bin"),
+            ("little-signals-biosignals-staging", "users/u1/biosignals/hrv/b.bin"),
+        ]
+    )
+
+    assert deleted == 2
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-sync-staging").get("Contents", [])
+    assert contents == []
+
+
+@pytest.mark.asyncio
+async def test_delete_s3_keys_best_effort_swallows_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failing S3 delete logs a warning but does not raise."""
+    from app.services import deletion as deletion_module
+    from app.services.deletion import _delete_s3_keys_best_effort
+
+    async def boom(*, bucket: str, key: str) -> None:
+        raise RuntimeError(f"s3 down: {bucket}/{key}")
+
+    monkeypatch.setattr(deletion_module, "delete_object", boom)
+
+    deleted = await _delete_s3_keys_best_effort(
+        [("any-bucket", "any-key"), ("any-bucket", "other-key")]
+    )
+
+    assert deleted == 0
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_accounts_deletes_user_past_grace(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_expired_accounts
+
+    expired_at = datetime.now(tz=UTC) - timedelta(days=31)
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=expired_at,
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    s3_mock.put_object(
+        Bucket="little-signals-sync-staging",
+        Key=f"users/{user.id}/backup/a.bin",
+        Body=b"x",
+    )
+    db_session.add(
+        SyncBlob(
+            user_id=user.id,
+            s3_object_key=f"users/{user.id}/backup/a.bin",
+            kind="backup",
+            byte_size=1,
+        )
+    )
+    await db_session.flush()
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+
+    assert purged == 1
+    rows = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one_or_none()
+    assert rows is None
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-sync-staging").get("Contents", [])
+    assert contents == []
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_accounts_skips_user_within_grace(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_expired_accounts
+
+    recent = datetime.now(tz=UTC) - timedelta(days=5)
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=recent,
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+
+    assert purged == 0
+    surviving = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
+    assert surviving.deleted_at == recent
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_accounts_skips_active_user(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_expired_accounts
+
+    user = User(supabase_user_id=uuid.uuid4(), anon_id=uuid.uuid4(), deleted_at=None)
+    db_session.add(user)
+    await db_session.flush()
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+    assert purged == 0
+    surviving = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
+    assert surviving.deleted_at is None
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_accounts_handles_mixed_batch(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    """Two expired users in one call: one has biosignals, one has no S3 data."""
+    from app.services.deletion import purge_expired_accounts
+
+    expired_at = datetime.now(tz=UTC) - timedelta(days=31)
+
+    user_with_biosignals = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=expired_at,
+    )
+    user_with_no_data = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        deleted_at=expired_at,
+    )
+    db_session.add_all([user_with_biosignals, user_with_no_data])
+    await db_session.flush()
+
+    s3_mock.put_object(
+        Bucket="little-signals-biosignals-staging",
+        Key=f"users/{user_with_biosignals.id}/biosignals/hrv/a.bin",
+        Body=b"x",
+    )
+    db_session.add(
+        RawBiosignalUpload(
+            user_id=user_with_biosignals.id,
+            s3_object_key=f"users/{user_with_biosignals.id}/biosignals/hrv/a.bin",
+            signal_type="hrv",
+            recorded_at=datetime.now(tz=UTC),
+        )
+    )
+    await db_session.flush()
+
+    purged = await purge_expired_accounts(db_session, grace_window_days=30)
+
+    assert purged == 2
+    remaining_users = (
+        (
+            await db_session.execute(
+                select(User).where(User.id.in_([user_with_biosignals.id, user_with_no_data.id]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining_users == []
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-biosignals-staging").get(
+        "Contents", []
+    )
+    assert contents == []
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_deletes_uploads_for_revoked_user(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_revoked_at=datetime.now(tz=UTC),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    s3_mock.put_object(
+        Bucket="little-signals-biosignals-staging",
+        Key=f"users/{user.id}/biosignals/hrv/a.bin",
+        Body=b"x",
+    )
+    db_session.add(
+        RawBiosignalUpload(
+            user_id=user.id,
+            s3_object_key=f"users/{user.id}/biosignals/hrv/a.bin",
+            signal_type="hrv",
+            recorded_at=datetime.now(tz=UTC),
+        )
+    )
+    await db_session.flush()
+
+    purged = await purge_revoked_biosignals(db_session)
+
+    assert purged == 1
+    remaining = (
+        (
+            await db_session.execute(
+                select(RawBiosignalUpload).where(RawBiosignalUpload.user_id == user.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining == []
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-biosignals-staging").get(
+        "Contents", []
+    )
+    assert contents == []
+    # User row stays — only biosignal data is wiped.
+    surviving = (await db_session.execute(select(User).where(User.id == user.id))).scalar_one()
+    assert surviving.consent_revoked_at is not None
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_skips_user_without_revocation(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_raw_biosignals=True,
+        consent_revoked_at=None,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(
+        RawBiosignalUpload(
+            user_id=user.id,
+            s3_object_key=f"users/{user.id}/biosignals/hrv/a.bin",
+            signal_type="hrv",
+            recorded_at=datetime.now(tz=UTC),
+        )
+    )
+    await db_session.flush()
+
+    purged = await purge_revoked_biosignals(db_session)
+    assert purged == 0
+    remaining = (
+        (
+            await db_session.execute(
+                select(RawBiosignalUpload).where(RawBiosignalUpload.user_id == user.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(remaining) == 1
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_idempotent(db_session: AsyncSession, s3_mock: Any) -> None:
+    """Second run on an already-cleaned user is a no-op."""
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_revoked_at=datetime.now(tz=UTC),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    first = await purge_revoked_biosignals(db_session)
+    second = await purge_revoked_biosignals(db_session)
+    assert first == 0
+    assert second == 0
+
+
+@pytest.mark.asyncio
+async def test_purge_revoked_biosignals_handles_multiple_uploads_then_idempotent(
+    db_session: AsyncSession, s3_mock: Any
+) -> None:
+    """Multi-upload grouping + post-cleanup idempotency in one shot."""
+    from app.services.deletion import purge_revoked_biosignals
+
+    user = User(
+        supabase_user_id=uuid.uuid4(),
+        anon_id=uuid.uuid4(),
+        consent_revoked_at=datetime.now(tz=UTC),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    keys = [
+        f"users/{user.id}/biosignals/hrv/a.bin",
+        f"users/{user.id}/biosignals/hrv/b.bin",
+    ]
+    for key in keys:
+        s3_mock.put_object(Bucket="little-signals-biosignals-staging", Key=key, Body=b"x")
+    db_session.add_all(
+        [
+            RawBiosignalUpload(
+                user_id=user.id,
+                s3_object_key=keys[0],
+                signal_type="hrv",
+                recorded_at=datetime.now(tz=UTC),
+            ),
+            RawBiosignalUpload(
+                user_id=user.id,
+                s3_object_key=keys[1],
+                signal_type="hrv",
+                recorded_at=datetime.now(tz=UTC) - timedelta(seconds=1),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    first = await purge_revoked_biosignals(db_session)
+    assert first == 1
+    remaining = (
+        (
+            await db_session.execute(
+                select(RawBiosignalUpload).where(RawBiosignalUpload.user_id == user.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining == []
+    contents = s3_mock.list_objects_v2(Bucket="little-signals-biosignals-staging").get(
+        "Contents", []
+    )
+    assert contents == []
+
+    # Second run on the cleaned-up state must be a no-op.
+    second = await purge_revoked_biosignals(db_session)
+    assert second == 0

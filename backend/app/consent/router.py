@@ -1,7 +1,9 @@
 """GET/PATCH /api/v1/consent.
 
-Sprint 4 only flips flags. Sprint 6 will add the deletion job that hard-deletes
-S3 raw biosignal blobs after `consent_revoked_at` is set.
+Sprint 4 flips the consent flags. Sprint 6 added
+`app.services.deletion.purge_revoked_biosignals`, run hourly from
+`app.main._purge_loop`, which deletes raw biosignal blobs for any user with
+`consent_revoked_at` set.
 """
 
 from __future__ import annotations

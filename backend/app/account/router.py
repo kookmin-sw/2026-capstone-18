@@ -1,9 +1,9 @@
 """Account router — /me, soft-delete, restore.
 
-Sprint 3 implements the 30-day grace deletion as a `deleted_at` flag with a
-window check on restore. A future sprint will add the cron job that hard-deletes
-rows past the grace window; for now Sprint 3 just sets/clears the flag and lets
-get_current_user reject deleted users with 403.
+Sprint 3 stores the 30-day grace deletion as a `deleted_at` flag with a
+window check on restore. Sprint 6 added `app.services.deletion.purge_expired_accounts`,
+which the in-process loop in `app.main` runs hourly to hard-delete rows whose
+`deleted_at` is older than `Settings.account_grace_window_days`.
 """
 
 from __future__ import annotations
