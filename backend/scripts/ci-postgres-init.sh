@@ -18,6 +18,11 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
+if ! pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" >/dev/null 2>&1; then
+  echo "Postgres did not become ready within 30 seconds." >&2
+  exit 1
+fi
+
 DB_EXISTS=$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d postgres -tAc \
   "SELECT 1 FROM pg_database WHERE datname='little_signals_test'")
 if [[ "$DB_EXISTS" != "1" ]]; then

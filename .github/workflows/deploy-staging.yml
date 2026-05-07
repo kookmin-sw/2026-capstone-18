@@ -1,7 +1,9 @@
 name: Deploy to staging
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [master]
   workflow_dispatch:
     inputs:
@@ -28,11 +30,16 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Skip when CI failed; manual dispatch always runs.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: staging
       url: https://api-staging.friendlykr.com
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_run runs against the default branch tip; check out the SHA the CI ran on.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -43,7 +50,7 @@ jobs:
       - name: Resolve image SHA
         id: sha
         run: |
-          SHA="${{ github.event.inputs.image_sha || github.sha }}"
+          SHA="${{ github.event.inputs.image_sha || github.event.workflow_run.head_sha || github.sha }}"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
           echo "short=${SHA::7}" >> "$GITHUB_OUTPUT"
 
