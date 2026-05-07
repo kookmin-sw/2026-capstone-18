@@ -119,9 +119,6 @@ def upgrade() -> None:
         ["user_id", "recorded_at"],
         unique=False,
     )
-    op.execute(
-        "SELECT create_hypertable('raw_biosignal_uploads', 'recorded_at', if_not_exists => TRUE)"
-    )
 
 
 def downgrade() -> None:

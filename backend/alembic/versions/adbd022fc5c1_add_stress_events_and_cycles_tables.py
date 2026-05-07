@@ -49,11 +49,6 @@ def upgrade() -> None:
         ["user_id", "detected_at"],
         unique=False,
     )
-    # Convert to TimescaleDB hypertable. `if_not_exists => TRUE` makes the
-    # migration idempotent in case someone re-runs it after a partial failure.
-    op.execute(
-        "SELECT create_hypertable('stress_events', 'detected_at', if_not_exists => TRUE)"
-    )
     op.create_table(
         "cycles",
         sa.Column("id", sa.UUID(), nullable=False),

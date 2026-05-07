@@ -157,7 +157,7 @@ jupyter notebook notebooks/eval_scripts.ipynb
 | ECS Task Definition (`backend`, `cron`) | 서비스 컨테이너와 EventBridge가 호출하는 일회성 잡 컨테이너 분리 |
 | IAM Role (`ecs_execution`, `ecs_task`, `scheduler`) | 시크릿 풀링 / 런타임 권한 / 스케줄러의 `RunTask` + `PassRole` |
 | ECR (lifecycle policy 포함) | 컨테이너 이미지 레지스트리, 미사용 태그 자동 정리 |
-| RDS Postgres 15 + TimescaleDB | 관계형 + 하이퍼테이블(`stress_events`, `raw_biosignal_uploads`) |
+| RDS Postgres 15 | 관계형 데이터(`stress_events`, `cycles`, `raw_biosignal_uploads` 등) |
 | S3 `sync` (Seoul, SSE, versioning, lifecycle) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`) |
 | S3 `biosignals` (Seoul, SSE, versioning, lifecycle) | 옵트인 원시 생체신호 — 사용자 보유 키로 암호화, 서버 복호화 불가 |
 | EventBridge Scheduler + ECS RunTask | `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 |
@@ -250,7 +250,6 @@ AWS_PROFILE=little-signals-staging terraform apply \
   -var-file=staging.tfvars \
   -var "container_image=$ECR_URL:0.7.0"
 cd ..
-AWS_PROFILE=little-signals-staging ./scripts/enable-rds-timescaledb.sh
 AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
 make smoke-staging
 ```
@@ -356,7 +355,7 @@ Phone (Flutter)
 
 AWS Seoul (ap-northeast-2)
   ALB → ECS Fargate (FastAPI, structlog, OTel)
-  ├── RDS Postgres 15 + TimescaleDB
+  ├── RDS Postgres 15
   ├── S3 (KMS, 옵트인 암호화 블롭)
   ├── EventBridge Scheduler → ECS RunTask (purge jobs)
   └── Secrets Manager · CloudWatch · SQS DLQ

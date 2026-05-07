@@ -1,8 +1,7 @@
 """RawBiosignalUpload model — opt-in raw biosignal blob references.
 
-Hypertable on `recorded_at`. Composite PK `(id, recorded_at)` because
-TimescaleDB hypertables require the partitioning column in every UNIQUE
-index. Same pattern as `stress_events`.
+Plain Postgres table with composite PK `(id, recorded_at)` — holdover
+from a planned TimescaleDB hypertable. See `stress_event.py` for context.
 """
 
 from __future__ import annotations
