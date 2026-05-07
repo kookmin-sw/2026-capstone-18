@@ -8,8 +8,12 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 # Trust policy for the staging deploy role. Locked to:
-#   repo:<owner>/<repo>:ref:refs/heads/master  (push-to-master deploys)
-#   repo:<owner>/<repo>:pull_request           (CI pipeline reads, not deploys)
+#   repo:<owner>/<repo>:ref:refs/heads/master      (push-to-master deploys)
+#   repo:<owner>/<repo>:pull_request               (CI pipeline reads, not deploys)
+#   repo:<owner>/<repo>:environment:staging        (deploy-staging.yml job uses
+#                                                   `environment: staging`, which
+#                                                   makes GitHub OIDC override the
+#                                                   sub claim to this value)
 data "aws_iam_policy_document" "gha_staging_assume_role" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -28,6 +32,7 @@ data "aws_iam_policy_document" "gha_staging_assume_role" {
       values = [
         "repo:${var.gha_repo_full_name}:ref:refs/heads/master",
         "repo:${var.gha_repo_full_name}:pull_request",
+        "repo:${var.gha_repo_full_name}:environment:staging",
       ]
     }
   }
