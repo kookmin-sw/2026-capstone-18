@@ -24,7 +24,6 @@ class SleepLog(Base):
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     fell_asleep_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     woke_up_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
