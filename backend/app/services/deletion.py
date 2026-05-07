@@ -22,6 +22,7 @@ from app.config import get_settings
 from app.models.raw_biosignal_upload import RawBiosignalUpload
 from app.models.sync_blob import SyncBlob
 from app.models.user import User
+from app.services.audit import record_audit
 from app.services.s3 import delete_object
 
 logger = structlog.get_logger(__name__)
@@ -99,7 +100,18 @@ async def purge_expired_accounts(db: AsyncSession, *, grace_window_days: int) ->
 
     for user_id in expired:
         keys = await _collect_user_s3_keys(db, user_id=user_id)
-        await _delete_s3_keys_best_effort(keys)
+        s3_deleted = await _delete_s3_keys_best_effort(keys)
+        await record_audit(
+            db,
+            actor="system:purge_accounts",
+            action="hard_delete_user",
+            target_user_id=user_id,
+            metadata={
+                "grace_window_days": grace_window_days,
+                "s3_objects_collected": len(keys),
+                "s3_objects_deleted": s3_deleted,
+            },
+        )
         await db.execute(delete(User).where(User.id == user_id))
 
     await db.flush()
@@ -135,7 +147,19 @@ async def purge_revoked_biosignals(db: AsyncSession) -> int:
         by_user.setdefault(user_id, []).append(key)
 
     for user_id, keys in by_user.items():
-        await _delete_s3_keys_best_effort([(settings.s3_bucket_biosignals, k) for k in keys])
+        s3_deleted = await _delete_s3_keys_best_effort(
+            [(settings.s3_bucket_biosignals, k) for k in keys]
+        )
+        await record_audit(
+            db,
+            actor="system:purge_biosignals",
+            action="purge_biosignals",
+            target_user_id=user_id,
+            metadata={
+                "objects_collected": len(keys),
+                "objects_deleted": s3_deleted,
+            },
+        )
         await db.execute(delete(RawBiosignalUpload).where(RawBiosignalUpload.user_id == user_id))
 
     await db.flush()

@@ -79,11 +79,10 @@ def test_settings_loads_supabase_fields(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_settings_have_purge_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Sprint 6 adds two purge-job knobs with sensible defaults."""
+    """Sprint 6 adds the account-grace knob with a sensible default."""
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h:5432/db")
     _set_required_supabase_env(monkeypatch)
 
     s = Settings(_env_file=None)
 
     assert s.account_grace_window_days == 30
-    assert s.purge_interval_seconds == 3600

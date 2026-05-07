@@ -107,7 +107,9 @@ Expected staging URL: `https://api-staging.friendlykr.com`.
 
 ## Sprint status
 
-Currently in **Sprint 6 — Privacy + Deletion (in progress)**.
+Currently in **Sprint 7 — EventBridge + Audit (in progress)**.
+
+Sprint 7 reference: [`docs/sprint-7-deploy-runbook.md`](docs/sprint-7-deploy-runbook.md) for the move from in-process `_purge_loop` to AWS EventBridge Scheduler + ECS RunTask, and the new `audit_log` table that records every hard-delete and biosignal purge.
 
 Sprint 6 reference: [`docs/sprint-6-deploy-runbook.md`](docs/sprint-6-deploy-runbook.md) for the deletion jobs (`app.services.deletion`) and CLI entrypoints (`app.jobs.purge_accounts`, `app.jobs.purge_biosignals`).
 
