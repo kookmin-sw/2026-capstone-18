@@ -57,12 +57,40 @@ resource "aws_iam_role_policy" "ecs_task_secrets" {
   policy = data.aws_iam_policy_document.ecs_task_secrets.json
 }
 
+data "aws_iam_policy_document" "ecs_task_xray" {
+  statement {
+    actions = [
+      "xray:PutTraceSegments",
+      "xray:PutTelemetryRecords",
+      "xray:GetSamplingRules",
+      "xray:GetSamplingTargets",
+      "xray:GetSamplingStatisticSummaries",
+      "logs:PutLogEvents",
+      "logs:CreateLogStream",
+      "logs:DescribeLogStreams",
+      "logs:DescribeLogGroups",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_task_xray" {
+  name   = "${local.name_prefix}-task-xray"
+  role   = aws_iam_role.ecs_task.id
+  policy = data.aws_iam_policy_document.ecs_task_xray.json
+}
+
+resource "aws_cloudwatch_log_group" "otel_collector" {
+  name              = "/ecs/${local.name_prefix}-otel-collector"
+  retention_in_days = 14
+}
+
 resource "aws_ecs_task_definition" "backend" {
   family                   = "${local.name_prefix}-backend"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 256
-  memory                   = 512
+  cpu                      = 512
+  memory                   = 1024
   execution_role_arn       = aws_iam_role.ecs_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
@@ -144,6 +172,27 @@ resource "aws_ecs_task_definition" "backend" {
         timeout     = 5
         retries     = 3
         startPeriod = 30
+      }
+    },
+    {
+      name      = "otel-collector"
+      image     = "public.ecr.aws/aws-observability/aws-otel-collector:latest"
+      essential = false
+      command   = ["--config=/etc/ecs/ecs-default-config.yaml"]
+      portMappings = [
+        {
+          containerPort = 4317
+          hostPort      = 4317
+          protocol      = "tcp"
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.otel_collector.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "otel"
+        }
       }
     }
   ])
