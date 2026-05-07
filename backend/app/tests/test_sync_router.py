@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -69,8 +70,21 @@ async def test_sync_download_returns_latest_blob(
     make_user: Any,
 ) -> None:
     me = await make_user()
-    older = SyncBlob(user_id=me.id, s3_object_key=f"users/{me.id}/old", kind="backup", byte_size=1)
-    newer = SyncBlob(user_id=me.id, s3_object_key=f"users/{me.id}/new", kind="backup", byte_size=2)
+    now = datetime.now(UTC)
+    older = SyncBlob(
+        user_id=me.id,
+        s3_object_key=f"users/{me.id}/old",
+        kind="backup",
+        byte_size=1,
+        created_at=now - timedelta(seconds=1),
+    )
+    newer = SyncBlob(
+        user_id=me.id,
+        s3_object_key=f"users/{me.id}/new",
+        kind="backup",
+        byte_size=2,
+        created_at=now,
+    )
     db_session.add_all([older, newer])
     await db_session.flush()
 
