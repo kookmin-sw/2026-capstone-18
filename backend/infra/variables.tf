@@ -71,3 +71,8 @@ variable "alert_email" {
   description = "Email address to subscribe to the alerts SNS topic. Subscription is auto-confirmed by clicking the confirmation link AWS sends."
   type        = string
 }
+
+variable "gha_repo_full_name" {
+  description = "GitHub repository in <owner>/<repo> form, used to scope the GHA OIDC trust policy."
+  type        = string
+}

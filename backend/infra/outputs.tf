@@ -76,3 +76,12 @@ output "firebase_secret_arn" {
   value     = aws_secretsmanager_secret.firebase.arn
   sensitive = true
 }
+
+output "ecs_task_definition_family" {
+  value = aws_ecs_task_definition.backend.family
+}
+
+output "gha_staging_role_arn" {
+  value       = aws_iam_role.gha_staging.arn
+  description = "IAM role ARN for GitHub Actions to assume via OIDC for staging deploys."
+}
