@@ -1,11 +1,12 @@
-"""GET / POST /api/v1/categories."""
+"""GET / POST / PATCH / DELETE /api/v1/categories."""
 
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,7 @@ from app.schemas.trigger_categories import (
     TriggerCategoryCreate,
     TriggerCategoryList,
     TriggerCategoryResponse,
+    TriggerCategoryUpdate,
 )
 
 router = APIRouter(prefix="/categories", tags=["categories"])
@@ -115,3 +117,114 @@ async def list_categories(
     rows = (await db.execute(stmt)).all()
     items = [_to_response(row, int(count)) for row, count in rows]
     return TriggerCategoryList(items=items)
+
+
+@router.patch(
+    "/{category_id}",
+    response_model=TriggerCategoryResponse,
+    summary="Rename / recolor / reorder a trigger category",
+)
+async def patch_category(
+    category_id: uuid.UUID,
+    payload: TriggerCategoryUpdate,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TriggerCategoryResponse:
+    if payload.is_empty():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"status": "error", "reason": "empty_patch_body"},
+        )
+    counts_subq = (
+        select(
+            StressEvent.category_id,
+            func.count(StressEvent.id).label("event_count"),
+        )
+        .where(StressEvent.user_id == user.id)
+        .group_by(StressEvent.category_id)
+        .subquery()
+    )
+    fetched = (
+        await db.execute(
+            select(
+                TriggerCategory,
+                func.coalesce(counts_subq.c.event_count, 0).label("event_count"),
+            )
+            .join(
+                counts_subq,
+                counts_subq.c.category_id == TriggerCategory.id,
+                isouter=True,
+            )
+            .where(
+                TriggerCategory.id == category_id,
+                TriggerCategory.user_id == user.id,
+                TriggerCategory.archived_at.is_(None),
+            )
+        )
+    ).one_or_none()
+    if fetched is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "category_not_found"},
+        )
+    row, event_count = fetched
+    if payload.name is not None:
+        row.name = payload.name
+    if payload.color is not None:
+        row.color = payload.color
+    if payload.sort_order is not None:
+        row.sort_order = payload.sort_order
+
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"status": "error", "reason": "category_name_already_exists"},
+        ) from exc
+    await db.refresh(row)
+    return _to_response(row, int(event_count))
+
+
+@router.delete(
+    "/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Soft-archive a trigger category and clear it from events",
+)
+async def delete_category(
+    category_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
+    row = (
+        await db.execute(
+            select(TriggerCategory).where(
+                TriggerCategory.id == category_id,
+                TriggerCategory.user_id == user.id,
+                TriggerCategory.archived_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "category_not_found"},
+        )
+    row.archived_at = datetime.now(tz=UTC)
+    events = (
+        (
+            await db.execute(
+                select(StressEvent).where(
+                    StressEvent.user_id == user.id,
+                    StressEvent.category_id == row.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for ev in events:
+        ev.category_id = None
+    await db.flush()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
