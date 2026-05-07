@@ -6,7 +6,7 @@
 DATABASE_URL ?= postgresql+asyncpg://little_signals:dev_only_password@localhost:5432/little_signals_dev
 TEST_DATABASE_URL ?= postgresql+asyncpg://little_signals:dev_only_password@localhost:5432/little_signals_test
 
-.PHONY: help install run test test-fast lint format typecheck migrate migrate-test \
+.PHONY: help install run test test-fast lint format typecheck migrate migrate-test migrate-staging \
         db-up db-down db-logs check clean \
         docker-build ecr-login ecr-push smoke-staging smoke-sprint-8a _require-ecr-url
 
@@ -42,6 +42,9 @@ migrate:  ## Apply Alembic migrations to the dev DB.
 
 migrate-test:  ## Apply Alembic migrations to the test DB.
 	DATABASE_URL="$(TEST_DATABASE_URL)" poetry run alembic upgrade head
+
+migrate-staging:  ## Run staging migrations via the existing run-staging-migration.sh.
+	./scripts/run-staging-migration.sh
 
 db-up:  ## Start the local Postgres + Adminer stack via docker compose.
 	docker compose up -d
