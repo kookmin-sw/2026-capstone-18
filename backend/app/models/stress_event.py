@@ -1,11 +1,11 @@
 """StressEvent model — spec §6.3.
 
-The `stress_events` table is a TimescaleDB hypertable partitioned on `detected_at`.
-TimescaleDB requires every UNIQUE index to include the partitioning column, so the
-primary key is composite `(id, detected_at)` rather than the spec's `id UUID PRIMARY
-KEY`. Lookups by `id` alone use a separate non-unique index; collisions on a v4 UUID
-are astronomically unlikely, and routes always also filter by `user_id` for
-ownership, so a single-column lookup is fine.
+`stress_events` is a plain Postgres table; the composite primary key
+`(id, detected_at)` is a holdover from a planned TimescaleDB hypertable
+(AWS RDS dropped timescaledb support, so it stays a regular table).
+The composite PK is harmless and kept to avoid a destructive migration.
+Lookups by `id` alone use a separate non-unique index; routes always
+also filter by `user_id` for ownership.
 """
 
 from __future__ import annotations

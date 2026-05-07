@@ -38,7 +38,6 @@ AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.2.0
 After Task 8 adds migration scripts, run from `backend/`:
 
 ```bash
-AWS_PROFILE=little-signals-staging ./scripts/enable-rds-timescaledb.sh
 AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
 ```
 

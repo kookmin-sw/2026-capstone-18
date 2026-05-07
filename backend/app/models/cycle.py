@@ -1,8 +1,7 @@
 """Cycle model — spec §6.3.
 
-One row per logged period. `cycles` is **not** a hypertable: it is small
-(one row per period for one user) and the dominant access pattern is by
-user, not by time range across users.
+One row per logged period. The dominant access pattern is by user, not
+by time range across users.
 """
 
 from __future__ import annotations

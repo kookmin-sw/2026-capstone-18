@@ -1,6 +1,6 @@
 # Little Signals — Backend
 
-FastAPI service powering the Little Signals stress-detection and cycle-tracking app. Production runs on AWS Seoul (`ap-northeast-2`) on ECS Fargate with RDS Postgres + TimescaleDB, S3 for opt-in encrypted blobs, and EventBridge Scheduler for cron jobs. Locally: Docker Compose for Postgres + Adminer, Poetry for the Python app.
+FastAPI service powering the Little Signals stress-detection and cycle-tracking app. Production runs on AWS Seoul (`ap-northeast-2`) on ECS Fargate with RDS Postgres, S3 for opt-in encrypted blobs, and EventBridge Scheduler for cron jobs. Locally: Docker Compose for Postgres + Adminer, Poetry for the Python app.
 
 - **Staging**: `https://api-staging.friendlykr.com`
 - **Health**: `GET /health` → `{"status": "ok", "version": "..."}`
@@ -21,7 +21,7 @@ FastAPI service powering the Little Signals stress-detection and cycle-tracking 
   - [5.3 Real-time fan-out (foreground vs background)](#53-real-time-fan-out-foreground-vs-background)
 - [6. Database](#6-database)
   - [6.1 Schema and tables](#61-schema-and-tables)
-  - [6.2 TimescaleDB hypertables](#62-timescaledb-hypertables)
+  - [6.2 Time-series tables](#62-time-series-tables)
   - [6.3 Migrations](#63-migrations)
 - [7. REST API reference](#7-rest-api-reference)
   - [7.1 Auth](#71-auth)
@@ -55,7 +55,7 @@ FastAPI service powering the Little Signals stress-detection and cycle-tracking 
 Little Signals' watch detects stress on-device and the phone displays the dashboard. The backend is intentionally narrow — it exists to:
 
 1. **Authenticate users** anonymously first, then optionally upgrade to Google OAuth via Supabase.
-2. **Persist structured app data** — stress events, cycle records, settings, consent state, FCM tokens — in a relational schema with time-series hypertables for high-volume rows.
+2. **Persist structured app data** — stress events, cycle records, settings, consent state, FCM tokens — in a relational schema with B-tree-indexed time-series tables for high-volume rows.
 3. **Sync state in real time** between watch and phone via WebSocket while the app is in the foreground, falling back to FCM push when it isn't.
 4. **Receive opt-in encrypted blobs** (full app backup; raw biosignal segments) and store them in S3 — the server never holds the decryption keys.
 5. **Run scheduled cleanup jobs** to honor the 30-day grace deletion and 12-month biosignal retention windows, with every hard-delete and purge written to an immutable audit table.
@@ -92,7 +92,7 @@ What this service does *not* do: ML inference (lives on the watch), heavy media 
    │             └── /health, /docs, /openapi.json    │
    │                                                  │
    │  ECS Fargate (FastAPI, uvicorn, structlog)       │
-   │   ├── RDS Postgres 15 + TimescaleDB              │
+   │   ├── RDS Postgres 15                          │
    │   ├── S3 sync       (opt-in encrypted backup)    │
    │   ├── S3 biosignals (opt-in raw biosignal blobs) │
    │   ├── Secrets Manager (supabase, firebase)       │
@@ -169,7 +169,7 @@ backend/
 │   ├── networking.tf          # VPC, subnets, IGW, NAT, security groups
 │   ├── alb.tf                 # ALB + ACM + Route53
 │   ├── ecs.tf                 # Cluster, task defs, service, IAM
-│   ├── rds.tf                 # Postgres 15 + TimescaleDB instance
+│   ├── rds.tf                 # Postgres 15 instance
 │   ├── s3.tf                  # sync + biosignals buckets
 │   ├── ecr.tf                 # Repository + lifecycle policy
 │   ├── scheduler.tf           # EventBridge + cron task + DLQ + alarm
@@ -180,7 +180,7 @@ backend/
 ├── docs/
 │   └── sprint-7-deploy-runbook.md
 ├── Dockerfile                 # Multi-stage build, slim runtime image
-├── docker-compose.yml         # Postgres 15 + TimescaleDB + Adminer
+├── docker-compose.yml         # Postgres 15 + Adminer
 ├── Makefile                   # migrate, migrate-test, ecr-*, smoke-staging
 ├── alembic.ini
 └── pyproject.toml
@@ -198,7 +198,7 @@ Watch detects stress (on-device Mamba)
   → Phone POST /api/v1/events  (JWT in Authorization)
   → ALB → ECS Fargate (FastAPI)
   → JWT signature verified against cached Supabase JWKS
-  → Insert into stress_events (TimescaleDB hypertable on detected_at)
+  → Insert into stress_events (composite PK on (id, detected_at))
   → Broadcast via WebSocket to user's other connected sessions
   → 201 Created
   → structlog JSON line → CloudWatch (request_id, user_id, latency_ms)
@@ -243,15 +243,15 @@ state in `websocket_connections` is the single switch.
 
 ### 6.1 Schema and tables
 
-Single Postgres 15 logical database with the TimescaleDB extension enabled.
+Single Postgres 15 logical database with enabled.
 
 | Table | Purpose | Key columns |
 | :--- | :--- | :--- |
 | `users` | Account record. Anonymous-first; `supabase_user_id` is `NULL` until upgrade. | `id`, `supabase_user_id`, `anon_id`, `role`, `consent_raw_biosignals`, `deleted_at` |
 | `user_settings` | Per-user preferences (1:1). | `user_id` (PK FK), notification + quiet-hours fields, `language` |
-| `stress_events` | Detected stress events. **Hypertable on `detected_at`.** | `id`, `user_id`, `detected_at`, `model_confidence`, `cycle_phase`, `log_chips`, `user_response` |
+| `stress_events` | Detected stress events. Composite PK `(id, detected_at)`. | `id`, `user_id`, `detected_at`, `model_confidence`, `cycle_phase`, `log_chips`, `user_response` |
 | `cycles` | Period start/end, derived phase. | `id`, `user_id`, `period_start_date`, `period_end_date`, `auto_detected` |
-| `raw_biosignal_uploads` | Pointer to opt-in encrypted blobs in S3. **Hypertable on `recorded_at`.** | `id`, `user_id`, `s3_object_key`, `signal_type`, `recorded_at`, `expires_at` |
+| `raw_biosignal_uploads` | Pointer to opt-in encrypted blobs in S3. Composite PK `(id, recorded_at)`. | `id`, `user_id`, `s3_object_key`, `signal_type`, `recorded_at`, `expires_at` |
 | `sync_blobs` | Pointer to opt-in encrypted full-app backups in S3. | `id`, `user_id`, `s3_object_key`, `uploaded_at` |
 | `websocket_connections` | Live WS sessions; allows fan-out to multiple devices per user. | `id`, `user_id`, `task_id`, `connected_at` |
 | `fcm_tokens` | Per-device FCM registration tokens for background push. | `id`, `user_id`, `token`, `platform`, `last_seen_at` |
@@ -259,18 +259,11 @@ Single Postgres 15 logical database with the TimescaleDB extension enabled.
 
 Free-text fields (e.g., `stress_events.log_text`) are encrypted client-side before they reach the backend. Raw biosignal blobs are encrypted with user-held keys; the server only ever sees ciphertext + object metadata.
 
-### 6.2 TimescaleDB hypertables
+### 6.2 Time-series tables
 
-Two tables are converted to TimescaleDB hypertables for time-window query performance:
+`stress_events` and `raw_biosignal_uploads` are append-only, time-ordered tables with composite primary keys `(id, detected_at)` / `(id, recorded_at)` and B-tree indexes on `(user_id, detected_at)` / `(user_id, recorded_at)` for window queries. They were originally specced as TimescaleDB hypertables, but AWS RDS Postgres no longer supports the `timescaledb` extension (license-related removal). Plain Postgres B-tree partitioning is adequate at the volumes we'll hit before graduation; if the data outgrows it, native declarative partitioning or a managed Timescale alternative are options.
 
-```sql
-SELECT create_hypertable('stress_events', 'detected_at', if_not_exists => TRUE);
-SELECT create_hypertable('raw_biosignal_uploads', 'recorded_at', if_not_exists => TRUE);
-```
-
-`audit_log` was originally specced as a hypertable but is currently a plain Postgres table with B-tree indexes on `occurred_at`, `(action, occurred_at)`, and `target_user_id` — that's been adequate at beta scale. If audit volume grows, converting it later is a single Alembic migration.
-
-The TimescaleDB extension is enabled on RDS via [`scripts/enable-rds-timescaledb.sh`](scripts/enable-rds-timescaledb.sh). Local dev gets it for free from the `timescale/timescaledb:latest-pg15` Docker image.
+`audit_log` is similarly a plain Postgres table with B-tree indexes on `occurred_at`, `(action, occurred_at)`, and `target_user_id`.
 
 ### 6.3 Migrations
 
@@ -278,9 +271,9 @@ The TimescaleDB extension is enabled on RDS via [`scripts/enable-rds-timescaledb
 
 1. `09774758d188_create_users_table` — initial `users`
 2. `7bdacbea490e_expand_users_and_add_user_settings` — Supabase fields + `user_settings`
-3. `adbd022fc5c1_add_stress_events_and_cycles_tables` — core data tables + the two hypertables
+3. `adbd022fc5c1_add_stress_events_and_cycles_tables` — `stress_events`, `cycles`
 4. `6cd3f7dbdd70_add_websocket_connections_fcm_tokens_` — realtime + push tables + `sync_blobs` + `raw_biosignal_uploads`
-5. `81190b1e74b8_add_audit_log_table` — `audit_log` (B-tree indexes, not a hypertable)
+5. `81190b1e74b8_add_audit_log_table` — `audit_log`
 
 Apply locally with `make migrate`. Tests run against a separate `little_signals_test` DB; apply migrations there with `make migrate-test`. Staging migration is run as a one-off ECS task via [`scripts/run-staging-migration.sh`](scripts/run-staging-migration.sh).
 
@@ -541,7 +534,7 @@ cd backend
 poetry install
 ```
 
-Bring up the dev database (Postgres 15 + TimescaleDB) and Adminer:
+Bring up the dev database (Postgres 15) and Adminer:
 
 ```bash
 docker compose up -d
@@ -630,7 +623,6 @@ AWS_PROFILE=little-signals-staging terraform apply \
   -var "container_image=$ECR_URL:0.7.0"
 cd ..
 
-AWS_PROFILE=little-signals-staging ./scripts/enable-rds-timescaledb.sh
 AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
 
 make smoke-staging
