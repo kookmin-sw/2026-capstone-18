@@ -1,145 +1,355 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/Lvs6kcL8)
-# Welcome to GitHub
+# Project Phase — 2026 Capstone 18
 
-캡스톤 팀 생성을 축하합니다.
+여성 사용자를 위한 실시간 스트레스 탐지 및 생리 주기 추적 애플리케이션. Galaxy Watch 8에서 수집한 원시 생체신호(PPG, HRV, EDA, 가속도)를 기반으로 온디바이스(Mamba) 추론을 수행하고, 사전 스트레스(Pre-Stress) 단계에서 손목 호흡 가이드를 제시합니다. 백엔드는 AWS Seoul(ap-northeast-2)에 배포되며 한국 PIPA를 전제로 설계되었습니다.
 
-## 팀소개 및 페이지를 꾸며주세요.
+- **팀**: 국민대학교 2026 캡스톤 18조
+- **팀페이지**: <https://kookmin-sw.github.io/2026-capstone-18/>
+- **타깃 플랫폼**: Galaxy Watch 8 (Wear OS) + Android (Flutter)
+- **배포 리전**: AWS Seoul (`ap-northeast-2`)
 
-- 프로젝트 소개
-  - 프로젝트 설치방법 및 데모, 사용방법, 프리뷰등을 readme.md에 작성.
-  - Api나 사용방법등 내용이 많을경우 wiki에 꾸미고 링크 추가.
+---
 
-- 팀페이지 꾸미기
-  - 프로젝트 소개 및 팀원 소개
-  - index.md 예시보고 수정.
+## 저장소 구조
 
-- GitHub Pages 리파지토리 Settings > Options > GitHub Pages 
-  - Source를 marster branch
-  - Theme Chooser에서 태마선택
-  - 수정후 팀페이지 확인하여 점검.
+```text
+2026-capstone-18/
+├── AI/                       # 사전 스트레스 예측 Mamba 파이프라인 (학습/평가)
+│   ├── notebooks/
+│   └── src/
+│       ├── dataset/          # WESAD / Stress-Predict 다운로드·전처리
+│       ├── mamba_model.py    # Pure PyTorch Mamba 아키텍처
+│       ├── train.py          # 5-Fold GroupKFold 학습 루프
+│       ├── train_LOSO.py     # Leave-One-Subject-Out 검증
+│       └── train_fp_fold1.py # 단일 fold full-precision 학습
+├── backend/                  # FastAPI 백엔드 + Terraform 인프라
+│   ├── app/                  # 라우터·서비스·모델·스키마·관측성
+│   ├── alembic/              # DB 마이그레이션
+│   ├── infra/                # Terraform (ECS, RDS, ALB, S3, EventBridge)
+│   ├── scripts/              # 부트스트랩·마이그레이션·스모크 테스트
+│   └── docs/                 # 스프린트별 배포 런북
+├── watch/
+│   └── sensor-capture/       # Wear OS 원시 센서 수집 유틸 (Kotlin)
+├── README.md
+└── index.md                  # GitHub Pages 진입점
+```
 
-**팀페이지 주소** -> https://kookmin-sw.github.io/ '{{자신의 리파지토리 아이디}}'
+---
 
-**예시)** 2023년 0조  https://kookmin-sw.github.io/capstone-2023-00/
+## 1. AI — 사전 스트레스 예측 (Mamba)
 
+WESAD 데이터셋을 활용하여 사전 스트레스(Pre-Stress)를 예측하기 위해 최적화된 시계열 분류(TSC) Mamba 파이프라인입니다. v2.2 아키텍처는 명시적 수학적 피처 주입과 간소화된 3-Class 상태 머신을 채택하여, 엣지 환경(ESP32-S3, Wear OS)에서의 INT8 양자화와 효율적인 추론을 목적으로 설계되었습니다.
 
-## 내용에 아래와 같은 내용들을 추가하세요.
+### 1.1 주요 기술 결정
 
-### 1. 프로잭트 소개
+- **9-채널 명시적 피처 주입(Explicit Feature Injection)**: 모델이 고주파 노이즈로부터 거시적 추세를 강제로 학습하도록 두지 않고, 인과적 EMA(Causal EMA), MACD Delta 기울기, 후행 노이즈 분산(Trailing Variance)을 입력 텐서에 직접 주입.
+- **배포 지향적 3-Class 시스템**: 노이즈가 큰 5-Class WESAD 프로토콜을 견고한 3-Class 시스템(`0: Baseline`, `1: Pre-Stress`, `2: Stress`)으로 통합. 사후 회복(Cooldown)과 즐거움(Amusement)은 INT8 양자화 경계를 보존하기 위해 알고리즘적으로 Baseline에 매핑.
+- **Causal MACD 동적 라벨링**: 9초 Temporal Debouncing이 적용된 인과적 15분 Lookback 알고리즘으로 생리학적 각성의 시작점을 수학적으로 특정.
+- **전역 가속도 스케일링(Global ACC Scaling)**: 피험자별 Z-Score를 제거하고 1g(64.0) 휴식 기준의 전역 스케일(`-3.0` ~ `+3.0`)을 적용하여 INT8 양자화 시 스케일 스트레칭을 방지.
+- **Pure PyTorch Mamba**: 제한된 엣지 환경에서의 호환성을 위해 `mamba-ssm` 패키지 의존성 없이 순수 PyTorch로 구현.
 
-본 저장소는 WESAD 데이터셋을 활용하여 사전 스트레스(Pre-Stress)를 예측하기 위해 최적화되고 배포 준비가 완료된 시계열 분류(TSC, Time Series Classification) Mamba 파이프라인을 포함하고 있습니다. 
+### 1.2 9-채널 입력 텐서 매핑
 
-이 v2.2 아키텍처는 명시적인 수학적 피처 주입(Feature Injection)과 간소화된 3-Class 상태 머신을 활용하여, 엣지 환경(예: ESP32-S3 및 Flutter 애플리케이션)에서의 INT8 양자화 및 효율적인 추론(Inference)을 목적으로 특별히 설계되었습니다.
-
-### 주요 기술적 성과 
-* **9-채널 명시적 피처 주입 (Explicit Feature Injection):** 모델이 고주파 노이즈로부터 거시적 추세를 강제로 학습하게 하는 대신, 인과적 지수이동평균(Causal EMA), MACD Delta 기울기, 그리고 후행 노이즈 분산(Trailing Variance)을 입력 텐서에 직접 주입합니다.
-* **배포 지향적 3-Class 시스템:** 노이즈가 많은 기존 5-Class WESAD 프로토콜을 견고한 3-Class 시스템(`0: Baseline`, `1: Pre-Stress`, `2: Stress`)으로 통합했습니다. 사후 스트레스 회복(Cooldown)과 즐거움(Amusement) 상태는 INT8 양자화 경계를 보존하기 위해 알고리즘적으로 Baseline에 매핑됩니다.
-* **Causal MACD 동적 라벨링:** 생리학적 각성 상태의 정확한 시작점을 수학적으로 특정하기 위해, 9초간의 Temporal Debouncing이 적용된 엄격한 인과적 15분 Lookback 알고리즘을 구현했습니다.
-* **전역 가속도 스케일링 (Global ACC Scaling):** INT8 양자화 시 스케일 스트레칭을 방지하기 위해, 피험자별 Z-Score 정규화를 제거하고 1g(64.0) 휴식 상태를 기준으로 전역 스케일링(`-3.0` ~ `+3.0`)을 적용했습니다.
-* **Pure PyTorch Mamba:** 제한된 엣지 환경에서의 호환성을 극대화하기 위해 `mamba-ssm` 패키지에 의존하지 않는 순수 PyTorch 구현체를 사용합니다.
-
-### 하드웨어 요구사항 및 9-채널 센서 매핑 (배포 시 필수 확인)
-
-본 모델은 제한된 하드웨어 구성 요소(BOM)와의 1:1 매핑을 전제로 최적화되었습니다. **피부 온도(TEMP) 센서는 사용되지 않으며, 피부 전도도(EDA/GSR) 센서는 작동을 위해 반드시 포함되어야 합니다.** 추론 환경에서 입력 텐서 구성 시, 아래의 배열 순서(Index 0~8)를 정확히 준수해야 합니다.
+추론 시 입력 텐서의 인덱스 순서를 정확히 준수해야 합니다. **피부 온도(TEMP)는 사용하지 않으며, EDA/GSR은 반드시 포함되어야 합니다.**
 
 | 인덱스 | 피처명 | 설명 | 대상 하드웨어 |
 | :---: | :--- | :--- | :--- |
-| **0** | `bvp_calib` | 고주파 원본 BVP (PPG) 신호 | MAX30102 (Red/IR AC Waveform) |
-| **1** | `eda_calib` | 절대 피부 전도도 (Z-Score) | Grove GSR Sensor (Analog Out) |
-| **2** | `acc_mag_global` | 전역 물리적 활동량 (고정 스케일) | MPU6050 (Accelerometer Only) |
-| **3** | `eda_ema_context` | 5분 Causal EMA (EDA 거시적 추세) | *(소프트웨어 연산)* |
-| **4** | `bvp_ema_context` | 5분 Causal EMA (BVP 거시적 추세) | *(소프트웨어 연산)* |
+| **0** | `bvp_calib` | 고주파 원본 BVP (PPG) 신호 | Galaxy Watch 8 PPG Green |
+| **1** | `eda_calib` | 절대 피부 전도도 (Z-Score) | Galaxy Watch 8 EDA |
+| **2** | `acc_mag_global` | 전역 물리적 활동량 (고정 스케일) | Galaxy Watch 8 Accelerometer |
+| **3** | `eda_ema_context` | 5분 Causal EMA (EDA 거시 추세) | *(소프트웨어 연산)* |
+| **4** | `bvp_ema_context` | 5분 Causal EMA (BVP 거시 추세) | *(소프트웨어 연산)* |
 | **5** | `eda_macd_delta` | EDA Phasic 파생 변수 | *(소프트웨어 연산)* |
 | **6** | `bvp_macd_delta` | BVP Phasic 파생 변수 | *(소프트웨어 연산)* |
 | **7** | `norm_std_eda` | 후행 EDA 노이즈 플로어 (Variance) | *(소프트웨어 연산)* |
 | **8** | `norm_std_bvp` | 후행 BVP 노이즈 플로어 (Variance) | *(소프트웨어 연산)* |
 
-*(주의: 엣지 디바이스의 전력 및 DMA 대역폭 절감을 위해 MPU6050의 Gyroscope 데이터와 MAX30102의 자체 SpO2 연산 기능은 비활성화해야 합니다.)*
-
-### 2. 소개 영상
-
-프로젝트 소개하는 영상을 추가하세요
-
-### 3. 팀 소개
-
-팀을 소개하세요.
-
-팀원정보 및 담당이나 사진 및 SNS를 이용하여 소개하세요.
-
-### 4. 사용법
-
-소스코드제출시 설치법이나 사용법을 작성하세요.
-
-### 저장소 구조
-```text
-meltdownguard-mamba/
-├── README.md
-├── .gitignore
-├── notebooks/
-│   └── eval_scripts.ipynb   # 시각화 및 평가 스크립트
-└── src/
-    ├── download.py          # Kagglehub 기반 WESAD 자동 다운로드 스크립트
-    ├── preprocess.py        # 9-채널 3-Class 데이터 전처리 파이프라인
-    ├── mamba_model.py       # Pure PyTorch Mamba 아키텍처
-    └── train.py             # 학습 루프 및 KFold 교차 검증
-```
-
-### 빠른 시작 가이드 (Quick Start Guide)
-
-**Step 1. 데이터셋 다운로드**
-`kagglehub`를 사용하여 WESAD 데이터셋을 안전하게 다운로드하고 지정된 로컬 디렉토리로 이동시킵니다.
+### 1.3 빠른 시작
 
 ```bash
-python src/download.py
-```
+cd AI
+pip install -r requirements.txt
 
-**Step 2. 전처리 파이프라인 실행**
-원본 신호를 캘리브레이션하고, True IIR EMA 및 MACD 채널을 계산하며, 3-Class 동적 라벨링을 적용한 후 60초 청크(stride: 5초)를 추출하여 `.npy` 텐서로 저장합니다.
+# 1) WESAD 데이터셋 자동 다운로드
+python src/dataset/download_wesad.py
 
-```bash
-python src/preprocess.py
-```
+# 2) 9-채널 / 3-Class 전처리 파이프라인
+python src/dataset/preprocess_wesad.py
 
-**Step 3. 모델 학습**
-피험자 간 데이터 누수(Data Leakage)를 방지하기 위해 결정론적인 5-Fold GroupKFold 검증 전략을 사용하여 모델을 학습시킵니다.
-
-```bash
+# 3) GroupKFold 학습 (피험자 간 데이터 누수 방지)
 python src/train.py --epochs 50 --batch_size 64
-```
-*(Tip: 학습이 예기치 않게 중단된 경우, `--resume` 플래그를 추가하여 안전하게 학습을 재개하고 로그를 복구할 수 있습니다.)*
 
-**Step 4. 평가 및 시각화**
-학습이 완료되면 `notebooks/eval_scripts.ipynb` 파일을 열어 Scikit-Learn 분류 보고서, Ground Truth과 Mamba 예측 결과를 비교하는 피험자별 타임라인 그래프 등 확인할 수 있습니다.
-
-### 5. 기타
-
-추가적인 내용은 자유롭게 작성하세요.
-
-
-## Markdown을 사용하여 내용꾸미기
-
-Markdown은 작문을 스타일링하기위한 가볍고 사용하기 쉬운 구문입니다. 여기에는 다음을위한 규칙이 포함됩니다.
-
-```markdown
-Syntax highlighted code block
-
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
+# 4) 평가 및 시각화
+jupyter notebook notebooks/eval_scripts.ipynb
 ```
 
-자세한 내용은 [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+학습이 중단된 경우 `--resume` 플래그로 안전하게 재개할 수 있습니다.
 
-### Support or Contact
+---
 
-readme 파일 생성에 추가적인 도움이 필요하면 [도움말](https://help.github.com/articles/about-readmes/) 이나 [contact support](https://github.com/contact) 을 이용하세요.
+## 2. Backend — FastAPI on AWS Seoul
+
+100명 규모 베타 코호트를 대상으로 인증, 데이터 영속화, Watch–Phone 실시간 동기화, 옵트인 암호화 생체신호 보관, 감사 로그를 제공하는 서비스입니다. Firebase로 빠르게 만들 수도 있지만, 본 프로젝트는 시니어 수준의 백엔드 역량 자체를 산출물로 보여주기 위해 의도적으로 커스텀 백엔드 경로를 선택했습니다.
+
+### 2.1 설계 원칙
+
+1. **아키텍처로서의 프라이버시** — AWS, Supabase, 본 애플리케이션 중 어느 한쪽이 침해되더라도 사용자의 원시 생체신호는 복호화 불가능해야 한다. 사용자가 보유한 키 기반 E2E 암호화, 옵트인 업로드, 온디바이스 ML이 약속이 아닌 구조로 보장한다.
+2. **필요한 것만 짓는다** — "쓸모 있을 수 있다"로 포장된 스코프 확장을 거절한다. 모든 컴포넌트는 PoC 스코프를 기준으로 자체 정당화를 통과해야 한다.
+3. **운영은 1급 시민** — 로그·메트릭·트레이스·CI/CD를 애플리케이션 코드와 같은 시점에 설계한다. 관측 가능성은 v2의 과제가 아니다.
+4. **표준 도구를 잘 쓴다** — Postgres, FastAPI, Terraform, GitHub Actions. 도구 선택의 화려함이 아니라 *어떻게 쓰는지*로 시니어 수준을 보인다.
+5. **무엇이 아니라 왜를 문서화한다** — 결정의 근거를 보존하여 6개월 뒤의 자신·팀·검토자가 *왜*를 이해할 수 있게 한다.
+
+### 2.2 기술 스택
+
+| 영역 | 선택 | 비고 |
+| :--- | :--- | :--- |
+| 언어/런타임 | Python 3.12 | ML 파이프라인과 동일 언어 |
+| 웹 프레임워크 | FastAPI 0.136 | HTTP + WebSocket, 자동 OpenAPI |
+| ASGI 서버 | uvicorn (`[standard]`) | 프로덕션은 다중 워커 |
+| ORM / 드라이버 | SQLAlchemy 2.0 (asyncio) + asyncpg | 비동기 I/O |
+| 마이그레이션 | Alembic | `backend/alembic/versions` |
+| 검증 | Pydantic v2 + `pydantic-settings` | 환경변수 기반 설정 |
+| 인증 | Supabase Auth (JWT 발급) + `python-jose` (검증) | 익명 우선 + Google OAuth |
+| 알림 | Firebase Cloud Messaging (`firebase-admin`) | 백그라운드 푸시 |
+| 객체 저장소 | AWS S3 (`boto3`) + presigned URL | 옵트인 암호화 블롭 |
+| 로깅 | `structlog` → CloudWatch | 구조화 JSON, `trace_id` 포함 |
+| 정적 검사 | `ruff`, `mypy --strict` | 라인 100, py312 타깃 |
+| 테스트 | `pytest`, `pytest-asyncio`, `httpx`, `respx`, `moto` | 커버리지 = `sysmon` |
+| HTTP 클라이언트 | `httpx` (+ `httpx-ws`) | 외부 호출/테스트 공용 |
+
+### 2.3 인프라 (Terraform)
+
+| 컴포넌트 | 역할 |
+| :--- | :--- |
+| VPC (퍼블릭/프라이빗 서브넷, IGW, NAT Gateway, EIP) | 2-AZ 네트워킹, 프라이빗 서브넷에서 ECS·RDS 가동 |
+| 보안 그룹 (`alb`, `ecs`, `rds`) | ALB→ECS→RDS 단방향 트래픽 경계 |
+| Application Load Balancer | `/api/v1/*`, `/ws/realtime`, `/admin/*` 라우팅 (HTTP→HTTPS 리다이렉트) |
+| ACM 인증서 + Route53 | `api-staging.friendlykr.com` TLS, DNS 검증 자동화, A 레코드 자동 등록 |
+| ECS Fargate (1–4 task) + ECS Cluster | FastAPI 애플리케이션 + WebSocket 호스팅 |
+| ECS Task Definition (`backend`, `cron`) | 서비스 컨테이너와 EventBridge가 호출하는 일회성 잡 컨테이너 분리 |
+| IAM Role (`ecs_execution`, `ecs_task`, `scheduler`) | 시크릿 풀링 / 런타임 권한 / 스케줄러의 `RunTask` + `PassRole` |
+| ECR (lifecycle policy 포함) | 컨테이너 이미지 레지스트리, 미사용 태그 자동 정리 |
+| RDS Postgres 15 + TimescaleDB | 관계형 + 하이퍼테이블(`stress_events`, `audit_log`, `raw_biosignal_uploads`) |
+| S3 `sync` (Seoul, SSE, versioning, lifecycle) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`) |
+| S3 `biosignals` (Seoul, SSE, versioning, lifecycle) | 옵트인 원시 생체신호 — 사용자 보유 키로 암호화, 서버 복호화 불가 |
+| EventBridge Scheduler + ECS RunTask | `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 |
+| SQS DLQ + CloudWatch Metric Alarm | 스케줄러 실패 격리 + DLQ depth 알람 |
+| CloudWatch Log Groups (`backend`, `cron`) | structlog JSON 로그 수집 |
+| Secrets Manager (`supabase`, `firebase`) | Supabase 서비스 키 / Firebase Admin 자격증명 |
+
+전체 정의는 [`backend/infra/`](backend/infra/) — `networking.tf`, `alb.tf`, `ecs.tf`, `ecr.tf`, `rds.tf`, `s3.tf`, `scheduler.tf`, `secrets.tf`.
+
+### 2.4 데이터 모델 (요약)
+
+`users`, `user_settings`, `stress_events`(하이퍼테이블), `cycles`, `raw_biosignal_uploads`(하이퍼테이블, 옵트인), `sync_blob`, `websocket_connections`, `fcm_tokens`, `audit_log`(하이퍼테이블, append-only). 본문 자유 텍스트는 클라이언트 측에서 암호화된 상태로 저장되며, 원시 생체신호는 사용자 보유 키로 암호화된 후 S3에 업로드되어 서버는 복호화할 수 없습니다.
+
+### 2.5 API 요약
+
+- `auth/*` — 익명 발급, Google OAuth 교환, refresh, logout
+- `account/*` — 등록, 익명→등록 전환, 30일 유예 삭제
+- `events/*` — 스트레스 이벤트 CRUD
+- `cycles/*` — 생리 기록, 현재 phase, 히스토리
+- `settings/*` — 사용자 환경설정
+- `consent/*` — 동의 토글 + 감사 기록
+- `sync/{upload,download}` — 옵트인 암호화 백업
+- `sync/biosignals` — 옵트인 원시 생체신호 업로드
+- `devices/fcm-token` — FCM 토큰 등록
+- `ws/realtime` — Watch ↔ Phone 실시간 채널 (JWT in query)
+
+스프린트 1 단계의 헬스체크: `GET /health → {"status":"ok","version":"0.1.0"}`. Swagger는 `/docs`, ReDoc은 `/redoc`, OpenAPI는 `/openapi.json`.
+
+### 2.6 스프린트 진행 현황
+
+| 스프린트 | 주제 | 상태 |
+| :---: | :--- | :---: |
+| Sprint 0 | Foundation & Verification (SDK 검증 포함) | 완료 |
+| Sprint 1 | Local API skeleton + 구조화 로깅 | 완료 |
+| Sprint 2 | First AWS deploy (ECS + RDS + ALB) | 완료 |
+| Sprint 3 | Auth + user model (Supabase, Google OAuth) | 완료 |
+| Sprint 4 | Core data endpoints (events, cycles, settings, consent) | 완료 |
+| Sprint 5 | Real-time + sync (WebSocket, FCM, 옵트인 업로드) | 완료 |
+| Sprint 6 | 삭제·정리 잡 (`purge_accounts`, `purge_biosignals`) | 완료 |
+| **Sprint 7** | **EventBridge + Audit (진행 중)** | **진행 중** |
+| Sprint 8 | Observability + CI/CD (Sentry, OTel, GHA prod) | 예정 |
+| Sprint 9 | Hardening + beta-ready (rate limiting, load test, admin) | 예정 |
+
+Sprint 7에서는 in-process `_purge_loop`를 AWS EventBridge Scheduler + ECS RunTask로 이관하고, 모든 하드 삭제·생체신호 퍼지를 기록하는 `audit_log` 하이퍼테이블을 추가했습니다. 자세한 내용은 [`backend/docs/sprint-7-deploy-runbook.md`](backend/docs/sprint-7-deploy-runbook.md).
+
+### 2.7 로컬 개발
+
+사전 요구사항: Python 3.12 (pyenv), Poetry 2.x, Docker(Compose v2), `psql`.
+
+```bash
+cd backend
+poetry install
+docker compose up -d        # Postgres 15 + TimescaleDB + Adminer
+make migrate                # alembic upgrade head
+poetry run uvicorn app.main:app --reload
+```
+
+기본 접속: Postgres `localhost:5432` (`little_signals` / `dev_only_password` / `little_signals_dev`), Adminer `http://localhost:8080`. 5432 포트 충돌 시 Homebrew Postgres를 일시 중지하세요(`brew services stop postgresql@15`).
+
+테스트:
+
+```bash
+poetry run pytest
+make migrate-test
+```
+
+정적 검사:
+
+```bash
+poetry run ruff check .
+poetry run ruff format --check .
+poetry run mypy app/
+```
+
+### 2.8 스테이징 배포
+
+```bash
+cd backend
+AWS_PROFILE=little-signals-staging ./scripts/bootstrap-terraform-state.sh
+cd infra
+cp backend.hcl.example backend.hcl
+AWS_PROFILE=little-signals-staging terraform init -backend-config=backend.hcl
+AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
+cd ..
+AWS_PROFILE=little-signals-staging make ecr-login
+AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.7.0
+cd infra
+ECR_URL="$(AWS_PROFILE=little-signals-staging terraform output -raw ecr_repository_url)"
+AWS_PROFILE=little-signals-staging terraform apply \
+  -var-file=staging.tfvars \
+  -var "container_image=$ECR_URL:0.7.0"
+cd ..
+AWS_PROFILE=little-signals-staging ./scripts/enable-rds-timescaledb.sh
+AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
+make smoke-staging
+```
+
+스테이징 URL: `https://api-staging.friendlykr.com`.
+
+---
+
+## 3. Wear OS — Galaxy Watch 8 센서 캡처
+
+[`watch/sensor-capture/`](watch/sensor-capture/)는 Galaxy Watch 8에서 4개 채널의 원시 센서 데이터를 10분간 기록하고 ZIP으로 포장하여 ML 팀에 전달하기 위한 Wear OS 유틸리티입니다. 프로덕션 Phone/Watch 앱이 아닌, 모델 검증용 일회성 연구 도구로 분리되어 있습니다(스펙 §11 / Sprint 5의 옵트인 업로드 흐름과 별개).
+
+### 3.1 캡처 채널
+
+| 채널 | Samsung 트래커 | 관측 샘플레이트 | 모델 용도 |
+|---|---|---|---|
+| Heart rate + IBI | `HEART_RATE_CONTINUOUS` | ~1 Hz (event-driven) | HRV — 스트레스 모델의 근간 |
+| PPG green | `PPG_GREEN` | ~25 Hz | 원시 광학 신호, 모델 입력 |
+| EDA | `EDA_CONTINUOUS` | ~25 Hz | 피부 전도도, 두 번째 핵심 신호 |
+| Accelerometer | `ACCELEROMETER_CONTINUOUS` | ~25–50 Hz | 모션 아티팩트 필터 / 활동 게이팅 |
+
+피부 온도는 의도적으로 제외되었습니다. 저빈도 사이클 컨텍스트일 뿐 스트레스 모델 입력이 아닙니다.
+
+### 3.2 SDK 검증 결과 (2026-05-04)
+
+Samsung Health Sensor SDK 1.4.1 (`samsung-health-sensor-api-1.4.1.aar`)을 직접 검수하여, `HealthTrackerType` 열거형으로 다음이 노출됨을 확인했습니다.
+
+```kotlin
+ValueKey.HeartRateSet.HEART_RATE          // BPM
+ValueKey.HeartRateSet.IBI_LIST            // HRV 입력
+ValueKey.PpgGreenSet.PPG_GREEN            // 원시 PPG 샘플
+ValueKey.EdaSet.SKIN_CONDUCTANCE          // EDA 값
+ValueKey.AccelerometerSet.ACCELEROMETER_X // x/y/z 동일
+```
+
+v1 모델이 필요로 하는 4개 채널(연속 PPG, 심박+IBI, 연속 EDA, 연속 가속도)이 모두 연속 이벤트 스트림으로 제공됨을 실제 워치에서 검증 완료했습니다. 일부 상수명은 SDK 마이너 버전에 따라 변동(`HEART_RATE` ↔ `HEART_RATE_VALUE`, `RESISTANCE` ↔ `SCL` 등)되므로, IDE 자동완성으로 매칭되는 상수를 선택해 `ChannelRecorder.kt`에 반영합니다. 채널 계약(BPM/IBI 리스트/상태 코드/x·y·z)은 안정적이며 필드명만 달라집니다.
+
+### 3.3 출력 레이아웃
+
+10분 캡처가 성공하면 워치의 다음 경로에 결과가 생성됩니다.
+
+```
+/data/data/com.littlesignals.capture/files/captures/
+├── 2026-05-06T15-30-00Z/
+│   ├── heart_rate.csv          timestamp_ms, hr_bpm, ibi_ms, hr_status
+│   ├── ppg_green.csv           timestamp_ms, ppg_green, status
+│   ├── eda.csv                 timestamp_ms, resistance_kohm, status
+│   ├── accel.csv               timestamp_ms, x, y, z
+│   └── metadata.json           start/end ts, watch model, observed sample rates
+└── 2026-05-06T15-30-00Z.zip    # ML 팀에 전달하는 단일 산출물
+```
+
+`timestamp_ms`는 SDK의 `DataPoint.timestamp` (벽시계 UTC ms).
+
+### 3.4 빌드와 실행
+
+요구사항: Android Studio (Iguana / Koala 이상), 개발자 모드가 활성화되어 `adb devices`에 노출되는 Galaxy Watch 8, 저장소에 포함된 `libs/samsung-health-sensor-api-1.4.1.aar`.
+
+```bash
+cd watch/sensor-capture
+gradle wrapper --gradle-version 8.11.1
+./gradlew :app:assembleDebug
+./gradlew :app:installDebug
+adb shell am start -n com.littlesignals.capture/.CaptureActivity
+```
+
+워치를 80% 이상 충전 후, **첫 2분은 정자세**, 이후 8분은 일상 활동(보행, 타이핑, 기립·착석 등)으로 진행하면 휴식·동작 구간 모두 포함된 데이터가 만들어집니다.
+
+### 3.5 데이터 추출
+
+```bash
+SESSION="2026-05-06T15-30-00Z"
+adb exec-out run-as com.littlesignals.capture cat \
+  files/captures/${SESSION}.zip > ${SESSION}.zip
+
+unzip -l ${SESSION}.zip
+unzip -p ${SESSION}.zip metadata.json | jq .
+unzip -p ${SESSION}.zip ppg_green.csv | wc -l   # 10분 ≈ 15,000 행
+```
+
+루팅되지 않은 워치에서는 `adb pull /data/data/...`가 실패하므로, 디버그 빌드의 `run-as ... cat` 패턴이 표준입니다. 행이 0이거나 값이 전부 0/-1이면 권한 거부 또는 착용 불량을 의심하고 `adb logcat | grep -i capture`로 확인 후 재시도합니다.
+
+자세한 설치·검증·재사용 가이드는 [`watch/sensor-capture/README.md`](watch/sensor-capture/README.md).
+
+---
+
+## 4. 아키텍처 전체 흐름 (요약)
+
+```
+Galaxy Watch 8 (Wear OS, Kotlin)
+  ├── Samsung Health Sensor SDK 1.4.1
+  │     PPG_GREEN · HEART_RATE_CONTINUOUS · EDA_CONTINUOUS · ACCELEROMETER_CONTINUOUS
+  ├── Signal Preprocessor (60s 슬라이딩 윈도, 5분 EMA 베이스라인, 활동 게이트)
+  ├── Mamba 추론 (ONNX Runtime Mobile, 9-channel 3-class)
+  └── Decision Engine → 손목 알림 + 호흡 가이드
+        │
+        │ Android Wearable Data Layer
+        ▼
+Phone (Flutter)
+  ├── REST  ───────────────► FastAPI (/api/v1/*)
+  ├── WSS   ───────────────► FastAPI (/ws/realtime)
+  └── FCM   ◄─────────────── FastAPI → Firebase
+
+AWS Seoul (ap-northeast-2)
+  ALB → ECS Fargate (FastAPI, structlog, OTel)
+  ├── RDS Postgres 15 + TimescaleDB
+  ├── S3 (KMS, 옵트인 암호화 블롭)
+  ├── EventBridge Scheduler → ECS RunTask (purge jobs)
+  └── Secrets Manager · CloudWatch · SQS DLQ
+```
+
+---
+
+## 5. 문서
+
+- 백엔드 아키텍처 스펙 — 외부 비공개. 핵심 결정 요약은 본 README §2.1–§2.5와 [`backend/README.md`](backend/README.md) 참고.
+- 스프린트 7 배포 런북 — [`backend/docs/sprint-7-deploy-runbook.md`](backend/docs/sprint-7-deploy-runbook.md)
+- Wear OS 캡처 도구 — [`watch/sensor-capture/README.md`](watch/sensor-capture/README.md)
+- 인프라 — [`backend/infra/README.md`](backend/infra/README.md)
+
+---
+
+## 6. 팀 소개
+
+작성 예정 — 팀원 정보, 담당 영역, 연락처를 추가하세요.
+
+---
+
+## 7. 시연 영상
+
+작성 예정.
