@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Capture</string>
+    <string name="start_button">Start 10 min</string>
+    <string name="status_idle">Idle</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_capturing">Capturing %1$ds left</string>
+    <string name="status_done">Done — pull from %1$s</string>
+    <string name="status_error">Error: %1$s</string>
+</resources>
