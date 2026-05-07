@@ -128,7 +128,7 @@ jupyter notebook notebooks/eval_scripts.ipynb
 | ECS Task Definition (`backend`, `cron`) | 서비스 컨테이너와 EventBridge가 호출하는 일회성 잡 컨테이너 분리 |
 | IAM Role (`ecs_execution`, `ecs_task`, `scheduler`) | 시크릿 풀링 / 런타임 권한 / 스케줄러의 `RunTask` + `PassRole` |
 | ECR (lifecycle policy 포함) | 컨테이너 이미지 레지스트리, 미사용 태그 자동 정리 |
-| RDS Postgres 15 + TimescaleDB | 관계형 + 하이퍼테이블(`stress_events`, `audit_log`, `raw_biosignal_uploads`) |
+| RDS Postgres 15 + TimescaleDB | 관계형 + 하이퍼테이블(`stress_events`, `raw_biosignal_uploads`) |
 | S3 `sync` (Seoul, SSE, versioning, lifecycle) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`) |
 | S3 `biosignals` (Seoul, SSE, versioning, lifecycle) | 옵트인 원시 생체신호 — 사용자 보유 키로 암호화, 서버 복호화 불가 |
 | EventBridge Scheduler + ECS RunTask | `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 |
@@ -140,7 +140,7 @@ jupyter notebook notebooks/eval_scripts.ipynb
 
 ### 2.4 데이터 모델 (요약)
 
-`users`, `user_settings`, `stress_events`(하이퍼테이블), `cycles`, `raw_biosignal_uploads`(하이퍼테이블, 옵트인), `sync_blob`, `websocket_connections`, `fcm_tokens`, `audit_log`(하이퍼테이블, append-only). 본문 자유 텍스트는 클라이언트 측에서 암호화된 상태로 저장되며, 원시 생체신호는 사용자 보유 키로 암호화된 후 S3에 업로드되어 서버는 복호화할 수 없습니다.
+`users`, `user_settings`, `stress_events`(하이퍼테이블, `detected_at`), `cycles`, `raw_biosignal_uploads`(하이퍼테이블, `recorded_at`, 옵트인), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `audit_log`(append-only, `(action, occurred_at)` 인덱스). 본문 자유 텍스트는 클라이언트 측에서 암호화된 상태로 저장되며, 원시 생체신호는 사용자 보유 키로 암호화된 후 S3에 업로드되어 서버는 복호화할 수 없습니다.
 
 ### 2.5 API 요약
 
@@ -168,11 +168,11 @@ jupyter notebook notebooks/eval_scripts.ipynb
 | Sprint 4 | Core data endpoints (events, cycles, settings, consent) | 완료 |
 | Sprint 5 | Real-time + sync (WebSocket, FCM, 옵트인 업로드) | 완료 |
 | Sprint 6 | 삭제·정리 잡 (`purge_accounts`, `purge_biosignals`) | 완료 |
-| **Sprint 7** | **EventBridge + Audit (진행 중)** | **진행 중** |
-| Sprint 8 | Observability + CI/CD (Sentry, OTel, GHA prod) | 예정 |
+| Sprint 7 | EventBridge + Audit (`audit_log` 테이블 추가) | 완료 |
+| **Sprint 8** | **Observability + CI/CD (Sentry, OTel, GHA prod)** | **완료** |
 | Sprint 9 | Hardening + beta-ready (rate limiting, load test, admin) | 예정 |
 
-Sprint 7에서는 in-process `_purge_loop`를 AWS EventBridge Scheduler + ECS RunTask로 이관하고, 모든 하드 삭제·생체신호 퍼지를 기록하는 `audit_log` 하이퍼테이블을 추가했습니다. 자세한 내용은 [`backend/docs/sprint-7-deploy-runbook.md`](backend/docs/sprint-7-deploy-runbook.md).
+Sprint 7에서는 in-process `_purge_loop`를 AWS EventBridge Scheduler + ECS RunTask로 이관하고, 모든 하드 삭제·생체신호 퍼지를 기록하는 `audit_log` 테이블을 추가했습니다. 자세한 내용은 [`backend/docs/sprint-7-deploy-runbook.md`](backend/docs/sprint-7-deploy-runbook.md).
 
 ### 2.7 로컬 개발
 
