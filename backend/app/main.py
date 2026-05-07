@@ -167,6 +167,7 @@ from app.cycles.router import router as cycles_router  # noqa: E402
 from app.dashboard.router import router as dashboard_router  # noqa: E402
 from app.devices.router import router as devices_router  # noqa: E402
 from app.events.router import router as events_router  # noqa: E402
+from app.insights.router import router as insights_router  # noqa: E402
 from app.realtime.router import router as realtime_router  # noqa: E402
 from app.settings_api.router import router as settings_router  # noqa: E402
 from app.sleep.router import router as sleep_router  # noqa: E402
@@ -178,6 +179,7 @@ app.include_router(events_router, prefix="/api/v1")
 app.include_router(cycles_router, prefix="/api/v1")
 app.include_router(categories_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
+app.include_router(insights_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(consent_router, prefix="/api/v1")
 app.include_router(sleep_router, prefix="/api/v1")
