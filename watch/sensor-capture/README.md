@@ -101,15 +101,6 @@ unzip -p ${SESSION}.zip ppg_green.csv | head -5   # values should not all be 0/-
 
 Empty files or all-zero values mean the SDK didn't deliver events — usually a permission denied silently, or the watch wasn't worn skin-tight. Re-check `adb logcat | grep -i capture` and re-run.
 
-## Send to Nika
-
-Drop the zip into the team's shared Drive folder (or KakaoTalk file attachment). Include a short note:
-
-> Galaxy Watch 8, Sensor SDK 1.4.1, captured 2026-05-06 15:30 UTC.
-> First 2 min sitting still, last 8 min normal activity (walking + typing).
-> Channels: HR/IBI, PPG green, EDA, accel. Per-channel CSVs in the zip;
-> metadata.json has the observed sample rates.
-
 ## Reusing this app
 
 The `CaptureActivity` is parameterized only by the constant `DURATION_MIN`. If Nika asks for longer captures or different channels, edit:
