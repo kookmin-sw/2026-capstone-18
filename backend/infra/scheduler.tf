@@ -180,3 +180,51 @@ resource "aws_scheduler_schedule" "purge_accounts" {
     })
   }
 }
+
+resource "aws_scheduler_schedule" "purge_biosignals" {
+  name        = "${local.name_prefix}-purge-biosignals"
+  group_name  = aws_scheduler_schedule_group.main.name
+  description = "Sprint 7: wipe biosignal uploads for users with revoked consent. Every 6h."
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression          = "cron(15 */6 * * ? *)"
+  schedule_expression_timezone = "UTC"
+
+  target {
+    arn      = aws_ecs_cluster.main.arn
+    role_arn = aws_iam_role.scheduler.arn
+
+    ecs_parameters {
+      task_definition_arn = aws_ecs_task_definition.cron.arn
+      launch_type         = "FARGATE"
+      task_count          = 1
+
+      network_configuration {
+        subnets          = aws_subnet.private[*].id
+        security_groups  = [aws_security_group.ecs.id]
+        assign_public_ip = false
+      }
+    }
+
+    dead_letter_config {
+      arn = aws_sqs_queue.scheduler_dlq.arn
+    }
+
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts       = 2
+    }
+
+    input = jsonencode({
+      containerOverrides = [
+        {
+          name    = "cron"
+          command = ["sh", "-c", "export DATABASE_URL=\"${local.cron_db_url}\" && python -m app.jobs.purge_biosignals"]
+        }
+      ]
+    })
+  }
+}
