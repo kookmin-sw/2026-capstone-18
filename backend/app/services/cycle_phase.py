@@ -36,3 +36,25 @@ def compute_phase(
     if day <= 16:
         return ("ovulation", day)
     return ("luteal", day)
+
+
+def phase_window(*, phase: str, day: int, cycle_length_days: int) -> int | None:
+    """Return how many days remain in the current phase (1-indexed, inclusive of today).
+
+    For `luteal`, "remaining" is days until next expected period start. Past the
+    expected period, returns 0 (don't lie about a negative future).
+
+    For `pre_period`, returns None — the caller should hide the "X days left" badge.
+    Raises ValueError on unknown phase strings.
+    """
+    if phase == "menstrual":
+        return max(0, 5 - day + 1)
+    if phase == "follicular":
+        return max(0, 13 - day + 1)
+    if phase == "ovulation":
+        return max(0, 16 - day + 1)
+    if phase == "luteal":
+        return max(0, cycle_length_days - day + 1)
+    if phase == "pre_period":
+        return None
+    raise ValueError(f"unknown phase: {phase!r}")
