@@ -72,3 +72,38 @@ def test_init_tracing_uses_aws_xray_id_generator_for_aws_envs() -> None:
     # Provider was constructed with the X-Ray id_generator
     _, kwargs = mock_provider.call_args
     assert "id_generator" in kwargs
+
+
+def test_notification_dispatch_creates_manual_span(monkeypatch: pytest.MonkeyPatch) -> None:
+    """notify_user wraps its work in a span called 'notify_user'."""
+    import asyncio
+    import uuid as _uuid
+    from typing import Any
+    from unittest.mock import MagicMock
+
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        "app.services.notifications.tracer",
+        trace.get_tracer("test", tracer_provider=provider),
+    )
+
+    async def _ws(user_id: Any, msg: Any) -> int:
+        return 1
+
+    monkeypatch.setattr("app.services.notifications.manager.broadcast_to_user", _ws)
+
+    from app.schemas.realtime import OutboundMessage
+    from app.services.notifications import notifier
+
+    msg = OutboundMessage(type="events.created", data={})
+    asyncio.run(notifier.notify_user(MagicMock(), user_id=_uuid.uuid4(), message=msg))
+
+    span_names = [s.name for s in exporter.get_finished_spans()]
+    assert "notify_user" in span_names

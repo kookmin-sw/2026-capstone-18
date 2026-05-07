@@ -30,6 +30,14 @@ settings = get_settings()
 
 configure_logging(level=settings.log_level)
 
+from app.observability.sentry import init_sentry  # noqa: E402
+
+init_sentry(
+    dsn=settings.sentry_dsn,
+    environment=settings.environment,
+    release=settings.app_version,
+)
+
 logger = structlog.get_logger(__name__)
 
 
@@ -87,6 +95,15 @@ app = FastAPI(
 from app.observability.metrics import setup_metrics  # noqa: E402
 
 setup_metrics(app)
+
+from app.observability.tracing import init_tracing  # noqa: E402
+
+init_tracing(
+    app,
+    service_name="little-signals-backend",
+    otlp_endpoint=settings.otel_exporter_otlp_endpoint,
+    environment=settings.environment,
+)
 
 from app.observability.exception_handlers import install_exception_handlers  # noqa: E402
 
