@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from app.observability.metrics import active_websocket_connections
 from app.schemas.realtime import OutboundMessage
 
 if TYPE_CHECKING:
@@ -39,6 +40,7 @@ class ConnectionManager:
         user_id: uuid.UUID,
         websocket: WebSocket,
     ) -> None:
+        active_websocket_connections.inc()
         self._sockets[connection_id] = websocket
         self._by_user.setdefault(user_id, set()).add(connection_id)
         self._locks[connection_id] = asyncio.Lock()
@@ -48,6 +50,7 @@ class ConnectionManager:
         self._locks.pop(connection_id, None)
         if ws is None:
             return
+        active_websocket_connections.dec()
         for user_id, ids in list(self._by_user.items()):
             if connection_id in ids:
                 ids.discard(connection_id)

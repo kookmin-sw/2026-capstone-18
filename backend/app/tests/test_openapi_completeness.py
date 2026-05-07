@@ -48,6 +48,6 @@ async def test_openapi_lists_every_sprint_4_endpoint(client: AsyncClient) -> Non
 
 
 @pytest.mark.asyncio
-async def test_openapi_reports_app_version_0_7_0(client: AsyncClient) -> None:
+async def test_openapi_reports_app_version_0_8_0(client: AsyncClient) -> None:
     resp = await client.get("/openapi.json")
-    assert resp.json()["info"]["version"] == "0.7.0"
+    assert resp.json()["info"]["version"] == "0.8.0"

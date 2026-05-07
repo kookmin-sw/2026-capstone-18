@@ -47,6 +47,13 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-do-not-use-in-prod")
 os.environ.setdefault("GOOGLE_OAUTH_CLIENT_ID", "test-client.apps.googleusercontent.com")
 
+# Sprint 8a — observability disabled in tests. Pop any inherited values so
+# Settings.sentry_dsn / otel_exporter_otlp_endpoint default to None and the
+# init helpers no-op.
+os.environ.pop("SENTRY_DSN", None)
+os.environ.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
+os.environ.setdefault("ENVIRONMENT", "local")
+
 # Imports below MUST come after the env override above
 from app.db.dependencies import get_db  # noqa: E402
 from app.db.session import engine  # noqa: E402

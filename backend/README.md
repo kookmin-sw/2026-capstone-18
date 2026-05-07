@@ -654,7 +654,9 @@ Expected staging URL: `https://api-staging.friendlykr.com`. Smoke output should 
 | 5 | Real-time + sync (WebSocket, FCM, opt-in upload) | ✅ |
 | 6 | Deletion jobs (`purge_accounts`, `purge_biosignals`) | ✅ |
 | 7 | EventBridge + audit (`audit_log` table, scheduler-driven cron) | ✅ |
-| 8 | Observability + CI/CD (Sentry, OTel, GHA prod) | ✅ |
+| 8a | Observability (Sentry, OTel/X-Ray, Prometheus, alarms) | ⏳ |
+| 8b | CI/CD (GitHub Actions, OIDC, staging + prod deploys) | ⏳ |
+| 8c | Production environment (separate TF state, prod RDS/ECS/ALB) | ⏳ |
 | 9 | Hardening + beta-ready (rate limiting, load test, admin) | ⏳ |
 
-Latest deploy runbook: [`docs/sprint-7-deploy-runbook.md`](docs/sprint-7-deploy-runbook.md).
+Latest deploy runbook: [`docs/sprint-7-deploy-runbook.md`](docs/sprint-7-deploy-runbook.md). Sprint 8a runbook lives at `backend/docs/sprint-8a-deploy-runbook.md` locally (gitignored).

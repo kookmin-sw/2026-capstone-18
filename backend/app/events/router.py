@@ -19,6 +19,7 @@ from app.auth.dependencies import get_current_user
 from app.db.dependencies import get_db
 from app.models.stress_event import StressEvent
 from app.models.user import User
+from app.observability.metrics import events_created_total
 from app.schemas.events import (
     StressEventCreate,
     StressEventFilter,
@@ -61,6 +62,7 @@ async def create_event(
     db.add(event)
     await db.flush()
     await db.refresh(event)
+    events_created_total.inc()
     await notifier.notify_user(
         db,
         user_id=user.id,

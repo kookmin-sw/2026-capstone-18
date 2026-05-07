@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     """Logging verbosity for the structlog root logger."""
 
-    app_version: str = "0.7.0"
+    app_version: str = "0.8.0"
     """Reported by /health. Bump on release."""
 
     supabase_url: str
@@ -47,6 +47,15 @@ class Settings(BaseSettings):
 
     google_oauth_client_id: str
     """Google Cloud OAuth client ID. Used as the expected `aud` when verifying Google ID tokens directly."""
+
+    sentry_dsn: str | None = None
+    """Sentry DSN. None disables Sentry entirely (local dev, CI)."""
+
+    otel_exporter_otlp_endpoint: str | None = None
+    """gRPC OTLP endpoint, e.g. http://localhost:4317 for the ADOT sidecar. None disables tracing export."""
+
+    environment: Literal["local", "staging", "production"] = "local"
+    """Deployment environment. Used as Sentry environment tag and OTel resource attribute."""
 
     task_id: str = Field(
         default_factory=lambda: f"local-{uuid.uuid4().hex[:8]}",

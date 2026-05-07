@@ -22,6 +22,14 @@ greenlet = ">=3.0,<4"
 httpx = "^0.28.1"
 firebase-admin = "^7.4.0"
 boto3 = "^1.43.4"
+opentelemetry-api = "^1.28.0"
+opentelemetry-sdk = "^1.28.0"
+opentelemetry-exporter-otlp-proto-grpc = "^1.28.0"
+opentelemetry-instrumentation-fastapi = "^0.49b0"
+opentelemetry-instrumentation-sqlalchemy = "^0.49b0"
+opentelemetry-sdk-extension-aws = "^2.0.2"
+prometheus-fastapi-instrumentator = "^7.1.0"
+sentry-sdk = {extras = ["fastapi"], version = "^2.20.0"}
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.15.12"
@@ -74,7 +82,7 @@ warn_unused_ignores = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["jose.*", "structlog.*", "firebase_admin.*", "boto3.*", "moto.*"]
+module = ["jose.*", "structlog.*", "firebase_admin.*", "boto3.*", "moto.*", "opentelemetry.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
