@@ -61,6 +61,8 @@ async def patch_settings(
         settings.silence_during_exercise = payload.silence_during_exercise
     if payload.consent_audit_logging is not None:
         settings.consent_audit_logging = payload.consent_audit_logging
+    if payload.sleep_nudge_enabled is not None:
+        settings.sleep_nudge_enabled = payload.sleep_nudge_enabled
     if payload.language is not None:
         settings.language = payload.language
     await db.flush()
