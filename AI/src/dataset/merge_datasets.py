@@ -11,14 +11,14 @@ def main():
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     AI_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))    
     
-    WESAD_DIR = os.path.join(AI_ROOT, 'data', 'processed', 'WESAD')
-    STRESS_PREDICT_DIR = os.path.join(AI_ROOT, 'data', 'processed', 'StressPredict')
-    MERGED_DIR = os.path.join(AI_ROOT, 'data', 'processed', 'Merged')
+    WESAD_DIR = os.path.join(AI_ROOT, 'data', 'galaxy', 'WESAD')
+    STRESS_PREDICT_DIR = os.path.join(AI_ROOT, 'data', 'galaxy', 'StressPredict')
+    MERGED_DIR = os.path.join(AI_ROOT, 'data', 'galaxy', 'Merged')
 
     os.makedirs(MERGED_DIR, exist_ok=True)
     
     if not os.path.exists(WESAD_DIR) or not os.path.exists(STRESS_PREDICT_DIR):
-        print(f"❌ Error: Could not find processed dataset directories.")
+        print(f"❌ Error: Could not find galaxy dataset directories.")
         sys.exit(1)
         
     # 2. Load WESAD
