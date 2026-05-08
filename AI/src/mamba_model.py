@@ -7,10 +7,10 @@ mamba-ssm 패키지 없이 순수 PyTorch로 Selective SSM을 구현.
 DLPC 등 패키지 설치가 제한된 환경에서 사용.
 
 데이터 흐름:
-    [B, 9, 3840]
-    → stem: Conv1d(5→64) + GELU + BN → [B, 64, 60]
-    → permute → [B, 60, 64]
-    → MambaBlock (시간 방향) → [B, 60, 64]
+    [B, 9, 1500]  <- Galaxy Watch 8 25Hz Update
+    → stem: Conv1d(5→64) + GELU + BN → [B, 64, 30]
+    → permute → [B, 30, 64]
+    → MambaBlock (시간 방향) → [B, 30, 64]
     → mean(dim=1) → [B, 64]
     → classifier → [B, num_class]
 """
@@ -20,25 +20,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
-
 # ============================================================
 # Pure PyTorch Mamba Block
 # ============================================================
 class MambaPure(nn.Module):
-    """
-    Selective State Space Model (S6) — 순수 PyTorch 구현.
-
-    mamba-ssm의 Mamba 클래스와 동일한 인터페이스:
-        입력: [B, L, D]  →  출력: [B, L, D]
-
-    원리:
-        1. 입력을 expand배로 확장 (d_inner = d_model * expand)
-        2. 1D Conv로 로컬 컨텍스트 추출
-        3. SSM 파라미터 (Δ, B, C) 를 입력으로부터 동적으로 생성 (Selective)
-        4. 이산화된 SSM을 sequential scan으로 실행
-        5. 게이트와 곱해서 출력
-    """
-
     def __init__(self, d_model, d_state=16, d_conv=4, expand=2):
         super().__init__()
         self.d_model = d_model
@@ -47,86 +32,51 @@ class MambaPure(nn.Module):
         self.expand = expand
         self.d_inner = d_model * expand
 
-        # 입력 투영: d_model → d_inner * 2 (x용 + gate용)
         self.in_proj = nn.Linear(d_model, self.d_inner * 2, bias=False)
-
-        # 1D depthwise conv (로컬 컨텍스트)
         self.conv1d = nn.Conv1d(
             self.d_inner, self.d_inner,
             kernel_size=d_conv, padding=d_conv - 1,
             groups=self.d_inner, bias=True
         )
-
-        # SSM 파라미터 투영
-        self.x_proj = nn.Linear(self.d_inner, d_state * 2 + 1, bias=False)  # B, C, dt
-
-        # dt (Δ) 파라미터
+        self.x_proj = nn.Linear(self.d_inner, d_state * 2 + 1, bias=False)  
         self.dt_proj = nn.Linear(1, self.d_inner, bias=True)
 
-        # A 파라미터 (고정 초기화, 학습 가능)
         A = torch.arange(1, d_state + 1, dtype=torch.float32).unsqueeze(0).expand(self.d_inner, -1)
         self.A_log = nn.Parameter(torch.log(A))
-
-        # D 파라미터 (skip connection)
         self.D = nn.Parameter(torch.ones(self.d_inner))
-
-        # 출력 투영
         self.out_proj = nn.Linear(self.d_inner, d_model, bias=False)
 
     def forward(self, x):
-        """
-        Args:
-            x: [B, L, D]
-        Returns:
-            out: [B, L, D]
-        """
         B, L, D = x.shape
 
-        # 1. 입력 투영 → [B, L, d_inner*2]
         x_and_gate = self.in_proj(x)
         x_inner, gate = x_and_gate.chunk(2, dim=-1)
 
-        # 2. 1D Conv (시간축)
         x_conv = x_inner.transpose(1, 2)
         x_conv = self.conv1d(x_conv)[:, :, :L]
         x_conv = x_conv.transpose(1, 2)
         x_conv = F.silu(x_conv)
 
-        # 3. SSM 파라미터 생성 (Selective)
         ssm_params = self.x_proj(x_conv)
         B_param = ssm_params[:, :, :self.d_state]
         C_param = ssm_params[:, :, self.d_state:self.d_state*2]
         dt_raw = ssm_params[:, :, -1:]
 
         dt = F.softplus(self.dt_proj(dt_raw))
-
         A = -torch.exp(self.A_log)
 
-        # 4. Selective Scan
         y = self._selective_scan(x_conv, dt, A, B_param, C_param)
-
-        # Skip connection
         y = y + x_conv * self.D.unsqueeze(0).unsqueeze(0)
-
-        # 5. Gate 적용
         y = y * F.silu(gate)
 
-        # 6. 출력 투영
         out = self.out_proj(y)
         return out
 
     def _selective_scan(self, x, dt, A, B_param, C_param):
-        """
-        이산화된 SSM의 sequential scan.
-
-        h(t) = A_bar * h(t-1) + B_bar * x(t)
-        y(t) = C(t) * h(t)
-        """
         B_batch, L, d_inner = x.shape
 
         dt_A = dt.unsqueeze(-1) * A.unsqueeze(0).unsqueeze(0)
         A_bar = torch.exp(dt_A)
-
         B_bar = dt.unsqueeze(-1) * B_param.unsqueeze(2)
 
         h = torch.zeros(B_batch, d_inner, self.d_state, device=x.device, dtype=x.dtype)
@@ -140,18 +90,14 @@ class MambaPure(nn.Module):
         y = torch.stack(ys, dim=1)
         return y
 
-
 # ============================================================
 # Model
 # ============================================================
 class Model(nn.Module):
-    """MeltdownGuard-Mamba v2 (순수 PyTorch)."""
-
     def __init__(self, configs):
         super(Model, self).__init__()
         self.configs = configs
 
-        # ① Stem
         self.stem = nn.Sequential(
             nn.Conv1d(
                 in_channels=configs.enc_in,
@@ -165,7 +111,6 @@ class Model(nn.Module):
 
         self.dropout = nn.Dropout(configs.dropout)
 
-        # ② Mamba Backbone (순수 PyTorch)
         self.mamba_blocks = nn.ModuleList([
             MambaPure(
                 d_model=configs.projected_space,
@@ -175,7 +120,6 @@ class Model(nn.Module):
             ) for _ in range(configs.num_mambas)
         ])
 
-        # ③ Classification Head
         self.classifier = nn.Sequential(
             nn.Linear(configs.projected_space, configs.projected_space // 2),
             nn.GELU(),
@@ -213,14 +157,13 @@ class Model(nn.Module):
     def count_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-
 # ============================================================
 # Config
 # ============================================================
 class MeltdownGuardConfig:
     def __init__(self, **kwargs):
         self.enc_in = kwargs.get('enc_in', 9)
-        self.seq_len = kwargs.get('seq_len', 3840)
+        self.seq_len = kwargs.get('seq_len', 1500) # Updated for 25Hz x 60s
         self.num_class = kwargs.get('num_class', 2)
 
         self.projected_space = kwargs.get('projected_space', 64)
@@ -229,30 +172,25 @@ class MeltdownGuardConfig:
         self.e_fact = kwargs.get('e_fact', 2)
         self.num_mambas = kwargs.get('num_mambas', 1)
         self.dropout = kwargs.get('dropout', 0.3)
-        self.patch_len = kwargs.get('patch_len', 64)
+        self.patch_len = kwargs.get('patch_len', 50) # Updated for clean division of 1500
 
-        self.only_forward_scan = kwargs.get('only_forward_scan', 1)  # 1=tango OFF
+        self.only_forward_scan = kwargs.get('only_forward_scan', 1) 
         self.reverse_flip = kwargs.get('reverse_flip', 1)
 
         self.task_name = 'classification'
-
 
 def create_model(config_dict=None):
     config = MeltdownGuardConfig(**(config_dict or {}))
     model = Model(config)
     return model, config
 
-
-# ============================================================
-# 테스트
-# ============================================================
 if __name__ == '__main__':
     print("=" * 55)
-    print("  MeltdownGuard-Mamba v2 (순수 PyTorch) 테스트")
+    print("  MeltdownGuard-Mamba v2 (Galaxy Watch 8 Target) 테스트")
     print("=" * 55)
 
     model, config = create_model()
-    dummy = torch.randn(4, 9, 3840)
+    dummy = torch.randn(4, 9, 1500)
     output = model(dummy)
 
     print(f"\n  입력:  {dummy.shape}")
