@@ -43,6 +43,9 @@ class UserSettings(Base):
     consent_audit_logging: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="true"
     )
+    sleep_nudge_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true"
+    )
     language: Mapped[str] = mapped_column(String(8), nullable=False, server_default="ko")
 
     user: Mapped[User] = relationship("User", back_populates="settings")

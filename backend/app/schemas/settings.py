@@ -18,6 +18,7 @@ class UserSettingsResponse(BaseModel):
     silence_during_meeting: bool
     silence_during_exercise: bool
     consent_audit_logging: bool
+    sleep_nudge_enabled: bool
     language: str
 
 
@@ -29,6 +30,7 @@ class UserSettingsUpdate(BaseModel):
     silence_during_meeting: bool | None = None
     silence_during_exercise: bool | None = None
     consent_audit_logging: bool | None = None
+    sleep_nudge_enabled: bool | None = None
     language: Literal["ko", "en"] | None = None
 
     def is_empty(self) -> bool:
