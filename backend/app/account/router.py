@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, get_current_user_id
 from app.db.dependencies import get_db
 from app.models.user import User
-from app.schemas.user import AccountActionResponse, CurrentUserResponse
+from app.schemas.user import AccountActionResponse, CurrentUserResponse, MeUpdate
 
 GRACE_WINDOW = timedelta(days=30)
 
@@ -32,6 +32,28 @@ router = APIRouter(tags=["account"])
 async def me(
     user: Annotated[User, Depends(get_current_user)],
 ) -> CurrentUserResponse:
+    return CurrentUserResponse.model_validate(user)
+
+
+@router.patch(
+    "/me",
+    response_model=CurrentUserResponse,
+    summary="Update the authenticated user's profile",
+)
+async def patch_me(
+    payload: MeUpdate,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CurrentUserResponse:
+    if payload.is_empty():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"status": "error", "reason": "empty_patch_body"},
+        )
+    if "display_name" in payload.model_fields_set:
+        user.display_name = payload.display_name
+    await db.flush()
+    await db.refresh(user)
     return CurrentUserResponse.model_validate(user)
 
 
