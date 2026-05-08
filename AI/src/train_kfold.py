@@ -1,45 +1,60 @@
 import argparse
 import os
 import json
+import time
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import GroupKFold
 
 from mamba_model import create_model
 
-# speed-up for 4090
+# Optimizations for RTX 4090
 torch.set_float32_matmul_precision('high')
 
 # ==========================================
-# 1. FOCAL LOSS & DATASET
+# 1. INSTANCE-WEIGHTED FOCAL LOSS & DATASET
 # ==========================================
-class FocalLoss(nn.Module):
-    def __init__(self, weight=None, gamma=3.0):
-        super(FocalLoss, self).__init__()
-        self.weight = weight 
+class InstanceWeightedFocalLoss(nn.Module):
+    def __init__(self, gamma=3.0):
+        super(InstanceWeightedFocalLoss, self).__init__()
         self.gamma = gamma
 
-    def forward(self, inputs, targets):
-        ce_loss = F.cross_entropy(inputs, targets, weight=self.weight, reduction='none')
+    def forward(self, inputs, targets, sample_weights):
+        ce_loss = F.cross_entropy(inputs, targets, reduction='none')
         pt = torch.exp(-ce_loss)
         focal_loss = ((1 - pt) ** self.gamma) * ce_loss
-        return focal_loss.mean()
+        weighted_loss = focal_loss * sample_weights
+        return weighted_loss.mean()
 
 class WESADTensorDataset(Dataset):
-    def __init__(self, X, y):
+    def __init__(self, X, y, sub, wesad_stress_w=2.0):
         self.X = torch.tensor(X, dtype=torch.float32)
         self.y = torch.tensor(y, dtype=torch.float32)
-
+        self.sample_weights = torch.zeros(len(y), dtype=torch.float32)
+        
+        # Mapping logic
+        for i in range(len(y)):
+            subject = str(sub[i]).strip()
+            is_stress = np.argmax(y[i]) == 1
+            
+            if subject.endswith('_S'): # StressPredict
+                self.sample_weights[i] = 1.0
+            else: # WESAD
+                if is_stress:
+                    self.sample_weights[i] = wesad_stress_w
+                else:
+                    self.sample_weights[i] = 0.5
+                    
     def __len__(self):
         return len(self.y)
 
     def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+        return self.X[idx], self.y[idx], self.sample_weights[idx]
 
 # ==========================================
 # 2. TRAINING & EVALUATION LOOPS
@@ -47,14 +62,14 @@ class WESADTensorDataset(Dataset):
 def train_one_epoch(model, loader, criterion, optimizer, scheduler, device):
     model.train()
     total_loss, correct, total = 0, 0, 0
+    start_time = time.time()
 
-    for X_batch, y_batch in loader:
-        X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+    for X_batch, y_batch, w_batch in loader:
+        X_batch, y_batch, w_batch = X_batch.to(device), y_batch.to(device), w_batch.to(device)
 
         optimizer.zero_grad()
         logits = model(X_batch)
-        
-        loss = criterion(logits, y_batch)
+        loss = criterion(logits, y_batch, w_batch)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
@@ -66,38 +81,33 @@ def train_one_epoch(model, loader, criterion, optimizer, scheduler, device):
         correct += (logits.argmax(1) == y_batch.argmax(1)).sum().item()
         total += len(y_batch)
 
-    return total_loss / total, correct / total
+    epoch_time = time.time() - start_time
+    return total_loss / total, correct / total, epoch_time
 
 @torch.no_grad()
 def evaluate(model, loader, criterion, device):
     model.eval()
     total_loss, all_preds, all_labels = 0, [], []
 
-    for X_batch, y_batch in loader:
-        X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+    for X_batch, y_batch, w_batch in loader:
+        X_batch, y_batch, w_batch = X_batch.to(device), y_batch.to(device), w_batch.to(device)
         logits = model(X_batch)
-        loss = criterion(logits, y_batch)
+        loss = criterion(logits, y_batch, w_batch)
 
         total_loss += loss.item() * len(y_batch)
         all_preds.extend(logits.argmax(1).cpu().numpy())
         all_labels.extend(y_batch.argmax(1).cpu().numpy())
 
     all_preds, all_labels = np.array(all_preds), np.array(all_labels)
-    
-    # Calculate standard F1 strictly for Class 1 (Stress)
-    f1_stress = f1_score(all_labels, all_preds, pos_label=1, average='binary', zero_division=0)
-    
-    return (total_loss / len(all_labels),
-            accuracy_score(all_labels, all_preds),
-            f1_stress,
-            all_labels, all_preds)
+    f1 = f1_score(all_labels, all_preds, pos_label=1, average='binary', zero_division=0)
+    return (total_loss / len(all_labels), accuracy_score(all_labels, all_preds), f1)
 
 def save_incremental_log(log_path, fold_metrics):
     with open(log_path, 'w') as f:
         json.dump(fold_metrics, f, indent=4)
 
 # ==========================================
-# 3. K-FOLD VALIDATION PIPELINE
+# 3. K-FOLD PIPELINE (ASYMMETRIC)
 # ==========================================
 def run_group_kfold(args):
     # Dynamic loading based on prefix
@@ -107,6 +117,30 @@ def run_group_kfold(args):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device} | Total Samples: {X.shape[0]} | Dataset: {args.prefix}")
+
+    # ==========================================
+    # CUSTOM ASYMMETRIC K-FOLD LOGIC
+    # ==========================================
+    WESAD_FEMALES = ['S8_W', 'S11_W', 'S17_W']
+    
+    target_indices = []
+    aux_indices = []
+    
+    for i, s in enumerate(sub):
+        if str(s).endswith('_S') or str(s) in WESAD_FEMALES:
+            target_indices.append(i)
+        else:
+            aux_indices.append(i) # WESAD Males
+            
+    target_indices = np.array(target_indices)
+    aux_indices = np.array(aux_indices)
+    
+    target_X = X[target_indices]
+    target_y = y[target_indices]
+    target_sub = sub[target_indices]
+    
+    print(f"Target Pool (Train/Test): {len(target_indices)} chunks")
+    print(f"Auxiliary Pool (Train Only): {len(aux_indices)} chunks")
 
     # Configurable folds
     gkf = GroupKFold(n_splits=args.folds)
@@ -122,10 +156,18 @@ def run_group_kfold(args):
     best_overall_f1 = max([m['best_f1'] for m in fold_metrics]) if fold_metrics else 0
     best_fold_idx = max(fold_metrics, key=lambda x:x['best_f1'])['fold'] if fold_metrics else 0
 
-    for fold, (train_idx, test_idx) in enumerate(gkf.split(X, y, groups=sub)):
+    for fold, (target_train_idx, test_idx) in enumerate(gkf.split(target_X, target_y, groups=target_sub)):
         current_fold_num = fold + 1
-        train_subs = np.unique(sub[train_idx])
-        test_subs = np.unique(sub[test_idx])
+        
+        # Map target subset indices back to absolute global indices
+        global_target_train_idx = target_indices[target_train_idx]
+        global_test_idx = target_indices[test_idx]
+        
+        # Inject Auxiliary (Male) indices exclusively into the train set
+        global_train_idx = np.concatenate([global_target_train_idx, aux_indices])
+        
+        train_subs = np.unique(sub[global_train_idx])
+        test_subs = np.unique(sub[global_test_idx])
         
         if any(m['fold'] == current_fold_num for m in fold_metrics):
             print(f"[*] Fold {current_fold_num} already exists in log file. Skipping...")
@@ -133,18 +175,23 @@ def run_group_kfold(args):
             
         print(f"\n{'='*60}")
         print(f"Fold {current_fold_num}/{args.folds}")
-        print(f"Train on {len(train_subs)} Subjects: {train_subs.tolist()}")
+        print(f"Train on {len(train_subs)} Subjects (Includes Aux)")
         print(f"Test on {len(test_subs)} Subjects:  {test_subs.tolist()}")
         print(f"{'='*60}")
 
-        X_train, y_train = X[train_idx], y[train_idx]
-        X_test, y_test = X[test_idx], y[test_idx]
+        X_train, y_train, sub_train = X[global_train_idx], y[global_train_idx], sub[global_train_idx]
+        X_test, y_test, sub_test = X[global_test_idx], y[global_test_idx], sub[global_test_idx]
 
-        # The 'Balanced Conservative' Loss Weights
-        cw = torch.tensor([1.0, 0.5], dtype=torch.float32).to(device)
+        train_ds = WESADTensorDataset(X_train, y_train, sub_train, wesad_stress_w=args.wesad_stress_w)
+        
+        # Weight Sanity Check
+        if current_fold_num == 1:
+            unique_w, counts_w = np.unique(train_ds.sample_weights.numpy(), return_counts=True)
+            print(f"Weight Distribution: {dict(zip(unique_w, counts_w))}")
 
-        train_loader = DataLoader(WESADTensorDataset(X_train, y_train), batch_size=args.batch_size, shuffle=True, num_workers=8, pin_memory=True)
-        test_loader = DataLoader(WESADTensorDataset(X_test, y_test), batch_size=args.batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
+        test_loader = DataLoader(WESADTensorDataset(X_test, y_test, sub_test, wesad_stress_w=args.wesad_stress_w), 
+                                 batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
         model_config = {
             'enc_in': X.shape[1], 'seq_len': X.shape[2], 'num_class': 2,
@@ -163,13 +210,13 @@ def run_group_kfold(args):
             except Exception as e:
                 pass
 
-        criterion = FocalLoss(weight=cw, gamma=2.0)
+        criterion = InstanceWeightedFocalLoss(gamma=3.0)
         checkpoint_path = os.path.join(args.save_dir, f'fold_{current_fold_num}_best.pt')
 
         if args.resume and os.path.exists(checkpoint_path):
             print(f"[Resume] Reconstructing metrics for Fold {current_fold_num} from checkpoint...")
             model.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
-            val_loss, val_acc, val_f1, _, _ = evaluate(model, test_loader, criterion, device)
+            val_loss, val_acc, val_f1 = evaluate(model, test_loader, criterion, device)
             
             print(f"★ Recovered Fold {current_fold_num} | Acc: {val_acc:.3f} | F1: {val_f1:.3f}")
             
@@ -186,7 +233,7 @@ def run_group_kfold(args):
             if val_f1 > best_overall_f1:
                 best_overall_f1 = val_f1
                 best_fold_idx = current_fold_num
-                split_data = {'train_idx': train_idx.tolist(), 'test_idx': test_idx.tolist(), 'test_subjects': test_subs.tolist()}
+                split_data = {'train_idx': global_train_idx.tolist(), 'test_idx': global_test_idx.tolist(), 'test_subjects': test_subs.tolist()}
                 with open(os.path.join(args.save_dir, 'best_qat_split.json'), 'w') as f:
                     json.dump(split_data, f, indent=4)
             continue
@@ -205,19 +252,20 @@ def run_group_kfold(args):
         best_fold_acc = 0
 
         for epoch in range(1, args.epochs + 1):
-            train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device)
-            val_loss, val_acc, val_f1, _, _ = evaluate(model, test_loader, criterion, device)
+            t_loss, t_acc, t_time = train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device)
+            v_loss, v_acc, v_f1 = evaluate(model, test_loader, criterion, device)
 
-            if val_f1 > best_fold_f1:
-                best_fold_f1 = val_f1
-                best_fold_acc = val_acc
+            if v_f1 > best_fold_f1:
+                best_fold_f1 = v_f1
+                best_fold_acc = v_acc
                 best_fold_epoch = epoch
                 torch.save(model.state_dict(), checkpoint_path)
 
             print(f"Ep {epoch:>3d}/{args.epochs} | "
-                  f"Train [Loss: {train_loss:.4f} Acc: {train_acc:.3f}] | "
-                  f"Val [Loss: {val_loss:.4f} Acc: {val_acc:.3f} F1: {val_f1:.3f}] | "
-                  f"★ Best [Ep: {best_fold_epoch:<3d} Acc: {best_fold_acc:.3f} F1: {best_fold_f1:.3f}]")
+                  f"Train [Loss: {t_loss:.4f} Acc: {t_acc:.3f}] | "
+                  f"Val [Loss: {v_loss:.4f} Acc: {v_acc:.3f} F1: {v_f1:.3f}] | "
+                  f"Time: {t_time:.2f}s | "
+                  f"★ Best [Ep: {best_fold_epoch:<3d} F1: {best_fold_f1:.3f}]")
 
         print(f"\n★ Fold {current_fold_num} Complete: Best F1 = {best_fold_f1:.4f} (Achieved at Epoch {best_fold_epoch})")
         
@@ -234,12 +282,12 @@ def run_group_kfold(args):
         if best_fold_f1 > best_overall_f1:
             best_overall_f1 = best_fold_f1
             best_fold_idx = current_fold_num
-            split_data = {'train_idx': train_idx.tolist(), 'test_idx': test_idx.tolist(), 'test_subjects': test_subs.tolist()}
+            split_data = {'train_idx': global_train_idx.tolist(), 'test_idx': global_test_idx.tolist(), 'test_subjects': test_subs.tolist()}
             with open(os.path.join(args.save_dir, 'best_qat_split.json'), 'w') as f:
                 json.dump(split_data, f, indent=4)
 
     print(f"\n{'='*60}")
-    print(f"GroupKFold {args.folds}-Fold Final Summary")
+    print(f"Asymmetric GroupKFold {args.folds}-Fold Final Summary")
     print(f"{'='*60}")
     f1_scores = [m['best_f1'] for m in fold_metrics]
     print(f"Average Stress F1: {np.mean(f1_scores):.4f} ± {np.std(f1_scores):.4f}")
@@ -253,12 +301,13 @@ def main():
 
     parser = argparse.ArgumentParser(description='MeltdownGuard-Mamba Universal Training Harness')
     
-    parser.add_argument('--data_dir', type=str, default=os.path.join(PROJECT_ROOT, 'data', 'processed', 'Merged'))
-    parser.add_argument('--prefix', type=str, default='Merged', help='Prefix of the numpy files (e.g. Merged or StressPredict)')
+    parser.add_argument('--data_dir', type=str, default=os.path.join(PROJECT_ROOT, 'data', 'galaxy', 'Merged'))
+    parser.add_argument('--prefix', type=str, default='Merged', help='Prefix of the numpy files')
     parser.add_argument('--save_dir', type=str, default=os.path.join(PROJECT_ROOT, 'checkpoints'))
+    parser.add_argument('--wesad_stress_w', type=float, default=2.0)
     
-    parser.add_argument('--epochs', type=int, default=50)
-    parser.add_argument('--folds', type=int, default=10, help='Number of cross-validation folds')
+    parser.add_argument('--epochs', type=int, default=150)
+    parser.add_argument('--folds', type=int, default=5, help='Number of cross-validation folds')
     parser.add_argument('--resume', action='store_true')
     
     parser.add_argument('--projected_space', type=int, default=64)
@@ -266,7 +315,7 @@ def main():
     parser.add_argument('--dconv', type=int, default=4)
     parser.add_argument('--e_fact', type=int, default=2)
     parser.add_argument('--num_mambas', type=int, default=1)
-    parser.add_argument('--patch_len', type=int, default=32)
+    parser.add_argument('--patch_len', type=int, default=50)
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--tango', action='store_true')
     parser.add_argument('--reverse_flip', type=int, default=1)
