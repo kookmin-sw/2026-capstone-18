@@ -1,7 +1,6 @@
 package com.littlesignals.capture
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -17,8 +16,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,13 +28,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,18 +47,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import timber.log.Timber
 
-// Luma brand palette — keeps the watch UI visually consistent with the phone app.
 private val Lilac = Color(0xFFB89DDB)
 private val Pink = Color(0xFFF8C4D7)
 private val Background = Color(0xFFFAF6FB)
 private val Plum = Color(0xFF2D2433)
 private val PlumDim = Color(0x992D2433)
 private val PlumGhost = Color(0x4D2D2433)
+private val GreenOk = Color(0xFF66BB6A)
+private val OrangeWarn = Color(0xFFFFB74D)
 
 class CaptureActivity : ComponentActivity() {
 
@@ -78,115 +71,75 @@ class CaptureActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
+        ensurePermissions()
         setContent { MaterialTheme { CaptureScreen() } }
+    }
+
+    private fun ensurePermissions() {
+        val needed = if (Build.VERSION.SDK_INT >= 36) listOf(
+            "com.samsung.android.hardware.sensormanager.permission.READ_ADDITIONAL_HEALTH_DATA",
+            "android.permission.health.READ_HEART_RATE",
+            Manifest.permission.ACTIVITY_RECOGNITION,
+        ) else listOf(Manifest.permission.BODY_SENSORS)
+        val missing = needed.filter {
+            ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) requestPermissions.launch(missing.toTypedArray())
     }
 
     @Composable
     private fun CaptureScreen() {
         val ui by CaptureState.flow.collectAsState()
-        var selectedDurationMs by remember { mutableStateOf<Long?>(10L * 60_000L) }
 
         Box(
             modifier = Modifier.fillMaxSize().background(Background),
             contentAlignment = Alignment.Center,
         ) {
             when (ui.state) {
-                State.IDLE -> IdleScreen(
-                    selectedMs = selectedDurationMs,
-                    onSelect = { selectedDurationMs = it },
-                    onStart = { startCapture(selectedDurationMs) },
-                )
-                State.CAPTURING -> CapturingScreen(ui = ui, onStop = { stopCapture() })
-                State.DONE -> DoneScreen(ui = ui, onReset = {
-                    CaptureState.flow.value = CaptureUiState()
-                })
-                State.ERROR -> ErrorScreen(ui = ui, onReset = {
-                    CaptureState.flow.value = CaptureUiState()
-                })
+                State.IDLE -> IdleScreen()
+                State.CAPTURING -> CapturingScreen(ui)
+                State.DONE -> DoneScreen(ui)
+                State.ERROR -> ErrorScreen(ui)
             }
         }
     }
-
-    private fun startCapture(durationMs: Long?) {
-        if (!checkPermissions()) {
-            requestMissingPermissions()
-            return
-        }
-        val intent = Intent(this, BiosignalCaptureService::class.java).apply {
-            action = BiosignalCaptureService.ACTION_START
-            putExtra(BiosignalCaptureService.EXTRA_DURATION_MS, durationMs ?: -1L)
-        }
-        startForegroundService(intent)
-    }
-
-    private fun stopCapture() {
-        val intent = Intent(this, BiosignalCaptureService::class.java).apply {
-            action = BiosignalCaptureService.ACTION_STOP
-        }
-        startService(intent)
-    }
-
-    private fun requiredPermissions(): List<String> = if (Build.VERSION.SDK_INT >= 36) listOf(
-        "com.samsung.android.hardware.sensormanager.permission.READ_ADDITIONAL_HEALTH_DATA",
-        "android.permission.health.READ_HEART_RATE",
-        Manifest.permission.ACTIVITY_RECOGNITION,
-    ) else listOf(Manifest.permission.BODY_SENSORS)
-
-    private fun checkPermissions(): Boolean = requiredPermissions().all {
-        ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun requestMissingPermissions() {
-        val missing = requiredPermissions().filter {
-            ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (missing.isNotEmpty()) requestPermissions.launch(missing.toTypedArray())
-    }
 }
 
-// ─── Screens ─────────────────────────────────────────────────────────────────
-
 @Composable
-private fun IdleScreen(
-    selectedMs: Long?,
-    onSelect: (Long?) -> Unit,
-    onStart: () -> Unit,
-) {
+private fun IdleScreen() {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "Little Signals",
+            text = "Luma",
             color = Plum,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp,
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "캡처",
-            color = Plum,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
         Spacer(modifier = Modifier.height(14.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            DurationChip("10분", selectedMs == 10L * 60_000L) { onSelect(10L * 60_000L) }
-            DurationChip("30분", selectedMs == 30L * 60_000L) { onSelect(30L * 60_000L) }
-            DurationChip("∞", selectedMs == null) { onSelect(null) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(8.dp).clip(CircleShape).background(GreenOk),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("준비됨", color = Plum, fontSize = 11.sp, fontWeight = FontWeight.Medium)
         }
-        Spacer(modifier = Modifier.height(14.dp))
-        GradientPillButton(label = "캡처 시작", onClick = onStart)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "휴대폰에서\n캡처를 시작하세요",
+            color = PlumDim,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 14.sp,
+        )
     }
 }
 
 @Composable
-private fun CapturingScreen(ui: CaptureUiState, onStop: () -> Unit) {
+private fun CapturingScreen(ui: CaptureUiState) {
     val total = if (ui.durationMs > 0) ui.durationMs.toFloat() else -1f
     val progress = if (total > 0f) (ui.elapsedMs.toFloat() / total).coerceIn(0f, 1f) else 0f
     val animatedProgress by animateFloatAsState(
@@ -220,52 +173,28 @@ private fun CapturingScreen(ui: CaptureUiState, onStop: () -> Unit) {
         }
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 26.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(
-                modifier = Modifier.padding(top = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 PulsingDot(color = Pink, size = 5.dp)
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "캡처 중",
-                    color = Pink,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 1.sp,
-                )
+                Text("캡처 중", color = Pink, fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp)
             }
-
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = formatMmSs(ui.elapsedMs),
-                    color = Plum,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Text(formatMmSs(ui.elapsedMs), color = Plum, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
                 if (total > 0f) {
-                    Text(
-                        text = "/ ${formatMmSs(ui.durationMs)}",
-                        color = PlumDim,
-                        fontSize = 10.sp,
-                    )
+                    Text("/ ${formatMmSs(ui.durationMs)}", color = PlumDim, fontSize = 10.sp)
                 }
             }
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CountRow(ui)
-                Spacer(modifier = Modifier.height(8.dp))
-                StopPillButton(onClick = onStop)
-            }
+            CountRow(ui)
         }
     }
 }
 
 @Composable
-private fun DoneScreen(ui: CaptureUiState, onReset: () -> Unit) {
+private fun DoneScreen(ui: CaptureUiState) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -273,52 +202,37 @@ private fun DoneScreen(ui: CaptureUiState, onReset: () -> Unit) {
     ) {
         CheckBadge()
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "완료",
-            color = Plum,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Text("완료", color = Plum, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = formatMmSs(ui.elapsedMs),
-            color = PlumDim,
-            fontSize = 11.sp,
-        )
+        Text(formatMmSs(ui.elapsedMs), color = PlumDim, fontSize = 11.sp)
         Spacer(modifier = Modifier.height(8.dp))
         CountRow(ui)
-        Spacer(modifier = Modifier.height(12.dp))
-        GhostPillButton(label = "다시", onClick = onReset)
     }
 }
 
 @Composable
-private fun ErrorScreen(ui: CaptureUiState, onReset: () -> Unit) {
+private fun ErrorScreen(ui: CaptureUiState) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = "오류",
-            color = Plum,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(8.dp).clip(CircleShape).background(OrangeWarn),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("오류", color = Plum, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = ui.error ?: "알 수 없는 오류",
+            text = ui.error ?: "알 수 없음",
             color = PlumDim,
             fontSize = 10.sp,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        GhostPillButton(label = "다시 시도", onClick = onReset)
     }
 }
-
-// ─── Reusable bits ───────────────────────────────────────────────────────────
 
 @Composable
 private fun CountRow(ui: CaptureUiState) {
@@ -336,99 +250,8 @@ private fun CountRow(ui: CaptureUiState) {
 @Composable
 private fun CountTile(label: String, count: Long) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = formatCount(count),
-            color = Plum,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = label,
-            color = PlumGhost,
-            fontSize = 7.sp,
-            letterSpacing = 0.5.sp,
-        )
-    }
-}
-
-@Composable
-private fun DurationChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val bg = if (selected)
-        Brush.linearGradient(listOf(Lilac, Pink))
-    else
-        Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .border(1.dp, if (selected) Color.Transparent else Lilac.copy(alpha = 0.5f), RoundedCornerShape(50))
-            .background(bg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = if (selected) Color.White else Plum,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-@Composable
-private fun GradientPillButton(label: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Brush.linearGradient(listOf(Lilac, Pink)))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 11.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-@Composable
-private fun GhostPillButton(label: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .border(1.dp, Lilac, RoundedCornerShape(50))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = Lilac,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-@Composable
-private fun StopPillButton(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color(0xFFE57373))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "중지",
-            color = Color.White,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Text(formatCount(count), color = Plum, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = PlumGhost, fontSize = 7.sp, letterSpacing = 0.5.sp)
     }
 }
 
@@ -456,10 +279,7 @@ private fun PulsingDot(color: Color, size: Dp) {
 private fun CheckBadge() {
     Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
         Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(Lilac.copy(alpha = 0.25f)),
+            modifier = Modifier.size(48.dp).clip(CircleShape).background(Lilac.copy(alpha = 0.25f)),
         )
         Canvas(modifier = Modifier.size(48.dp)) {
             val stroke = 3.dp.toPx()
@@ -479,15 +299,13 @@ private fun CheckBadge() {
     }
 }
 
-private fun formatMmSs(elapsedMs: Long): String {
-    val totalSec = (elapsedMs / 1000L).coerceAtLeast(0L)
-    val mm = totalSec / 60L
-    val ss = totalSec % 60L
-    return "%d:%02d".format(mm, ss)
+private fun formatMmSs(ms: Long): String {
+    val s = (ms / 1000L).coerceAtLeast(0L)
+    return "%d:%02d".format(s / 60L, s % 60L)
 }
 
-private fun formatCount(count: Long): String = when {
-    count < 1000L -> count.toString()
-    count < 10_000L -> "%.1fK".format(count / 1000.0)
-    else -> "${count / 1000L}K"
+private fun formatCount(c: Long): String = when {
+    c < 1000L -> c.toString()
+    c < 10_000L -> "%.1fK".format(c / 1000.0)
+    else -> "${c / 1000L}K"
 }

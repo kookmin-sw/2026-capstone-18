@@ -9,7 +9,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.littlesignals.capture"
+        applicationId = "com.littlesignals.app"  // matches phone for Wear Data Layer pairing
         minSdk = 30           // Wear OS 3+ (Galaxy Watch 8 ships with Wear OS 5)
         targetSdk = 36        // Required for Sensor SDK 1.4.x's Android-16 permission gating to be honored by Health Platform
         versionCode = 1
