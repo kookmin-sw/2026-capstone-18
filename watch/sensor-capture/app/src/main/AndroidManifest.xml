@@ -39,7 +39,7 @@
             android:required="true" />
 
         <activity
-            android:name=".CaptureActivity"
+            android:name="com.littlesignals.capture.CaptureActivity"
             android:exported="true"
             android:theme="@style/Theme.SensorCapture">
             <intent-filter>
@@ -49,12 +49,12 @@
         </activity>
 
         <service
-            android:name=".BiosignalCaptureService"
+            android:name="com.littlesignals.capture.BiosignalCaptureService"
             android:exported="false"
             android:foregroundServiceType="health" />
 
         <service
-            android:name=".WatchControlListener"
+            android:name="com.littlesignals.capture.WatchControlListener"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
