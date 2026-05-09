@@ -59,3 +59,42 @@ resource "aws_ecs_task_definition" "ml_demo" {
 
   tags = local.common_tags
 }
+
+resource "aws_lb_target_group" "ml_demo" {
+  name        = "${local.name_prefix}-ml-demo"
+  port        = 8001
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.main.id
+
+  health_check {
+    enabled             = true
+    path                = "/health"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_lb_listener_rule" "ml_demo" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.ml_demo.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/v1/ml-demo/*"]
+    }
+  }
+
+  tags = local.common_tags
+}
