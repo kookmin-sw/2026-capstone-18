@@ -57,22 +57,45 @@ class CaptureSession(private val ctx: Context) {
         }
     }
 
+    /**
+     * Connects to the Samsung Health Tracking Service and resumes ONLY after
+     * onConnectionSuccess fires (per Samsung Health support response).
+     * Calling getHealthTracker before that callback throws "Client binder is null".
+     */
     private suspend fun connectService(): HealthTrackingService =
         suspendCancellableCoroutine { cont: CancellableContinuation<HealthTrackingService> ->
-            val svc = HealthTrackingService(object : ConnectionListener {
-                override fun onConnectionSuccess() { Timber.i("HealthTrackingService connected") }
-                override fun onConnectionEnded() { Timber.i("HealthTrackingService ended") }
+            val resumed = java.util.concurrent.atomic.AtomicBoolean(false)
+            lateinit var service: HealthTrackingService
+            val listener = object : ConnectionListener {
+                override fun onConnectionSuccess() {
+                    Timber.i("HealthTrackingService connected")
+                    if (cont.isActive && resumed.compareAndSet(false, true)) {
+                        cont.resume(service)
+                    }
+                }
+                override fun onConnectionEnded() {
+                    Timber.w("HealthTrackingService connection ended")
+                    if (cont.isActive && resumed.compareAndSet(false, true)) {
+                        cont.resumeWithException(
+                            IllegalStateException("HealthTrackingService connection ended before success"),
+                        )
+                    }
+                }
                 override fun onConnectionFailed(e: HealthTrackerException) {
                     Timber.e(e, "HealthTrackingService connection failed")
-                    if (cont.isActive) cont.resumeWithException(e)
+                    if (cont.isActive && resumed.compareAndSet(false, true)) {
+                        cont.resumeWithException(e)
+                    }
                 }
-            }, ctx)
-            try {
-                svc.connectService()
-                if (cont.isActive) cont.resume(svc)
-            } catch (t: Throwable) {
-                if (cont.isActive) cont.resumeWithException(t)
             }
-            cont.invokeOnCancellation { runCatching { svc.disconnectService() } }
+            service = HealthTrackingService(listener, ctx)
+            try {
+                service.connectService()
+            } catch (t: Throwable) {
+                if (cont.isActive && resumed.compareAndSet(false, true)) {
+                    cont.resumeWithException(t)
+                }
+            }
+            cont.invokeOnCancellation { runCatching { service.disconnectService() } }
         }
 }
