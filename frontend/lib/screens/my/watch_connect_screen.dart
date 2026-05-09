@@ -214,7 +214,12 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
     return ChoiceChip(
       label: Text(label),
       selected: _selectedSource == source,
-      onSelected: (_) => setState(() => _selectedSource = source),
+      onSelected: (_) {
+        setState(() => _selectedSource = source);
+        if (source == 'watch') {
+          _controller.refreshWatchConnection();
+        }
+      },
     );
   }
 
