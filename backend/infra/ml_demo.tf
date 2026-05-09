@@ -98,3 +98,31 @@ resource "aws_lb_listener_rule" "ml_demo" {
 
   tags = local.common_tags
 }
+
+resource "aws_ecs_service" "ml_demo" {
+  name             = "${local.name_prefix}-ml-demo"
+  cluster          = aws_ecs_cluster.main.id
+  task_definition  = aws_ecs_task_definition.ml_demo.arn
+  desired_count    = 1
+  launch_type      = "FARGATE"
+  platform_version = "LATEST"
+
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 200
+
+  network_configuration {
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = false
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.ml_demo.arn
+    container_name   = "ml-demo"
+    container_port   = 8001
+  }
+
+  depends_on = [aws_lb_listener_rule.ml_demo]
+
+  tags = local.common_tags
+}
