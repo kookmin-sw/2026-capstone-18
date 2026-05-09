@@ -1,0 +1,48 @@
+name: Traffic snapshot
+
+# Records daily views/clones to .github/traffic/{views,clones}.json so we keep
+# history past GitHub's rolling 14-day API window.
+
+on:
+  schedule:
+    # 01:00 UTC = 10:00 KST. Picks up the previous day's complete numbers.
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: traffic-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and merge traffic
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p .github/traffic
+          for kind in views clones; do
+            gh api "repos/${GITHUB_REPOSITORY}/traffic/${kind}" > "/tmp/${kind}.json"
+            python3 .github/scripts/merge_traffic.py "$kind" "/tmp/${kind}.json"
+          done
+
+      - name: Commit if changed
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/traffic/
+          if git diff --staged --quiet; then
+            echo 'No traffic changes to commit.'
+            exit 0
+          fi
+          today=$(date -u +%Y-%m-%d)
+          git commit -m "chore(traffic): snapshot ${today}"
+          git push
