@@ -811,7 +811,7 @@ AWS Seoul (ap-northeast-2)
     <td align="center" width="160">
       <a href="https://github.com/pnpn777">
         <img src="https://github.com/pnpn777.png" width="96" height="96" alt="pnpn777"/><br/>
-        <sub><b>pnpn777</b></sub>
+        <sub><b>예르잔 울판</b></sub>
       </a><br/>
       <sub>Frontend / UX-UI</sub>
     </td>
