@@ -414,7 +414,326 @@ unzip -p ${SESSION}.zip ppg_green.csv | wc -l   # 10분 ≈ 15,000 행
 
 ---
 
-## 4. 아키텍처 전체 흐름 (요약)
+## 4. Frontend — Flutter Android App
+
+`frontend/` 디렉토리는 LittleSignals의 Flutter 기반 Android 모바일 애플리케이션입니다.
+사용자 스트레스 기록, 생리 주기 기반 인사이트 시각화, 수면 데이터 흐름, 알림 등록, 향후 웨어러블 데이터 연동을 위한 사용자 인터페이스 계층을 담당합니다.
+
+현재 frontend는 Provider 기반 아키텍처로 구현되어 있으며, 안정적인 UI 테스트를 위한 mock/demo mode와 실제 staging backend 연동 모드를 모두 지원합니다.
+
+### 4.1 설계 목표
+
+Frontend는 다음 세 가지 UX 목표를 중심으로 설계되었습니다.
+
+#### 1. 빠른 스트레스 기록 UX
+
+사용자는 복잡한 화면 이동 없이 스트레스 강도, 요인(trigger), 메모를 빠르게 기록할 수 있어야 합니다.
+
+#### 2. Cycle-aware Context
+
+스트레스 기록은 생리 주기 phase 정보와 함께 시각화되어, 황체기 스트레스 집중이나 주기 기반 패턴 변화를 사용자가 인식할 수 있도록 설계되었습니다.
+
+#### 3. Integration-ready Wearable UX
+
+UI와 Provider 계층은 향후 Galaxy Watch / Health Connect 데이터를 소비할 수 있도록 준비되어 있습니다. 현재 구현에는 service contract, populated/empty state가 포함되어 있으며, 실제 native wearable ingestion은 다음 단계 integration task로 남아 있습니다.
+
+### 4.2 기술 스택
+
+| 영역                    | 기술                                                 |
+| --------------------- | -------------------------------------------------- |
+| Framework             | Flutter / Dart                                     |
+| State Management      | Provider                                           |
+| Backend Communication | REST API client layer                              |
+| Authentication        | Anonymous auth, Google Sign-In frontend flow       |
+| Push Notification     | Firebase Messaging / FCM device token registration |
+| Platform Target       | Android (`com.littlesignals.app`)                  |
+| Testing               | Flutter unit tests + regression smoke tests        |
+
+
+### 4.3 주요 사용자 흐름
+
+```mermaid
+flowchart TD
+    A[Auth Landing] --> B{사용자 로그인 방식 선택}
+    B --> C[Anonymous Login]
+    B --> D[Google Sign-In]
+    B --> E[Email Login UI]
+
+    C --> F[Home Dashboard]
+    D --> F
+    E --> F
+
+    F --> G[Stress Log]
+    F --> H[Cycle Tracking]
+    F --> I[Sleep Data]
+    F --> J[Insight Calendar]
+    F --> K[Profile]
+
+    G --> G1[스트레스 강도 선택]
+    G --> G2[Trigger 선택]
+    G --> G3[메모 작성]
+    G --> G4[스트레스 기록 생성/수정]
+
+    H --> H1[생리 시작/종료일 선택]
+    H --> H2[Auto-save cycle data]
+    H --> H3[Home / Insight refresh]
+
+    I --> I1[수면 기록이 없을 때 Empty State]
+    I --> I2[수면 기록이 있을 때 Populated State]
+
+    J --> J1[Cycle × Stress 리포트]
+    J --> J2[Trigger 분포]
+    J --> J3[일별 이벤트 상세]
+
+    K --> K1[닉네임 수정]
+    K --> K2[Trigger 관리]
+    K --> K3[개인정보 처리방침]
+```
+
+
+### 4.4 구현 완료 기능
+
+현재 frontend 구현에는 다음 기능이 포함됩니다.
+
+* Auth landing screen
+* Anonymous authentication flow
+* Google Sign-In frontend request flow
+* Home dashboard
+* Stress log create/edit flow
+* Default/custom trigger management
+* Duplicate trigger inline validation
+* Cycle tracking + auto-save UX
+* Cycle-aware insight copy
+* Sleep empty/populated states
+* Insight calendar 및 monthly report UI
+* Profile nickname editing
+* Korean UI copy polish
+* Notification permission handling
+* FCM device token registration
+* Session cleanup 및 provider reset
+* Mock/demo mode (`ApiConfig.useMock=true`)
+* Staging API integration (`ApiConfig.useMock=false`)
+* Regression smoke tests
+
+
+### 4.5 Frontend 아키텍처
+
+Frontend는 feature-based 구조를 따릅니다.
+
+```text
+frontend/
+├── lib/
+│   ├── core/
+│   │   ├── config/          # API config 및 runtime mode
+│   │   ├── errors/          # API exception handling
+│   │   ├── mock/            # MockBackend
+│   │   ├── network/         # Shared ApiClient
+│   │   ├── storage/         # Secure token storage
+│   │   ├── theme/           # App colors / typography
+│   │   ├── utils/           # Korean UI helper
+│   │   └── widgets/         # Shared UI widgets
+│   ├── features/
+│   │   ├── auth/
+│   │   ├── cycles/
+│   │   ├── events/
+│   │   ├── insight/
+│   │   ├── notifications/
+│   │   ├── sleep/
+│   │   └── triggers/
+│   ├── screens/
+│   │   ├── home/
+│   │   ├── insight/
+│   │   └── my/
+│   └── main.dart
+├── test/
+├── android/
+├── pubspec.yaml
+└── README.md
+```
+
+각 feature는 UI state, API access, models, service logic를 분리합니다.
+
+```text
+features/events/
+├── data/
+│   └── events_api.dart      # Backend API calls
+├── models/
+│   └── stress_event.dart    # Domain model
+└── events_provider.dart     # UI state / refresh logic
+```
+
+#### Provider 역할
+
+* loading / error / success state 관리
+* screen refresh
+* session cleanup
+* mock ↔ staging mode 전환
+* UI-facing state transformation
+
+#### Data Layer 역할
+
+* backend request construction
+* response parsing
+* API payload compatibility
+* endpoint-level error handling
+
+
+### 4.6 Frontend Data Flow
+
+```mermaid
+flowchart LR
+    UI[Flutter Screen] --> Provider[Feature Provider]
+    Provider --> Mode{ApiConfig.useMock}
+    Mode -->|true| Mock[MockBackend]
+    Mode -->|false| API[Feature data API]
+    API --> Client[Shared ApiClient]
+    Client --> Backend[FastAPI Staging Backend]
+    Backend --> Client
+    Client --> API
+    API --> Provider
+    Mock --> Provider
+    Provider --> UI
+```
+
+동일한 UI는 두 가지 runtime mode에서 동작합니다.
+
+#### `ApiConfig.useMock=true`
+
+* local mock/demo data 사용
+* 안정적인 UI 테스트 가능
+
+#### `ApiConfig.useMock=false`
+
+* 실제 staging backend 호출
+* `https://api-staging.friendlykr.com`
+
+
+### 4.7 Backend Integration Status
+
+현재 frontend에서 구현 및 검증된 backend integration:
+
+* Anonymous auth
+* Google Sign-In frontend request flow
+* `/api/v1/me`
+* `/api/v1/events`
+* `/api/v1/cycles/current`
+* `/api/v1/cycles/history`
+* `/api/v1/categories`
+* `/api/v1/consent`
+* `/api/v1/sleep-logs/latest`
+* `/api/v1/devices/fcm-token`
+
+검증 완료 상태:
+
+* `useMock=false` 기준 staging API 연결 정상
+* FCM permission request 정상
+* FCM device token registration 성공
+* Sleep latest endpoint empty response graceful handling
+* Cycle/current 및 history response 기반 UI 업데이트
+* Event data provider-driven rendering
+
+#### Pending / backend-dependent
+
+* Google OAuth audience/client ID alignment
+* Email/password auth endpoints
+* End-to-end push notification verification
+* 일부 account security flow backend support
+
+### 4.8 Watch / Sleep / Cycle Integration Contract
+
+Frontend는 향후 wearable data ingestion을 위한 service contract를 포함합니다.
+
+현재 상태:
+
+* UI와 Provider state는 sleep/cycle data 소비 준비 완료
+* Mock/demo data로 populated state 검증 가능
+* 실제 Galaxy Watch / Health Connect ingestion은 아직 미완료
+* Native Android bridge / MethodChannel integration은 next-stage task
+
+#### Sleep Contract
+
+```text
+WatchSleepService
+├── fellAsleepAt
+├── wokeUpAt
+└── endedOn
+```
+
+#### Cycle Contract
+
+```text
+WatchCycleService
+├── periodStart
+├── periodEnd
+└── estimatedCycleLength
+```
+
+#### Planned Future Flow
+
+```mermaid
+flowchart TD
+    Watch[Galaxy Watch / Health Connect] --> Native[Android Native Layer]
+    Native --> Bridge[MethodChannel or Plugin]
+    Bridge --> Service[WatchSleepService / WatchCycleService]
+    Service --> Provider[SleepProvider / CycleProvider]
+    Provider --> UI[Flutter UI]
+```
+
+현재 frontend는 native ingestion이 연결되더라도 major UI redesign 없이 데이터를 소비할 수 있도록 설계되었습니다.
+
+### 4.9 Notification Flow
+
+```mermaid
+flowchart LR
+    App[Flutter App] --> Permission[Notification Permission]
+    Permission --> FCM[Firebase Messaging Token]
+    FCM --> API[POST /api/v1/devices/fcm-token]
+    API --> Backend[FastAPI Backend]
+    Backend --> Stored[Device Token Registered]
+```
+
+현재 구현:
+
+* Notification permission request
+* FCM token acquisition
+* FCM token backend registration
+* Korean/English notification copy localization
+
+### 4.10 Frontend 실행
+
+```bash
+cd frontend
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+### 4.11 테스트
+
+Frontend validation:
+
+```bash
+flutter analyze
+flutter test
+```
+
+Regression smoke tests는 다음 흐름을 검증합니다.
+
+* auth landing 및 login navigation
+* anonymous login flow
+* bottom tab navigation
+* Home dashboard rendering
+* stress log create/edit
+* trigger management
+* cycle tracking 및 auto-save
+* sleep empty/populated state
+* notification copy localization
+* nickname/session cleanup
+* provider reset behavior
+
+
+## 5. 아키텍처 전체 흐름 (요약)
 
 ```
 Galaxy Watch 8 (Wear OS, Kotlin)
@@ -441,7 +760,7 @@ AWS Seoul (ap-northeast-2)
 
 ---
 
-## 5. 문서
+## 6. 문서
 
 내부 검토자(평가위원·심사자·신규 합류자)는 다음 순서로 읽으면 됩니다.
 
@@ -458,7 +777,7 @@ AWS Seoul (ap-northeast-2)
 
 ---
 
-## 6. 팀 소개
+## 7. 팀 소개
 
 <table>
   <tr>
@@ -504,7 +823,7 @@ AWS Seoul (ap-northeast-2)
 
 ---
 
-## 7. 시연 영상
+## 8. 시연 영상
 
 작성 예정.
 
