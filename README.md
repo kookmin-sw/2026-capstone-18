@@ -222,6 +222,45 @@ jupyter notebook notebooks/eval_scripts.ipynb
 4. **표준 도구를 잘 쓴다** — Postgres, FastAPI, Terraform, GitHub Actions. 도구 선택의 화려함이 아니라 *어떻게 쓰는지*로 시니어 수준을 보인다.
 5. **무엇이 아니라 왜를 문서화한다** — 결정의 근거를 보존하여 6개월 뒤의 자신·팀·검토자가 *왜*를 이해할 수 있게 한다.
 
+#### 프라이버시 데이터 흐름 (옵트인 원시 생체신호)
+
+```mermaid
+flowchart LR
+    subgraph Phone["Phone (Flutter)"]
+        Blob[/"Raw biosignal blob"/]
+        ClientEnc["Client-side encrypt<br/>(user-held DEK)<br/><i>planned</i>"]:::planned
+        Blob -.-> ClientEnc
+    end
+
+    subgraph Backend["FastAPI · ECS Fargate"]
+        Gate{"consent_raw_biosignals<br/>= true ?"}
+        Sign["Issue presigned PUT<br/>SSE-KMS · short TTL"]
+        Meta[("RDS Postgres<br/>metadata only<br/>s3_key · size · hash · expires_at")]
+    end
+
+    subgraph S3Bucket["S3 biosignals bucket (Seoul)"]
+        Rest[("Ciphertext at rest<br/>SSE-KMS — AWS-held key")]
+    end
+
+    Purge["EventBridge → ECS RunTask<br/>purge_biosignals (6h)<br/>+ audit_log"]
+
+    Phone -- "POST /api/v1/sync/biosignals" --> Gate
+    Gate -- "yes" --> Sign
+    Gate -- "no" --> Reject([403])
+    Sign -- presigned URL --> Phone
+    Sign --> Meta
+    Phone == "PUT direct (bypasses backend)" ==> Rest
+    Purge --> Rest
+    Purge --> Meta
+
+    classDef planned stroke-dasharray: 5 5,stroke:#888,color:#888
+```
+
+- **블롭 바이트는 백엔드를 거치지 않습니다** — 폰이 presigned URL로 S3에 직접 PUT.
+- **백엔드가 보는 것**: 메타데이터(`s3_object_key`, `byte_size`, `content_hash`, `recorded_at`, `expires_at`)와 동의 상태뿐.
+- **현재 저장 시 암호화**: SSE-KMS (AWS 관리 키). 점선 박스의 사용자 보유 DEK 클라이언트 측 암호화는 §2.1의 약속을 코드 수준으로 끌어올리기 위한 후속 작업입니다.
+- **자동 만료**: `recorded_at + 365일`. EventBridge 스케줄러가 6시간 주기로 만료/철회된 행을 S3·DB에서 하드 삭제하고 `audit_log`에 기록.
+
 ### 2.2 기술 스택
 
 | 영역 | 선택 | 비고 |
@@ -339,6 +378,23 @@ make smoke-staging
 ## 3. Wear OS — Galaxy Watch 8 센서 캡처
 
 [`watch/sensor-capture/`](watch/sensor-capture/)는 Galaxy Watch 8에서 4개 채널의 원시 센서 데이터를 10분간 기록하고 ZIP으로 포장하여 ML 팀에 전달하기 위한 Wear OS 유틸리티입니다. 프로덕션 Phone/Watch 앱이 아닌, 모델 검증용 일회성 연구 도구로 분리되어 있습니다(스펙 §11 / Sprint 5의 옵트인 업로드 흐름과 별개).
+
+#### 캡처 세션 상태 머신
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Connecting: tap Start
+    Connecting --> Capturing: first sensor sample
+    Capturing --> Capturing: tick (remainingSec)
+    Capturing --> Done: 10 min elapsed → ZIP written
+    Connecting --> Error: SDK / permission failure
+    Capturing --> Error: capture exception
+    Done --> Idle: tap Reset
+    Error --> Idle: tap Reset
+```
+
+상태 전이는 [`CaptureActivity.kt`의 `Status` sealed class](watch/sensor-capture/app/src/main/kotlin/com/littlesignals/capture/CaptureActivity.kt)에 정의되어 있고, `capture { remaining -> ... }` 람다가 매 초 `Capturing(remainingSec)` 상태를 갱신합니다. 성공 시 ZIP 경로를 반환하며 `Done`으로 전이하고, 임의의 throwable은 `Error(message)`로 잡힙니다.
 
 ### 3.1 캡처 채널
 
@@ -718,27 +774,43 @@ Regression smoke tests는 다음 흐름을 검증합니다.
 
 ## 5. 아키텍처 전체 흐름 (요약)
 
-```
-Galaxy Watch 8 (Wear OS, Kotlin)
-  ├── Samsung Health Sensor SDK 1.4.1
-  │     PPG_GREEN · HEART_RATE_CONTINUOUS · EDA_CONTINUOUS · ACCELEROMETER_CONTINUOUS
-  ├── Signal Preprocessor (60s 슬라이딩 윈도, 5분 EMA 베이스라인, 활동 게이트)
-  ├── Mamba 추론 (ONNX Runtime Mobile, 9-channel 3-class)
-  └── Decision Engine → 손목 알림 + 호흡 가이드
-        │
-        │ Android Wearable Data Layer
-        ▼
-Phone (Flutter)
-  ├── REST  ───────────────► FastAPI (/api/v1/*)
-  ├── WSS   ───────────────► FastAPI (/ws/realtime)
-  └── FCM   ◄─────────────── FastAPI → Firebase
+```mermaid
+flowchart TD
+    subgraph Watch["Galaxy Watch 8 — Wear OS, Kotlin"]
+        SDK["Samsung Health Sensor SDK 1.4.1<br/>PPG_GREEN · HEART_RATE_CONTINUOUS<br/>EDA_CONTINUOUS · ACCELEROMETER_CONTINUOUS"]
+        Pre["Signal Preprocessor<br/>60s 슬라이딩 윈도 · 5분 EMA 베이스라인 · 활동 게이트"]
+        Inf["Mamba 추론<br/>ONNX Runtime Mobile · 9-channel 3-class"]
+        Dec["Decision Engine<br/>손목 알림 + 호흡 가이드"]
+        SDK --> Pre --> Inf --> Dec
+    end
 
-AWS Seoul (ap-northeast-2)
-  ALB → ECS Fargate (FastAPI, structlog, OTel)
-  ├── RDS Postgres 15
-  ├── S3 (KMS, 옵트인 암호화 블롭)
-  ├── EventBridge Scheduler → ECS RunTask (purge jobs)
-  └── Secrets Manager · CloudWatch · SQS DLQ
+    subgraph Phone["Phone — Flutter"]
+        REST["REST · /api/v1/*"]
+        WSS["WSS · /ws/realtime"]
+        FCMc["FCM consumer"]
+    end
+
+    subgraph AWS["AWS Seoul (ap-northeast-2)"]
+        ALB["Application Load Balancer"]
+        ECS["ECS Fargate<br/>FastAPI · structlog · OTel"]
+        RDS[("RDS Postgres 15")]
+        S3[("S3<br/>KMS · 옵트인 암호화 블롭")]
+        EB["EventBridge Scheduler<br/>→ ECS RunTask (purge)"]
+        Ops["Secrets Manager · CloudWatch · SQS DLQ"]
+        ALB --> ECS
+        ECS --> RDS
+        ECS --> S3
+        EB --> ECS
+        ECS -.-> Ops
+    end
+
+    Firebase[("Firebase Cloud Messaging")]
+
+    Dec -- "Android Wearable Data Layer" --> Phone
+    REST --> ALB
+    WSS --> ALB
+    ECS -- push --> Firebase
+    Firebase --> FCMc
 ```
 
 ---
