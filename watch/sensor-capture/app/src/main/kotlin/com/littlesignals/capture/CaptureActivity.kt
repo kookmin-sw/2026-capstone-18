@@ -80,10 +80,13 @@ class CaptureActivity : ComponentActivity() {
     }
 
     private suspend fun startCapture(onProgress: (Int) -> Unit): String {
-        val zip = withContext(Dispatchers.IO) {
-            CaptureSession(this@CaptureActivity).run(DURATION_MS, onProgress)
+        withContext(Dispatchers.IO) {
+            CaptureSession(this@CaptureActivity).run(DURATION_MS) { elapsedMs ->
+                val remainingSec = ((DURATION_MS - elapsedMs) / 1000).toInt().coerceAtLeast(0)
+                onProgress(remainingSec)
+            }
         }
-        return zip.absolutePath
+        return "capture complete"
     }
 }
 
