@@ -239,7 +239,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
     final consent = context.read<ConsentProvider>().consent;
     final granted = consent?.rawBiosignalConsent == true && consent?.consentRevokedAt == null;
     if (!granted) return false;
-    if (_selectedSource == 'watch' && !_controller.watchConnected) return false;
+    // Don't block on watchConnected — `connectedNodes` is unreliable on some
+    // Samsung phone+watch combos. If the watch is unreachable, the native
+    // service will surface a `watch_not_connected` error event instead.
     return true;
   }
 }
