@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/storage/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../features/biosignals/biosignal_capture_controller.dart';
+import '../../features/consent/consent_provider.dart';
 import 'capture_summary_screen.dart';
 
 class WatchConnectScreen extends StatefulWidget {
@@ -77,6 +79,7 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
   @override
   Widget build(BuildContext context) {
     final isCapturing = _controller.state == 'capturing';
+    context.watch<ConsentProvider>(); // rebuild when consent changes
     final mm = (_controller.elapsedSec ~/ 60).toString().padLeft(2, '0');
     final ss = (_controller.elapsedSec % 60).toString().padLeft(2, '0');
 
@@ -113,6 +116,54 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
               ),
               const SizedBox(height: 20),
               if (!isCapturing) ...[
+                Consumer<ConsentProvider>(
+                  builder: (context, provider, _) {
+                    final granted = provider.consent?.rawBiosignalConsent == true
+                        && provider.consent?.consentRevokedAt == null;
+                    return GlassCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '원시 생체신호 데이터 업로드 동의',
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                ),
+                                Switch(
+                                  value: granted,
+                                  onChanged: (next) async {
+                                    await provider.updateConsent({
+                                      'raw_biosignal_consent': next,
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              granted
+                                  ? '시계의 원시 생체신호 데이터가 안전하게 백엔드에 업로드됩니다. 언제든지 끌 수 있어요.'
+                                  : '동의가 필요해요. 동의를 켜야 캡처를 시작할 수 있어요.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: granted
+                                    ? Colors.grey.shade700
+                                    : Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
                 Text('소스', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Wrap(
@@ -180,6 +231,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
   }
 
   bool _canStart() {
+    final consent = context.read<ConsentProvider>().consent;
+    final granted = consent?.rawBiosignalConsent == true && consent?.consentRevokedAt == null;
+    if (!granted) return false;
     if (_selectedSource == 'watch' && !_controller.watchConnected) return false;
     return true;
   }
