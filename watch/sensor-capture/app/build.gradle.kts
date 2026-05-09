@@ -64,4 +64,7 @@ dependencies {
 
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // Unit testing
+    testImplementation("junit:junit:4.13.2")
 }
