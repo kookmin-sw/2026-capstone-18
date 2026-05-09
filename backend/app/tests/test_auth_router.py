@@ -12,7 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.supabase_client import SupabaseSession
+from app.auth.supabase_client import SupabaseAuthError, SupabaseSession
 from app.main import app
 from app.models.user import User
 
@@ -379,3 +379,183 @@ async def test_logout_returns_ok(
             )
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def _email_session_for(user_id: uuid.UUID) -> SupabaseSession:
+    return SupabaseSession(
+        access_token="at",
+        refresh_token="rt",
+        expires_in=3600,
+        user_id=user_id,
+        is_anonymous=False,
+        email="user@example.com",
+    )
+
+
+@pytest.mark.asyncio
+async def test_email_login_success(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    supabase_id = uuid.uuid4()
+    fake_session = _email_session_for(supabase_id)
+
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.sign_in_with_password.return_value = fake_session
+        get_client.return_value = client_mock
+
+        from app.db.dependencies import get_db
+
+        async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                response = await http.post(
+                    "/api/v1/auth/email/login",
+                    json={"email": "user@example.com", "password": "hunter2pw"},
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"] == "at"
+    assert body["is_anonymous"] is False
+
+
+@pytest.mark.asyncio
+async def test_email_login_bad_password_returns_401(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.sign_in_with_password.side_effect = SupabaseAuthError(
+            400, {"msg": "invalid login credentials"}
+        )
+        get_client.return_value = client_mock
+
+        from app.db.dependencies import get_db
+
+        async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                response = await http.post(
+                    "/api/v1/auth/email/login",
+                    json={"email": "user@example.com", "password": "wrongpass"},
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    assert response.status_code == 401
+    assert response.json()["reason"] == "invalid_email_credentials"
+
+
+@pytest.mark.asyncio
+async def test_email_signup_creates_user_and_returns_tokens(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    supabase_id = uuid.uuid4()
+    fake_session = _email_session_for(supabase_id)
+
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.sign_up_with_email.return_value = {"id": str(supabase_id)}
+        client_mock.sign_in_with_password.return_value = fake_session
+        get_client.return_value = client_mock
+
+        from app.db.dependencies import get_db
+
+        async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                response = await http.post(
+                    "/api/v1/auth/email/signup",
+                    json={
+                        "email": "new@example.com",
+                        "password": "hunter2pw",
+                        "display_name": "이현이",
+                    },
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"] == "at"
+    assert body["refresh_token"] == "rt"
+    assert body["is_anonymous"] is False
+
+    row = (
+        await db_session.execute(select(User).where(User.supabase_user_id == supabase_id))
+    ).scalar_one()
+    assert row.display_name == "이현이"
+
+
+@pytest.mark.asyncio
+async def test_email_signup_duplicate_returns_409(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.sign_up_with_email.side_effect = SupabaseAuthError(
+            422, '{"code":"email_exists","msg":"already registered"}'
+        )
+        get_client.return_value = client_mock
+
+        from app.db.dependencies import get_db
+
+        async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                response = await http.post(
+                    "/api/v1/auth/email/signup",
+                    json={"email": "dup@example.com", "password": "hunter2pw"},
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json()["reason"] == "email_in_use"
+
+
+@pytest.mark.asyncio
+async def test_email_signup_disabled_returns_403(
+    db_session: AsyncSession,  # noqa: ARG001
+    supabase_jwt_secret: str,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EMAIL_SIGNUP_ENABLED", "false")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post(
+                "/api/v1/auth/email/signup",
+                json={"email": "x@example.com", "password": "hunter2pw"},
+            )
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 403
+    assert response.json()["reason"] == "signup_disabled"
