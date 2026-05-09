@@ -1,7 +1,9 @@
 # =========================
 # 1. Data and Models (CRITICAL)
 # =========================
-data/
+/data/
+AI/data/
+backend/data/
 checkpoints/
 *.npy
 *.pt
