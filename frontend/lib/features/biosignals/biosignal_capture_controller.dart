@@ -12,6 +12,8 @@ class BiosignalCaptureController extends ChangeNotifier {
   int _elapsedSec = 0;
   int _windowsUploaded = 0;
   String? _error;
+  bool _watchConnected = false;
+  bool get watchConnected => _watchConnected;
 
   BiosignalCaptureController({BiosignalCaptureService? service})
       : _service = service ?? BiosignalCaptureService() {
@@ -23,11 +25,19 @@ class BiosignalCaptureController extends ChangeNotifier {
   int get windowsUploaded => _windowsUploaded;
   String? get error => _error;
 
-  Future<void> start({required String accessToken, Duration? duration}) async {
+  Future<void> start({required String accessToken, Duration? duration, String source = 'watch'}) async {
     _error = null;
     notifyListeners();
     final secs = duration?.inSeconds;
-    await _service.start(accessToken: accessToken, durationSec: secs);
+    await _service.start(accessToken: accessToken, durationSec: secs, source: source);
+  }
+
+  Future<void> refreshWatchConnection() async {
+    final connected = await _service.isWatchConnected();
+    if (connected != _watchConnected) {
+      _watchConnected = connected;
+      notifyListeners();
+    }
   }
 
   Future<void> stop() async {

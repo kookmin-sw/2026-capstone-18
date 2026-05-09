@@ -18,6 +18,7 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
   late final BiosignalCaptureController _controller;
   final _tokenStorage = SecureTokenStorage();
   Duration? _selectedDuration = const Duration(minutes: 10);
+  String _selectedSource = 'watch';
   String _lastSeenState = 'idle';
 
   @override
@@ -25,6 +26,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
     super.initState();
     _controller = BiosignalCaptureController();
     _controller.addListener(_onUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.refreshWatchConnection();
+    });
   }
 
   void _onUpdate() {
@@ -59,7 +63,11 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
       );
       return;
     }
-    await _controller.start(accessToken: token, duration: _selectedDuration);
+    await _controller.start(
+      accessToken: token,
+      duration: _selectedDuration,
+      source: _selectedSource,
+    );
   }
 
   Future<void> _onStop() async {
@@ -105,8 +113,19 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
               ),
               const SizedBox(height: 20),
               if (!isCapturing) ...[
-                Text('지속 시간',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text('소스', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    _sourceChip('watch', '시계'),
+                    _sourceChip('synthetic', '합성'),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                _watchStatusLine(),
+                const SizedBox(height: 16),
+                Text('지속 시간', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -117,7 +136,7 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                ElevatedButton(onPressed: _onStart, child: const Text('캡처 시작')),
+                ElevatedButton(onPressed: _canStart() ? _onStart : null, child: const Text('캡처 시작')),
               ] else ...[
                 ElevatedButton(
                   onPressed: _onStop,
@@ -138,5 +157,30 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
       selected: _selectedDuration == duration,
       onSelected: (_) => setState(() => _selectedDuration = duration),
     );
+  }
+
+  Widget _sourceChip(String source, String label) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: _selectedSource == source,
+      onSelected: (_) => setState(() => _selectedSource = source),
+    );
+  }
+
+  Widget _watchStatusLine() {
+    if (_selectedSource != 'watch') return const SizedBox.shrink();
+    final connected = _controller.watchConnected;
+    return Text(
+      connected ? '시계 연결됨 ✓' : '시계 연결 안 됨 — 시계 앱을 페어링해 주세요',
+      style: TextStyle(
+        fontSize: 12,
+        color: connected ? Colors.green.shade700 : Colors.orange.shade700,
+      ),
+    );
+  }
+
+  bool _canStart() {
+    if (_selectedSource == 'watch' && !_controller.watchConnected) return false;
+    return true;
   }
 }

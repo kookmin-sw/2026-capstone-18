@@ -23,6 +23,7 @@ object CaptureChannels {
                     val durationSec = call.argument<Int>("durationSec") ?: -1
                     val token = call.argument<String>("accessToken")
                     val backendBase = call.argument<String>("backendBase") ?: "https://api-staging.friendlykr.com"
+                    val source = call.argument<String>("source") ?: "synthetic"
                     if (token.isNullOrBlank()) {
                         result.error("missing_token", "accessToken is required", null)
                         return@setMethodCallHandler
@@ -32,6 +33,7 @@ object CaptureChannels {
                         putExtra(BiosignalCaptureService.EXTRA_DURATION_SEC, durationSec)
                         putExtra(BiosignalCaptureService.EXTRA_ACCESS_TOKEN, token)
                         putExtra(BiosignalCaptureService.EXTRA_BACKEND_BASE, backendBase)
+                        putExtra(BiosignalCaptureService.EXTRA_SOURCE, source)
                     }
                     appContext.startForegroundService(intent)
                     result.success(null)
@@ -42,6 +44,10 @@ object CaptureChannels {
                     }
                     appContext.startService(intent)
                     result.success(null)
+                }
+                "isWatchConnected" -> {
+                    val client = WearMessageClient.forContext(appContext)
+                    result.success(client.connectedNodeId() != null)
                 }
                 else -> result.notImplemented()
             }

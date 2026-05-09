@@ -19,6 +19,7 @@ class _FakeService extends BiosignalCaptureService {
     required String accessToken,
     int? durationSec,
     String backendBase = 'https://api-staging.friendlykr.com',
+    String source = 'watch',
   }) async {
     startCalled = true;
     lastToken = accessToken;
