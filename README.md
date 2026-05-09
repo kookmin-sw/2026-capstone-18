@@ -500,8 +500,6 @@ AWS Seoul (ap-northeast-2)
 
 *나머지 팀원의 역할/담당 영역은 추후 추가 예정.*
 
-전체 기여자 그래프: <https://github.com/kookmin-sw/2026-capstone-18/graphs/contributors>
-
 ---
 
 ## 7. 시연 영상
