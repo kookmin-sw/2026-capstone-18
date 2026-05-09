@@ -163,6 +163,10 @@
 
 WESAD 데이터셋을 활용하여 사전 스트레스(Pre-Stress)를 예측하기 위해 최적화된 시계열 분류(TSC) Mamba 파이프라인입니다. v2.2 아키텍처는 명시적 수학적 피처 주입과 간소화된 3-Class 상태 머신을 채택하여, 엣지 환경(ESP32-S3, Wear OS)에서의 INT8 양자화와 효율적인 추론을 목적으로 설계되었습니다.
 
+![Stress ML demo pipeline — 9 stages from watch capture through server-side Mamba inference to per-chunk JSON output](docs/images/ml-demo.png)
+
+> **현재 구현 (as-built today)**: 추론은 ECS Fargate 위 FastAPI 서버에서 ONNX Runtime CPU로 실행됩니다. 워치에는 ML 런타임이 없으며, ONNX Runtime Mobile 온디바이스 추론과 손목 알림은 후속 작업입니다. 모델 출력은 2-class(`Baseline` / `Stress`)이며, "Pre-Stress"는 `process_buffer` 결정 엔진의 상태 머신 개념입니다(별도 클래스가 아닙니다).
+
 ### 1.1 주요 기술 결정
 
 - **9-채널 명시적 피처 주입(Explicit Feature Injection)**: 모델이 고주파 노이즈로부터 거시적 추세를 강제로 학습하도록 두지 않고, 인과적 EMA(Causal EMA), MACD Delta 기울기, 후행 노이즈 분산(Trailing Variance)을 입력 텐서에 직접 주입.
@@ -224,42 +228,12 @@ jupyter notebook notebooks/eval_scripts.ipynb
 
 #### 프라이버시 데이터 흐름 (옵트인 원시 생체신호)
 
-```mermaid
-flowchart LR
-    subgraph Phone["Phone (Flutter)"]
-        Blob[/"Raw biosignal blob"/]
-        ClientEnc["Client-side encrypt<br/>(user-held DEK)<br/><i>planned</i>"]:::planned
-        Blob -.-> ClientEnc
-    end
+![Biosignal pipeline — device → app → backend → storage with SSE-KMS encryption boundary and EventBridge purge job](docs/images/biosignal-pipeline.png)
 
-    subgraph Backend["FastAPI · ECS Fargate"]
-        Gate{"consent_raw_biosignals<br/>= true ?"}
-        Sign["Issue presigned PUT<br/>SSE-KMS · short TTL"]
-        Meta[("RDS Postgres<br/>metadata only<br/>s3_key · size · hash · expires_at")]
-    end
-
-    subgraph S3Bucket["S3 biosignals bucket (Seoul)"]
-        Rest[("Ciphertext at rest<br/>SSE-KMS — AWS-held key")]
-    end
-
-    Purge["EventBridge → ECS RunTask<br/>purge_biosignals (6h)<br/>+ audit_log"]
-
-    Phone -- "POST /api/v1/sync/biosignals" --> Gate
-    Gate -- "yes" --> Sign
-    Gate -- "no" --> Reject([403])
-    Sign -- presigned URL --> Phone
-    Sign --> Meta
-    Phone == "PUT direct (bypasses backend)" ==> Rest
-    Purge --> Rest
-    Purge --> Meta
-
-    classDef planned stroke-dasharray: 5 5,stroke:#888,color:#888
-```
-
-- **블롭 바이트는 백엔드를 거치지 않습니다** — 폰이 presigned URL로 S3에 직접 PUT.
-- **백엔드가 보는 것**: 메타데이터(`s3_object_key`, `byte_size`, `content_hash`, `recorded_at`, `expires_at`)와 동의 상태뿐.
-- **현재 저장 시 암호화**: SSE-KMS (AWS 관리 키). 점선 박스의 사용자 보유 DEK 클라이언트 측 암호화는 §2.1의 약속을 코드 수준으로 끌어올리기 위한 후속 작업입니다.
-- **자동 만료**: `recorded_at + 365일`. EventBridge 스케줄러가 6시간 주기로 만료/철회된 행을 S3·DB에서 하드 삭제하고 `audit_log`에 기록.
+- **블롭 바이트는 백엔드를 거치지 않습니다** — 폰이 presigned URL로 S3에 직접 PUT (`generate_presigned_url("put_object", ServerSideEncryption="aws:kms")`).
+- **백엔드가 영속화하는 메타데이터**: `RawBiosignalUpload` 행은 `s3_object_key`, `signal_type`, `recorded_at`, `uploaded_at`, `expires_at`만 저장합니다. 요청 페이로드의 `byte_size`·`content_hash`는 검증용이며 DB에는 저장되지 않습니다.
+- **현재 저장 시 암호화**: SSE-KMS (AWS 관리 키 `aws/s3`). 다이어그램의 클라이언트 측 사용자 보유 DEK 암호화는 §2.1의 약속을 코드 수준으로 끌어올리기 위한 후속 작업이며, 현재 코드베이스에는 `libsodium`/`AES`/`NaCl` 의존성이 없습니다.
+- **자동 만료 + 감사**: `recorded_at + 365일`. EventBridge Scheduler가 6시간 주기로 만료/동의 철회 행을 골라 S3 `delete_object`·DB row 삭제·`audit_log` 기록까지 한 번에 처리합니다 ([backend/app/jobs/purge_biosignals.py](backend/app/jobs/purge_biosignals.py)).
 
 ### 2.2 기술 스택
 
