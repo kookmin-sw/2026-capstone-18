@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../features/privacy/data/privacy_api.dart';
@@ -30,9 +29,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
     setState(() => submitting = true);
     try {
-      if (!ApiConfig.useMock) {
-        await context.read<PrivacyApi>().deleteAccount();
-      }
+      await context.read<PrivacyApi>().deleteAccount();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -20,7 +20,6 @@ class ApiClient {
   ApiClient({required this.tokenStorage, http.Client? httpClient})
     : _httpClient = httpClient ?? http.Client() {
     debugPrint('API BASE URL: ${ApiConfig.baseUrl}');
-    debugPrint('API useMock: ${ApiConfig.useMock}');
   }
 
   Future<dynamic> get(

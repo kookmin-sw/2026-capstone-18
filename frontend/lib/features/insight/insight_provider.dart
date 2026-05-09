@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/errors/api_exception.dart';
-import '../../core/mock/mock_backend.dart';
 import '../cycles/data/cycles_api.dart';
 import '../cycles/models/cycle.dart';
 import '../events/data/events_api.dart';
@@ -80,15 +78,6 @@ class InsightProvider extends ChangeNotifier {
     _loading = true;
     _errorMessage = null;
     notifyListeners();
-
-    if (ApiConfig.useMock) {
-      _events = MockBackend.loggedEvents();
-      _cycles = MockBackend.cycleHistory;
-      _ensureSelectedRange();
-      _loading = false;
-      notifyListeners();
-      return;
-    }
 
     try {
       final results = await Future.wait<dynamic>([

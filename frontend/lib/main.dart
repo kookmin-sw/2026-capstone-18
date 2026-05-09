@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import 'core/config/api_config.dart';
 import 'core/network/api_client.dart';
 import 'core/storage/secure_token_storage.dart';
 import 'core/theme/app_colors.dart';
@@ -60,11 +59,6 @@ Future<void> _configureSystemBars() async {
 }
 
 Future<void> _initializeFirebase() async {
-  if (ApiConfig.useMock) {
-    debugPrint('Firebase initialization skipped: mock mode');
-    return;
-  }
-
   try {
     await Firebase.initializeApp();
     debugPrint('Firebase initialized');
@@ -163,55 +157,15 @@ class _LittleSignalsAppState extends State<LittleSignalsApp> {
         color: AppColors.background,
         theme: AppTheme.light,
         builder: (context, child) {
-          final routeContent = AnnotatedRegion<SystemUiOverlayStyle>(
+          return AnnotatedRegion<SystemUiOverlayStyle>(
             value: _littleSignalsSystemUiOverlayStyle,
             child: ColoredBox(
               color: AppColors.background,
               child: child ?? const SizedBox.shrink(),
             ),
           );
-
-          if (!ApiConfig.useMock) return routeContent;
-
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              routeContent,
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 8,
-                right: 12,
-                child: const IgnorePointer(child: _MockModeBadge()),
-              ),
-            ],
-          );
         },
         home: const _AuthGate(),
-      ),
-    );
-  }
-}
-
-class _MockModeBadge extends StatelessWidget {
-  const _MockModeBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFF201C28).withValues(alpha: 0.72),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: const Text(
-          '테스트 모드',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
       ),
     );
   }
@@ -273,7 +227,7 @@ class _AuthGateState extends State<_AuthGate> {
 
     final user = context.read<AuthProvider>().user;
     final userId = user?.id ?? 'authenticated';
-    if (!ApiConfig.useMock && _fcmRegisteredUserId != userId) {
+    if (_fcmRegisteredUserId != userId) {
       _fcmRegisteredUserId = userId;
       futures.add(
         context.read<NotificationService>().requestPermissionAndRegister(),

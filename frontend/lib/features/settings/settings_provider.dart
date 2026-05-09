@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/errors/api_exception.dart';
-import '../../core/mock/mock_backend.dart';
 import 'data/settings_api.dart';
 
 class SettingsProvider extends ChangeNotifier {
@@ -17,13 +15,6 @@ class SettingsProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   Future<void> loadSettings() async {
-    if (ApiConfig.useMock) {
-      _settings = MockBackend.settings;
-      _errorMessage = null;
-      notifyListeners();
-      return;
-    }
-
     try {
       _settings = await settingsApi.getSettings();
       _errorMessage = null;
@@ -34,13 +25,6 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> updateSettings(Map<String, dynamic> changes) async {
-    if (ApiConfig.useMock) {
-      _settings = MockBackend.updateSettings(changes);
-      _errorMessage = null;
-      notifyListeners();
-      return;
-    }
-
     try {
       _settings = await settingsApi.updateSettings(changes);
       _errorMessage = null;

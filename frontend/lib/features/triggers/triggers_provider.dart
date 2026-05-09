@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/errors/api_exception.dart';
-import '../../core/mock/mock_backend.dart';
 import '../../core/utils/korean_ui_text.dart';
 import 'data/categories_api.dart';
 
@@ -60,31 +58,6 @@ class TriggersProvider extends ChangeNotifier {
   Future<void> load() async {
     _errorMessage = null;
 
-    if (ApiConfig.useMock) {
-      _deletedDefaultKeys.addAll(MockBackend.deletedDefaultTriggerKeys);
-      final sourceDefaultKeys = <String?>[];
-      final triggers = MockBackend.userTriggers.map((trigger) {
-        final name = trigger['name'] as String;
-        final defaultKey = _defaultKeyForValue(
-          '${trigger['default_key'] ?? name}',
-        );
-        sourceDefaultKeys.add(defaultKey);
-        return StressTrigger(
-          name: name,
-          color: Color(trigger['color'] as int),
-          eventCount: _countEvents(name),
-        );
-      }).toList();
-      _setMergedTriggers(
-        triggers,
-        List.filled(triggers.length, ''),
-        sourceDefaultKeys: sourceDefaultKeys,
-      );
-      _syncMock();
-      notifyListeners();
-      return;
-    }
-
     try {
       final categories = await categoriesApi.listCategories();
       final ids = categories.map((category) => category.id).toList();
@@ -132,35 +105,32 @@ class TriggersProvider extends ChangeNotifier {
       ..._defaultKeys,
       shouldRestoreDeletedDefault ? restoredDefaultKey : null,
     ];
-    _syncMock();
     notifyListeners();
 
-    if (!ApiConfig.useMock) {
-      try {
-        final created = await categoriesApi.createCategory(
-          name: name.trim(),
-          color: color,
-          sortOrder: _triggers.length - 1,
-        );
-        final createdIndex = _indexOfTriggerName(created.name);
-        if (createdIndex == -1) return;
-        _triggers = [
-          for (var i = 0; i < _triggers.length; i++)
-            if (i == createdIndex)
-              _triggerFromCategory(created)
-            else
-              _triggers[i],
-        ];
-        _categoryIds = [
-          for (var i = 0; i < _categoryIds.length; i++)
-            if (i == createdIndex) created.id else _categoryIds[i],
-        ];
-        _errorMessage = null;
-        notifyListeners();
-      } on ApiException catch (error) {
-        _errorMessage = error.message;
-        notifyListeners();
-      }
+    try {
+      final created = await categoriesApi.createCategory(
+        name: name.trim(),
+        color: color,
+        sortOrder: _triggers.length - 1,
+      );
+      final createdIndex = _indexOfTriggerName(created.name);
+      if (createdIndex == -1) return;
+      _triggers = [
+        for (var i = 0; i < _triggers.length; i++)
+          if (i == createdIndex)
+            _triggerFromCategory(created)
+          else
+            _triggers[i],
+      ];
+      _categoryIds = [
+        for (var i = 0; i < _categoryIds.length; i++)
+          if (i == createdIndex) created.id else _categoryIds[i],
+      ];
+      _errorMessage = null;
+      notifyListeners();
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
     }
   }
 
@@ -190,10 +160,9 @@ class TriggersProvider extends ChangeNotifier {
       for (var i = 0; i < _defaultKeys.length; i++)
         if (i == index) defaultKey else _defaultKeys[i],
     ];
-    _syncMock();
     notifyListeners();
 
-    if (!ApiConfig.useMock && index < _categoryIds.length) {
+    if (index < _categoryIds.length) {
       final id = _categoryIds[index];
       if (id.isEmpty) return;
       try {
@@ -239,10 +208,9 @@ class TriggersProvider extends ChangeNotifier {
       for (var i = 0; i < _defaultKeys.length; i++)
         if (i != index) _defaultKeys[i],
     ];
-    _syncMock();
     notifyListeners();
 
-    if (!ApiConfig.useMock && id.isNotEmpty) {
+    if (id.isNotEmpty) {
       try {
         await categoriesApi.deleteCategory(id);
         _errorMessage = null;
@@ -251,13 +219,6 @@ class TriggersProvider extends ChangeNotifier {
       }
       notifyListeners();
     }
-  }
-
-  int _countEvents(String triggerName) {
-    if (!ApiConfig.useMock) return 0;
-    return MockBackend.allEvents()
-        .where((event) => event.trigger == triggerName)
-        .length;
   }
 
   StressTrigger _triggerFromCategory(TriggerCategoryDto category) {
@@ -325,11 +286,7 @@ class TriggersProvider extends ChangeNotifier {
         mergedIds.add(source.id);
       } else {
         final trigger = defaultTriggers[i];
-        merged.add(
-          trigger.copyWith(
-            eventCount: ApiConfig.useMock ? _countEvents(trigger.name) : null,
-          ),
-        );
+        merged.add(trigger);
         mergedIds.add('');
       }
       mergedDefaultKeys.add(defaultKey);
@@ -409,27 +366,6 @@ class TriggersProvider extends ChangeNotifier {
     _editedDefaultTriggers.clear();
     _errorMessage = null;
     notifyListeners();
-  }
-
-  void _syncMock() {
-    if (!ApiConfig.useMock) return;
-    MockBackend.deletedDefaultTriggerKeys
-      ..clear()
-      ..addAll(_deletedDefaultKeys);
-    MockBackend.userTriggers
-      ..clear()
-      ..addAll(
-        _triggers.indexed.map(
-          (entry) => {
-            'default_key': entry.$1 < _defaultKeys.length
-                ? _defaultKeys[entry.$1]
-                : null,
-            'name': entry.$2.name,
-            'color': entry.$2.color.toARGB32(),
-            'events': entry.$2.eventCount,
-          },
-        ),
-      );
   }
 }
 

@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/errors/api_exception.dart';
-import '../../core/mock/mock_backend.dart';
 import 'data/events_api.dart';
 import 'models/stress_event.dart';
 
@@ -88,14 +86,6 @@ class EventsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    if (ApiConfig.useMock) {
-      _events = MockBackend.allEvents();
-      _sortEvents();
-      _loading = false;
-      notifyListeners();
-      return;
-    }
-
     try {
       final now = DateTime.now();
       final startOfToday = DateTime(now.year, now.month, now.day);
@@ -118,14 +108,6 @@ class EventsProvider extends ChangeNotifier {
     _loading = true;
     _errorMessage = null;
     notifyListeners();
-
-    if (ApiConfig.useMock) {
-      _events = MockBackend.allEvents();
-      _sortEvents();
-      _loading = false;
-      notifyListeners();
-      return;
-    }
 
     try {
       final loaded = await eventsApi.listEvents(limit: 200);
@@ -152,27 +134,6 @@ class EventsProvider extends ChangeNotifier {
     final normalizedTrigger = _normalizeTrigger(trigger);
     final logChips = _logChips(normalizedTrigger);
     final normalizedNote = _normalizeNote(note);
-
-    if (ApiConfig.useMock) {
-      final event = sourceUnloggedEvent == null
-          ? MockBackend.createEvent(
-              stressScore: stressScore,
-              trigger: normalizedTrigger,
-              note: normalizedNote,
-            )
-          : MockBackend.logDetectedEvent(
-              id: sourceUnloggedEvent.id,
-              stressScore: stressScore,
-              trigger: normalizedTrigger,
-              note: normalizedNote,
-            );
-
-      _events = MockBackend.allEvents();
-      _sortEvents();
-      _errorMessage = null;
-      notifyListeners();
-      return event;
-    }
 
     try {
       final savedEvent = sourceUnloggedEvent == null
@@ -235,20 +196,6 @@ class EventsProvider extends ChangeNotifier {
     final normalizedTrigger = _normalizeTrigger(trigger);
     final normalizedNote = _normalizeNote(note);
     final logChips = _logChips(normalizedTrigger);
-
-    if (ApiConfig.useMock) {
-      final updatedEvent = MockBackend.updateEvent(
-        id: event.id,
-        stressScore: stressScore,
-        trigger: normalizedTrigger,
-        note: normalizedNote,
-      );
-      _events = MockBackend.allEvents();
-      _sortEvents();
-      _errorMessage = null;
-      notifyListeners();
-      return updatedEvent;
-    }
 
     try {
       final savedEvent = await eventsApi.updateEvent(event.id, {

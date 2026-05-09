@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/errors/api_exception.dart';
-import '../../core/mock/mock_backend.dart';
 import '../consent/data/consent_api.dart';
 import '../cycles/data/cycles_api.dart';
 import '../cycles/models/cycle.dart';
@@ -51,21 +49,12 @@ class HomeProvider extends ChangeNotifier {
 
   String get cyclePhase => _currentCycle?.phase ?? '주기 정보 없음';
 
-  double get sleepHours => ApiConfig.useMock && MockBackend.sleepLogs.isNotEmpty
-      ? MockBackend.sleepLogs.first.durationHours
-      : 0;
+  double get sleepHours => 0;
 
-  bool get hasSleepData =>
-      ApiConfig.useMock && MockBackend.sleepLogs.isNotEmpty;
+  bool get hasSleepData => false;
 
   int get thisWeekCount {
     final weekAgo = DateTime.now().subtract(const Duration(days: 7));
-
-    if (ApiConfig.useMock) {
-      return MockBackend.loggedEvents()
-          .where((event) => event.detectedAt.isAfter(weekAgo))
-          .length;
-    }
 
     return _todayEvents
         .where(
@@ -79,18 +68,6 @@ class HomeProvider extends ChangeNotifier {
     _loading = true;
     _errorMessage = null;
     notifyListeners();
-
-    if (ApiConfig.useMock) {
-      final events = MockBackend.todayEvents();
-      events.sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
-
-      _todayEvents = events;
-      _currentCycle = MockBackend.currentCycle;
-      _consent = MockBackend.consent;
-      _loading = false;
-      notifyListeners();
-      return;
-    }
 
     try {
       final now = DateTime.now();
