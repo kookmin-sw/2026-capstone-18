@@ -1,4 +1,8 @@
-# Little Signals — 2026 Capstone 18
+<p align="center">
+  <img src="docs/images/luma-wordmark.svg" alt="Luma" width="480"/>
+</p>
+
+# Luma (formerly Little Signals) — 2026 Capstone 18
 
 [![Total commits](https://img.shields.io/github/commit-activity/t/kookmin-sw/2026-capstone-18)](https://github.com/kookmin-sw/2026-capstone-18/commits/master)
 [![Last commit](https://img.shields.io/github/last-commit/kookmin-sw/2026-capstone-18)](https://github.com/kookmin-sw/2026-capstone-18/commits/master)
@@ -430,7 +434,7 @@ unzip -p ${SESSION}.zip ppg_green.csv | wc -l   # 10분 ≈ 15,000 행
 
 ## 4. Frontend — Flutter Android App
 
-`frontend/` 디렉토리는 LittleSignals의 Flutter 기반 Android 모바일 애플리케이션입니다.
+`frontend/` 디렉토리는 Luma의 Flutter 기반 Android 모바일 애플리케이션입니다.
 사용자 스트레스 기록, 생리 주기 기반 인사이트 시각화, 수면 데이터 흐름, 알림 등록, 향후 웨어러블 데이터 연동을 위한 사용자 인터페이스 계층을 담당합니다.
 
 현재 frontend는 Provider 기반 아키텍처로 구현되어 있으며, staging backend와 직접 통신합니다.
