@@ -80,9 +80,8 @@
   - [2.3 인프라 (Terraform)](#23-인프라-terraform)
   - [2.4 데이터 모델 (요약)](#24-데이터-모델-요약)
   - [2.5 API 요약](#25-api-요약)
-  - [2.6 스프린트 진행 현황](#26-스프린트-진행-현황)
-  - [2.7 로컬 개발](#27-로컬-개발)
-  - [2.8 스테이징 배포](#28-스테이징-배포)
+  - [2.6 로컬 개발](#26-로컬-개발)
+  - [2.7 스테이징 배포](#27-스테이징-배포)
 - [3. Wear OS — Galaxy Watch 8 센서 캡처](#3-wear-os--galaxy-watch-8-센서-캡처)
   - [3.1 캡처 채널](#31-캡처-채널)
   - [3.2 SDK 검증 결과 (2026-05-04)](#32-sdk-검증-결과-2026-05-04)
@@ -282,24 +281,7 @@ jupyter notebook notebooks/eval_scripts.ipynb
 
 스프린트 1 단계의 헬스체크: `GET /health → {"status":"ok","version":"0.1.0"}`. Swagger는 `/docs`, ReDoc은 `/redoc`, OpenAPI는 `/openapi.json`.
 
-### 2.6 스프린트 진행 현황
-
-| 스프린트 | 주제 | 상태 |
-| :---: | :--- | :---: |
-| Sprint 0 | Foundation & Verification (SDK 검증 포함) | 완료 |
-| Sprint 1 | Local API skeleton + 구조화 로깅 | 완료 |
-| Sprint 2 | First AWS deploy (ECS + RDS + ALB) | 완료 |
-| Sprint 3 | Auth + user model (Supabase, Google OAuth) | 완료 |
-| Sprint 4 | Core data endpoints (events, cycles, settings, consent) | 완료 |
-| Sprint 5 | Real-time + sync (WebSocket, FCM, 옵트인 업로드) | 완료 |
-| Sprint 6 | 삭제·정리 잡 (`purge_accounts`, `purge_biosignals`) | 완료 |
-| Sprint 7 | EventBridge + Audit (`audit_log` 테이블 추가) | 완료 |
-| Sprint 8 | Observability + CI/CD (Sentry, OTel, GHA prod) | 완료 |
-| **Sprint 9** | **Hardening + beta-ready (rate limiting, load test, admin)** | **완료** |
-
-Sprint 7에서는 in-process `_purge_loop`를 AWS EventBridge Scheduler + ECS RunTask로 이관하고, 모든 하드 삭제·생체신호 퍼지를 기록하는 `audit_log` 테이블을 추가했습니다. 자세한 내용은 [`backend/docs/sprint-7-deploy-runbook.md`](backend/docs/sprint-7-deploy-runbook.md).
-
-### 2.7 로컬 개발
+### 2.6 로컬 개발
 
 사전 요구사항: Python 3.12 (pyenv), Poetry 2.x, Docker(Compose v2), `psql`.
 
@@ -328,7 +310,7 @@ poetry run ruff format --check .
 poetry run mypy app/
 ```
 
-### 2.8 스테이징 배포
+### 2.7 스테이징 배포
 
 ```bash
 cd backend
