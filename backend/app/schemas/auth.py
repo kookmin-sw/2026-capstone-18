@@ -23,3 +23,14 @@ class RefreshRequest(BaseModel):
 
 class LogoutResponse(BaseModel):
     status: str = "ok"
+
+
+class EmailSignUpRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+    password: str = Field(..., min_length=8, max_length=128)
+    display_name: str | None = Field(default=None, max_length=64)
+
+
+class EmailSignInRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+    password: str = Field(..., min_length=1, max_length=128)
