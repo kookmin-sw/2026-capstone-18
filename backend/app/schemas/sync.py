@@ -51,3 +51,11 @@ class BiosignalUploadResponse(BaseModel):
     presigned_put_url: str
     expires_in: int
     expires_at: datetime
+
+
+class BiosignalBatchUploadRequest(BaseModel):
+    items: list[BiosignalUploadRequest] = Field(min_length=1, max_length=10)
+
+
+class BiosignalBatchUploadResponse(BaseModel):
+    items: list[BiosignalUploadResponse]
