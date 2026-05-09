@@ -796,7 +796,7 @@ AWS Seoul (ap-northeast-2)
     <td align="center" width="160">
       <a href="https://github.com/nukktae">
         <img src="https://github.com/nukktae.png" width="96" height="96" alt="Anu Bilegdemberel"/><br/>
-        <sub><b>아노 (Anu)</b></sub>
+        <sub><b>아노</b></sub>
       </a><br/>
       <sub>Backend / Infra / AI 통합</sub><br/>
       <sub><a href="mailto:anu.bnda@gmail.com">anu.bnda@gmail.com</a></sub>
@@ -821,7 +821,7 @@ AWS Seoul (ap-northeast-2)
     <td align="center" width="160">
       <a href="https://github.com/seennothing">
         <img src="https://github.com/seennothing.png" width="96" height="96" alt="초라핀스카 베로니카"/><br/>
-        <sub><b>초라핀스카 베로니카 (Nika)</b></sub>
+        <sub><b>초라핀스카 베로니카</b></sub>
       </a><br/>
       <sub>Data / AI Engineer</sub><br/>
       <sub><a href="mailto:czorapinska@kookmin.ac.kr">czorapinska@kookmin.ac.kr</a></sub>
@@ -831,7 +831,7 @@ AWS Seoul (ap-northeast-2)
 
 | 이름 | 역할 | 담당 영역 | 연락처 |
 | :--- | :--- | :--- | :--- |
-| 아노 (Anu) | Backend Engineer | • AWS 클라우드 인프라(ECS Fargate, RDS, ALB, S3, EventBridge, Terraform)<br>• Agentic AI 파이프라인 설계·운영<br>• UX 설계 및 사용자 흐름<br>• Frontend ↔ Backend ↔ ONNX 온디바이스 추론 간 종단 연동(REST/WebSocket/FCM, 모델 직렬화·배포 파이프라인) | <anu.bnda@gmail.com> |
+| 아노 (nukktae) | Backend Engineer | • AWS 클라우드 인프라(ECS Fargate, RDS, ALB, S3, EventBridge, Terraform)<br>• Agentic AI 파이프라인 설계·운영<br>• UX 설계 및 사용자 흐름<br>• Frontend ↔ Backend ↔ ONNX 온디바이스 추론 간 종단 연동(REST/WebSocket/FCM, 모델 직렬화·배포 파이프라인) | <anu.bnda@gmail.com> |
 | 예르잔 울판 (pnpn777) | Frontend / UX-UI Engineer | • Flutter frontend architecture <br>•  Korean UX copy 및 interaction flow 설계<br>• UX research 및 여성 스트레스·생리 주기 기반 사용자 흐름 설계<br>• MVP 범위 정의 및 feature prioritization<br>• Home / Insight / Profile UX 및 visual hierarchy 설계<br>• Figma 기반 mobile UI design system 및 component flow 정리 | <yerzhanulpan@kookmin.ac.kr> |
 | 윤준서 (joonseojj) | Data / AI Engineer | • WESAD 전처리 파이프라인 구현 및 반복 개선 (피처 확장, 정규화 방식 고도화)<br>• 데이터셋 적합성 분석<br>• 여성 스트레스 데이터셋 후보 7개 검토, WESAD·WorkStress3D 선정 및 전처리 파이프라인 구현<br>• 9채널 실시간 피처 구조 설계 및 SW팀 연동 명세서 작성 <br>• 여성 대상 프로젝트 계획서/보고서 작성 | <joonseojj@gmail.com> |
 | 초라핀스카 베로니카 (seennothing) | Data / AI Engineer | • 데이터셋 조사<br>• 데이터 전처리 및 데이터셋 통합<br>• 모델 학습 및 최적화<br>• 모델 성능 검증<br>• UX 중심 결과 필터링 실험 (false positive 제거 목적)<br>• ONNX export 및 SW team handoff | <czorapinska@kookmin.ac.kr> |
