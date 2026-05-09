@@ -1,11 +1,11 @@
 {
-    "name": "LittleSignals",
-    "short_name": "LittleSignals",
+    "name": "Luma",
+    "short_name": "Luma",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "LittleSignals",
+    "description": "Luma",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

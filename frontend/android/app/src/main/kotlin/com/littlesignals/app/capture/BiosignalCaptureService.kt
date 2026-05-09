@@ -149,7 +149,7 @@ class BiosignalCaptureService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("LittleSignals")
+            .setContentTitle("Luma")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_recent_history)
             .setOngoing(true)

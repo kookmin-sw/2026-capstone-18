@@ -75,7 +75,7 @@ import timber.log.Timber
 private const val DURATION_MIN = 10
 private val DURATION_MS = DURATION_MIN * 60 * 1000L
 
-// Little Signals brand palette
+// Luma brand palette
 private val Lilac = Color(0xFFB89DDB)
 private val Pink = Color(0xFFF8C4D7)
 private val Background = Color(0xFFFAF6FB)

@@ -1,8 +1,8 @@
-# LittleSignals Flutter Frontend
+# Luma Flutter Frontend
 
 ## Overview
 
-LittleSignals is a Flutter mobile app for visualizing women's stress logs, menstrual cycle context, and sleep data flows. The current frontend uses a provider-driven architecture wired to the staging API.
+Luma is a Flutter mobile app for visualizing women's stress logs, menstrual cycle context, and sleep data flows. The current frontend uses a provider-driven architecture wired to the staging API.
 
 The app is structured to support future Galaxy Watch, Health Connect, or Samsung Health ingestion, but native watch data ingestion is not implemented yet.
 
@@ -154,6 +154,6 @@ Regression smoke tests cover:
 
 ## Notes
 
-- Frontend naming, configuration, and documentation are standardized under the LittleSignals project name.
+- Frontend naming, configuration, and documentation are standardized under the Luma project name.
 - Do not describe Galaxy Watch integration as complete until native data ingestion is connected and verified.
 - Current watch-related frontend architecture is contract-ready; actual native ingestion remains a next-stage integration task.

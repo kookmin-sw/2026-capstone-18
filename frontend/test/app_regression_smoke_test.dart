@@ -70,7 +70,7 @@ void main() {
       await tester.pumpAndSettle();
       _expectNoFlutterException(tester);
 
-      expect(find.text('LittleSignals'), findsOneWidget);
+      expect(find.text('Luma'), findsOneWidget);
 
       expect(find.text('시작하기'), findsOneWidget);
       expect(find.text('이미 계정이 있으신가요?'), findsOneWidget);
@@ -88,7 +88,7 @@ void main() {
 
       await _systemBack(tester);
       _expectNoFlutterException(tester);
-      expect(find.text('LittleSignals'), findsOneWidget);
+      expect(find.text('Luma'), findsOneWidget);
 
       await tester.tap(find.text('이미 계정이 있으신가요?'));
       await tester.pumpAndSettle();
@@ -112,7 +112,7 @@ void main() {
 
       await _systemBack(tester);
       _expectNoFlutterException(tester);
-      expect(find.text('LittleSignals'), findsOneWidget);
+      expect(find.text('Luma'), findsOneWidget);
 
       await tester.tap(find.text('익명으로 시작하기'));
       await tester.pumpAndSettle();

@@ -44,7 +44,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               _PolicyCard(
                 title: '1. 수집하는 정보',
                 body:
-                    'LittleSignals는 스트레스 기록, 생리 주기 정보, 선택한 스트레스 요인, 워치 연결 상태, 이메일 같은 기본 계정 정보를 수집할 수 있어요.',
+                    'Luma는 스트레스 기록, 생리 주기 정보, 선택한 스트레스 요인, 워치 연결 상태, 이메일 같은 기본 계정 정보를 수집할 수 있어요.',
               ),
 
               _PolicyCard(
@@ -56,7 +56,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               _PolicyCard(
                 title: '3. 건강 데이터',
                 body:
-                    '스트레스와 생리 주기 정보는 민감할 수 있어요. LittleSignals는 이 정보를 신중히 다루고, 나의 패턴을 이해하는 기능에만 사용해요.',
+                    '스트레스와 생리 주기 정보는 민감할 수 있어요. Luma는 이 정보를 신중히 다루고, 나의 패턴을 이해하는 기능에만 사용해요.',
               ),
 
               _PolicyCard(
