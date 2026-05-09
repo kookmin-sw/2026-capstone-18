@@ -69,5 +69,4 @@ Thumbs.db
 docker-compose.override.yml
 
 # Local-only planning docs
-docs/superpowers/plans/
-docs/superpowers/specs/
+docs/superpowers/
