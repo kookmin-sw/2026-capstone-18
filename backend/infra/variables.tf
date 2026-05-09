@@ -76,3 +76,9 @@ variable "gha_repo_full_name" {
   description = "GitHub repository in <owner>/<repo> form, used to scope the GHA OIDC trust policy."
   type        = string
 }
+
+variable "ml_demo_image" {
+  description = "Container image URI for the ML demo service. Defaults to a bootstrap placeholder; first apply creates the ECR repo, then re-apply with the real image tag once pushed."
+  type        = string
+  default     = "public.ecr.aws/docker/library/hello-world:latest"
+}
