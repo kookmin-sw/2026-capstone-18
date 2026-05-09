@@ -1,0 +1,63 @@
+Running `(cd /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/; TMPDIR=/var/folders/k2/70dl53_n6pbffy9266tgv8vh0000gn/T/ PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Applications/Wireshark.app/Contents/MacOS:/Users/ade/flutter/bin:/Users/ade/.codex/tmp/arg0/codex-arg0KzaIDh:/Applications/Codex.app/Contents/Resources HOME=/Users/ade /Users/ade/flutter/bin/cache/dart-sdk/bin/dart --packages=/Users/ade/Desktop/little_signals/.dart_tool/package_config.json /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/objective_c/de310349bc/hook.dill --config=/Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/objective_c/de310349bc/input.json )`.
+INFO: 2026-05-08 20:33:29.986205: Running `/Library/Developer/CommandLineTools/usr/bin/clang --version`.
+
+INFO: 2026-05-08 20:33:30.130181: Running `/Library/Developer/CommandLineTools/usr/bin/clang --version`.
+
+INFO: 2026-05-08 20:33:30.148010: Running: /Library/Developer/CommandLineTools/usr/bin/clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/include/dart_api_dl.c -fpic -I src -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/include/dart_api_dl.c.o
+
+INFO: 2026-05-08 20:33:30.148472: Running: /Library/Developer/CommandLineTools/usr/bin/clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.c -fpic -I src -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/objective_c.c.o
+
+INFO: 2026-05-08 20:33:30.159483: Running: /Library/Developer/CommandLineTools/usr/bin/clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/test/util.c -fpic -I src -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/test/util.c.o
+
+INFO: 2026-05-08 20:33:30.160056: Running: /Library/Developer/CommandLineTools/usr/bin/clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/input_stream_adapter.m -fpic -I src -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/input_stream_adapter.m.o
+
+INFO: 2026-05-08 20:33:30.160568: Running: /Library/Developer/CommandLineTools/usr/bin/clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/ns_number.m -fpic -I src -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/ns_number.m.o
+
+.o
+INFO: 2026-05-08 20:33:30.160446: Running: /Library/Developer/CommandLineTools/usr/bin/clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/observer.m -fpic -I src -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/observer.m.o
+
+INFO: 2026-05-08 20:33:30.160814: Running: /Library/Developer/CommandLineTools/usr/bin/clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/protocol.m -fpic -I src -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/protocol.m.o
+
+INFO: 2026-05-08 20:33:30.160966: Running: /Library/Developer/CommandLineTools/usr/bin/clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/ade/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/objective_c_bindings_generated.m.o
+
+INFO: 2026-05-08 20:33:30.512840: 
+INFO: 2026-05-08 20:33:30.513093: 
+INFO: 2026-05-08 20:33:30.513187: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/objective_c.c.o
+INFO: 2026-05-08 20:33:30.513625: 
+INFO: 2026-05-08 20:33:30.513656: 
+INFO: 2026-05-08 20:33:30.513668: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/include/dart_api_dl.c.o
+
+INFO: 2026-05-08 20:33:30.536038: 
+INFO: 2026-05-08 20:33:30.536123: 
+INFO: 2026-05-08 20:33:30.536140: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/observer.m.o
+
+INFO: 2026-05-08 20:33:30.538095: 
+INFO: 2026-05-08 20:33:30.538139: 
+INFO: 2026-05-08 20:33:30.538151: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/protocol.m.o
+
+INFO: 2026-05-08 20:33:30.550800: 
+INFO: 2026-05-08 20:33:30.550917: 
+INFO: 2026-05-08 20:33:30.550949: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/test/util.c.o
+
+INFO: 2026-05-08 20:33:30.962922: 
+INFO: 2026-05-08 20:33:30.962963: 
+INFO: 2026-05-08 20:33:30.962989: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/ns_number.m.o
+
+INFO: 2026-05-08 20:33:30.975628: 
+INFO: 2026-05-08 20:33:30.975703: 
+INFO: 2026-05-08 20:33:30.975712: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/objective_c.m.o
+
+INFO: 2026-05-08 20:33:30.978451: 
+INFO: 2026-05-08 20:33:30.978484: 
+INFO: 2026-05-08 20:33:30.978492: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/input_stream_adapter.m.o
+
+INFO: 2026-05-08 20:33:30.992458: 
+INFO: 2026-05-08 20:33:30.992495: 
+INFO: 2026-05-08 20:33:30.992504: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/objective_c_bindings_generated.m.o
+
+INFO: 2026-05-08 20:33:30.992848: Running: /Library/Developer/CommandLineTools/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -target arm64-apple-darwin -mmacos-version-min=13 /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/include/dart_api_dl.c.o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/objective_c.c.o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/test/util.c.o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/input_stream_adapter.m.o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/objective_c.m.o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/observer.m.o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/ns_number.m.o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/protocol.m.o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/obj/src/objective_c_bindings_generated.m.o -o /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/objective_c.dylib
+
+INFO: 2026-05-08 20:33:31.204563: 
+INFO: 2026-05-08 20:33:31.204619: 
+INFO: 2026-05-08 20:33:31.204629: Generated /Users/ade/Desktop/little_signals/.dart_tool/hooks_runner/shared/objective_c/build/de310349bc/objective_c.dylib
+

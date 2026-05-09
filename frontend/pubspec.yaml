@@ -1,0 +1,27 @@
+name: little_signals
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  firebase_core: ^4.3.0
+  firebase_messaging: ^16.0.3
+  flutter_secure_storage: ^10.0.0
+  google_sign_in: ^7.2.0
+  http: ^1.6.0
+  provider: ^6.1.5+1
+  web_socket_channel: ^3.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
