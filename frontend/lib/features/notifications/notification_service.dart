@@ -2,7 +2,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/api_config.dart';
 import 'notification_copy.dart';
 import 'notifications_api.dart';
 
@@ -28,11 +27,6 @@ class NotificationService {
   }
 
   Future<void> requestPermissionAndRegister() async {
-    if (ApiConfig.useMock) {
-      debugPrint('FCM registration skipped: mock mode');
-      return;
-    }
-
     if (Firebase.apps.isEmpty) {
       debugPrint('FCM registration skipped: Firebase is not initialized.');
       return;

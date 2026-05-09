@@ -2,7 +2,7 @@
 
 ## Overview
 
-LittleSignals is a Flutter mobile app for visualizing women's stress logs, menstrual cycle context, and sleep data flows. The current frontend uses a provider-driven architecture with both local mock/demo mode and staging API integration.
+LittleSignals is a Flutter mobile app for visualizing women's stress logs, menstrual cycle context, and sleep data flows. The current frontend uses a provider-driven architecture wired to the staging API.
 
 The app is structured to support future Galaxy Watch, Health Connect, or Samsung Health ingestion, but native watch data ingestion is not implemented yet.
 
@@ -22,15 +22,13 @@ The app is structured to support future Galaxy Watch, Health Connect, or Samsung
 - Korean UI copy polish for MVP flows
 - Regression smoke tests for core navigation and user flows
 - Session cleanup and provider reset on auth state changes
-- Staging API integration with `ApiConfig.useMock=false`
-- Mock/demo mode with `ApiConfig.useMock=true`
+- Staging API integration
 
 ## Architecture
 
 - Flutter mobile frontend
 - Provider-based state management
 - API client layer for staging backend integration
-- `MockBackend` for local demo data and regression tests
 - Provider-driven UI state for auth, home, stress events, cycle, sleep, triggers, insight, consent, and future settings preferences
 - Service contracts for future Watch/Sleep/Cycle integration
 
@@ -117,7 +115,7 @@ The Google Sign-In frontend flow is wired for the current integration state:
 - The token is sent to `POST /api/v1/auth/google`.
 - An `invalid_google_token` response from staging indicates backend OAuth client/audience alignment needs to be checked.
 
-For real Google login in `useMock=false`, confirm that Firebase and backend OAuth configuration use the same web client ID expected by the Flutter app as `serverClientId`.
+For real Google login, confirm that Firebase and backend OAuth configuration use the same web client ID expected by the Flutter app as `serverClientId`.
 
 ## Configuration / Secrets
 
@@ -132,10 +130,7 @@ Do not commit local secrets or generated service files:
 - `*.keystore`
 - `*.jks`
 
-Runtime mode is controlled in `lib/core/config/api_config.dart`:
-
-- `ApiConfig.useMock=true`: local mock/demo mode
-- `ApiConfig.useMock=false`: staging API mode
+The base URL and websocket URL are configured in `lib/core/config/api_config.dart`.
 
 ## Testing
 

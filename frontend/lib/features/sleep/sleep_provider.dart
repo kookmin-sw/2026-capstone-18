@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/errors/api_exception.dart';
-import '../../core/mock/mock_backend.dart';
 import 'data/sleep_api.dart';
 import 'models/sleep_log.dart';
 import 'services/watch_sleep_service.dart';
@@ -49,15 +47,6 @@ class SleepProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    if (ApiConfig.useMock) {
-      _history = MockBackend.sleepLogs;
-      _latestLog = _firstOrNull(_sortedByLatest(_history));
-
-      _loading = false;
-      notifyListeners();
-      return;
-    }
-
     try {
       final results = await Future.wait<dynamic>([
         sleepApi.getLatestSleepLog(),
@@ -77,14 +66,6 @@ class SleepProvider extends ChangeNotifier {
   }
 
   Future<void> loadLatest() async {
-    if (ApiConfig.useMock) {
-      _latestLog = _firstOrNull(_sortedByLatest(MockBackend.sleepLogs));
-
-      _errorMessage = null;
-      notifyListeners();
-      return;
-    }
-
     try {
       _latestLog = await sleepApi.getLatestSleepLog();
       _errorMessage = null;
@@ -96,16 +77,6 @@ class SleepProvider extends ChangeNotifier {
   }
 
   Future<void> loadHistory() async {
-    if (ApiConfig.useMock) {
-      _history = _sortedByLatest(MockBackend.sleepLogs);
-
-      _latestLog ??= _firstOrNull(_history);
-
-      _errorMessage = null;
-      notifyListeners();
-      return;
-    }
-
     try {
       _history = _sortedByLatest(await sleepApi.listSleepLogs());
 
@@ -131,16 +102,6 @@ class SleepProvider extends ChangeNotifier {
       endedOn: endedOn,
     );
 
-    if (ApiConfig.useMock) {
-      final saved = MockBackend.saveSleepLog(sleepLog);
-
-      _upsert(saved);
-      _errorMessage = null;
-
-      notifyListeners();
-      return true;
-    }
-
     try {
       final saved = await sleepApi.createSleepLog(sleepLog);
 
@@ -158,16 +119,6 @@ class SleepProvider extends ChangeNotifier {
   }
 
   Future<bool> updateSleepLog(SleepLog sleepLog) async {
-    if (ApiConfig.useMock) {
-      final saved = MockBackend.saveSleepLog(sleepLog);
-
-      _upsert(saved);
-      _errorMessage = null;
-
-      notifyListeners();
-      return true;
-    }
-
     try {
       final saved = await sleepApi.updateSleepLog(sleepLog);
 
@@ -185,19 +136,6 @@ class SleepProvider extends ChangeNotifier {
   }
 
   Future<bool> deleteSleepLog(String id) async {
-    if (ApiConfig.useMock) {
-      MockBackend.deleteSleepLog(id);
-
-      _history = _history.where((item) => item.id != id).toList();
-
-      _latestLog = _firstOrNull(_sortedByLatest(_history));
-
-      _errorMessage = null;
-
-      notifyListeners();
-      return true;
-    }
-
     try {
       await sleepApi.deleteSleepLog(id);
 

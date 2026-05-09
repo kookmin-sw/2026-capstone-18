@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/errors/api_exception.dart';
-import '../../core/mock/mock_backend.dart';
 import 'data/cycles_api.dart';
 import 'models/cycle.dart';
 import 'models/watch_cycle_data.dart';
@@ -55,14 +53,6 @@ class CycleProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    if (ApiConfig.useMock) {
-      _currentCycle = MockBackend.currentCycle;
-      _cycleHistory = MockBackend.cycleHistory;
-      _loading = false;
-      notifyListeners();
-      return;
-    }
-
     try {
       final results = await Future.wait<dynamic>([
         cyclesApi.currentCycle(),
@@ -87,19 +77,6 @@ class CycleProvider extends ChangeNotifier {
     final resolvedCycleLength = cycleLength ?? calculatedCycleLength;
     final resolvedPeriodLength =
         periodLength ?? _periodLength(lastPeriodStart, periodEndDate);
-
-    if (ApiConfig.useMock) {
-      _currentCycle = MockBackend.saveCycle(
-        lastPeriodStart: lastPeriodStart,
-        periodEndDate: periodEndDate,
-        cycleLength: resolvedCycleLength,
-        periodLength: resolvedPeriodLength,
-      );
-      _cycleHistory = MockBackend.cycleHistory;
-      _errorMessage = null;
-      notifyListeners();
-      return true;
-    }
 
     try {
       final cycle = Cycle(
@@ -134,15 +111,6 @@ class CycleProvider extends ChangeNotifier {
   }
 
   Future<WatchCycleData?> latestGalaxyWatchCycleData() async {
-    if (ApiConfig.useMock) {
-      final today = DateTime.now();
-      return WatchCycleData(
-        periodStart: DateTime(today.year, today.month, today.day - 10),
-        periodEnd: DateTime(today.year, today.month, today.day - 6),
-        estimatedCycleLength: calculatedCycleLength,
-      );
-    }
-
     try {
       final data = await watchCycleService.getLatestCycleData();
       if (data == null || data.periodEnd == null) {
