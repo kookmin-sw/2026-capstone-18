@@ -814,6 +814,7 @@ AWS Seoul (ap-northeast-2)
         <sub><b>예르잔 울판</b></sub>
       </a><br/>
       <sub>Frontend / UX-UI</sub>
+       <sub><a href="mailto:yerzhanulpan@kookmin.ac.kr">yerzhanulpan@kookmin.ac.kr</a></sub>
     </td>
     <td align="center" width="160">
       <a href="https://github.com/seennothing">
@@ -828,7 +829,7 @@ AWS Seoul (ap-northeast-2)
 | 이름 | 역할 | 담당 영역 | 연락처 |
 | :--- | :--- | :--- | :--- |
 | 아노 (Anu) | Backend Engineer | • AWS 클라우드 인프라(ECS Fargate, RDS, ALB, S3, EventBridge, Terraform)<br>• Agentic AI 파이프라인 설계·운영<br>• UX 설계 및 사용자 흐름<br>• Frontend ↔ Backend ↔ ONNX 온디바이스 추론 간 종단 연동(REST/WebSocket/FCM, 모델 직렬화·배포 파이프라인) | <anu.bnda@gmail.com> |
-| 예르잔 울판 (pnpn777) | Frontend / UX-UI Engineer | • Flutter frontend architecture <br>•  Korean UX copy 및 interaction flow 설계<br>• UX research 및 여성 스트레스·생리 주기 기반 사용자 흐름 설계<br>• MVP 범위 정의 및 feature prioritization<br>• Home / Insight / Profile UX 및 visual hierarchy 설계<br>• Figma 기반 mobile UI design system 및 component flow 정리 | GitHub: <https://github.com/pnpn777> |
+| 예르잔 울판 (pnpn777) | Frontend / UX-UI Engineer | • Flutter frontend architecture <br>•  Korean UX copy 및 interaction flow 설계<br>• UX research 및 여성 스트레스·생리 주기 기반 사용자 흐름 설계<br>• MVP 범위 정의 및 feature prioritization<br>• Home / Insight / Profile UX 및 visual hierarchy 설계<br>• Figma 기반 mobile UI design system 및 component flow 정리 | | <yerzhanulpan@kookmin.ac.kr> |
 
 *나머지 팀원의 역할/담당 영역은 추후 추가 예정.*
 
