@@ -85,6 +85,16 @@ class Settings(BaseSettings):
     s3_presign_expiry_seconds: int = 3600
     aws_region: str = "ap-northeast-2"
 
+    aws_bedrock_region: str = "ap-northeast-2"
+    """AWS region for Bedrock InvokeModel calls."""
+
+    aws_bedrock_model_id: str = "anthropic.claude-haiku-4-5-20251001-v1:0"
+    """Bedrock foundation model ID for Anthropic Claude Haiku 4.5."""
+
+    ai_features_enabled: bool = False
+    """Master kill switch for tips + weekly reports. Default False; flip to True
+    in staging once Bedrock model access is approved."""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
