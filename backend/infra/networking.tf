@@ -143,6 +143,15 @@ resource "aws_vpc_security_group_egress_rule" "alb_to_ecs" {
   description                  = "API traffic to ECS"
 }
 
+resource "aws_vpc_security_group_egress_rule" "alb_to_ecs_ml_demo" {
+  security_group_id            = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.ecs.id
+  ip_protocol                  = "tcp"
+  from_port                    = 8001
+  to_port                      = 8001
+  description                  = "ml-demo traffic to ECS"
+}
+
 resource "aws_security_group" "ecs" {
   name        = "${local.name_prefix}-ecs"
   description = "Allow API traffic from the ALB"
