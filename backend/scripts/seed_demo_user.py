@@ -131,12 +131,16 @@ def build_sleep_logs(rng: random.Random, user_id: uuid.UUID) -> list[SleepLog]:
         woke_up = fell_asleep + timedelta(minutes=sleep_minutes)
         weekday = day.weekday()  # Mon=0, Tue=1
         score = 75 + rng.randint(-10, 10) - (5 if weekday in (0, 1) else 0)
-        if score >= 80:
+        if score >= 85:
             rating = "great"
+        elif score >= 75:
+            rating = "good"
         elif score >= 60:
-            rating = "ok"
+            rating = "okay"
+        elif score >= 45:
+            rating = "poor"
         else:
-            rating = "rough"
+            rating = "very_poor"
         logs.append(
             SleepLog(
                 user_id=user_id,
