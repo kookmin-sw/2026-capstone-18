@@ -48,6 +48,11 @@
             </intent-filter>
         </activity>
 
+        <service
+            android:name=".BiosignalCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
+
     </application>
 
 </manifest>
