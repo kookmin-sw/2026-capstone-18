@@ -67,4 +67,5 @@ dependencies {
 
     // Unit testing
     testImplementation("junit:junit:4.13.2")
+    implementation("com.google.android.gms:play-services-wearable:18.2.0")
 }
