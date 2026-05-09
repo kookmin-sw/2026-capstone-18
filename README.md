@@ -97,13 +97,8 @@
   - [4.2 기술 스택](#42-기술-스택)
   - [4.3 주요 사용자 흐름](#43-주요-사용자-흐름)
   - [4.4 구현 완료 기능](#44-구현-완료-기능)
-  - [4.5 Frontend 아키텍처](#45-frontend-아키텍처)
-  - [4.6 Frontend Data Flow](#46-frontend-data-flow)
-  - [4.7 Backend Integration Status](#47-backend-integration-status)
-  - [4.8 Watch / Sleep / Cycle Integration Contract](#48-watch--sleep--cycle-integration-contract)
-  - [4.9 Notification Flow](#49-notification-flow)
-  - [4.10 Frontend 실행](#410-frontend-실행)
-  - [4.11 테스트](#411-테스트)
+  - [4.5 Frontend 실행](#45-frontend-실행)
+  - [4.6 테스트](#46-테스트)
 - [5. 아키텍처 전체 흐름 (요약)](#4-아키텍처-전체-흐름-요약)
 - [6. 문서](#5-문서)
 - [7. 팀 소개](#6-팀-소개)
@@ -549,174 +544,9 @@ flowchart TD
 * Regression smoke tests
 
 
-### 4.5 Frontend 아키텍처
+심화 내용(아키텍처, Data Flow, Backend Integration Status, Watch/Sleep/Cycle Contract, Notification Flow)은 별도 문서로 분리되어 있습니다 → [`docs/frontend.md`](docs/frontend.md).
 
-Frontend는 feature-based 구조를 따릅니다.
-
-```text
-frontend/
-├── lib/
-│   ├── core/
-│   │   ├── config/          # API config (base URL 등)
-│   │   ├── errors/          # API exception handling
-│   │   ├── network/         # Shared ApiClient
-│   │   ├── storage/         # Secure token storage
-│   │   ├── theme/           # App colors / typography
-│   │   ├── utils/           # Korean UI helper
-│   │   └── widgets/         # Shared UI widgets
-│   ├── features/
-│   │   ├── auth/
-│   │   ├── cycles/
-│   │   ├── events/
-│   │   ├── insight/
-│   │   ├── notifications/
-│   │   ├── sleep/
-│   │   └── triggers/
-│   ├── screens/
-│   │   ├── home/
-│   │   ├── insight/
-│   │   └── my/
-│   └── main.dart
-├── test/
-├── android/
-├── pubspec.yaml
-└── README.md
-```
-
-각 feature는 UI state, API access, models, service logic를 분리합니다.
-
-```text
-features/events/
-├── data/
-│   └── events_api.dart      # Backend API calls
-├── models/
-│   └── stress_event.dart    # Domain model
-└── events_provider.dart     # UI state / refresh logic
-```
-
-#### Provider 역할
-
-* loading / error / success state 관리
-* screen refresh
-* session cleanup
-* UI-facing state transformation
-
-#### Data Layer 역할
-
-* backend request construction
-* response parsing
-* API payload compatibility
-* endpoint-level error handling
-
-
-### 4.6 Frontend Data Flow
-
-```mermaid
-flowchart LR
-    UI[Flutter Screen] --> Provider[Feature Provider]
-    Provider --> API[Feature data API]
-    API --> Client[Shared ApiClient]
-    Client --> Backend[FastAPI Staging Backend]
-    Backend --> Client
-    Client --> API
-    API --> Provider
-    Provider --> UI
-```
-
-모든 Provider는 staging backend(`https://api-staging.friendlykr.com`)에 직접 요청합니다.
-
-
-### 4.7 Backend Integration Status
-
-현재 frontend에서 구현 및 검증된 backend integration:
-
-* Anonymous auth
-* Google Sign-In frontend request flow
-* `/api/v1/me`
-* `/api/v1/events`
-* `/api/v1/cycles/current`
-* `/api/v1/cycles/history`
-* `/api/v1/categories`
-* `/api/v1/consent`
-* `/api/v1/sleep-logs/latest`
-* `/api/v1/devices/fcm-token`
-
-검증 완료 상태:
-
-* staging API 연결 정상
-* FCM permission request 정상
-* FCM device token registration 성공
-* Sleep latest endpoint empty response graceful handling
-* Cycle/current 및 history response 기반 UI 업데이트
-* Event data provider-driven rendering
-
-#### Pending / backend-dependent
-
-* Google OAuth audience/client ID alignment
-* Email/password auth endpoints
-* End-to-end push notification verification
-* 일부 account security flow backend support
-
-### 4.8 Watch / Sleep / Cycle Integration Contract
-
-Frontend는 향후 wearable data ingestion을 위한 service contract를 포함합니다.
-
-현재 상태:
-
-* UI와 Provider state는 sleep/cycle data 소비 준비 완료
-* 실제 Galaxy Watch / Health Connect ingestion은 아직 미완료
-* Native Android bridge / MethodChannel integration은 next-stage task
-
-#### Sleep Contract
-
-```text
-WatchSleepService
-├── fellAsleepAt
-├── wokeUpAt
-└── endedOn
-```
-
-#### Cycle Contract
-
-```text
-WatchCycleService
-├── periodStart
-├── periodEnd
-└── estimatedCycleLength
-```
-
-#### Planned Future Flow
-
-```mermaid
-flowchart TD
-    Watch[Galaxy Watch / Health Connect] --> Native[Android Native Layer]
-    Native --> Bridge[MethodChannel or Plugin]
-    Bridge --> Service[WatchSleepService / WatchCycleService]
-    Service --> Provider[SleepProvider / CycleProvider]
-    Provider --> UI[Flutter UI]
-```
-
-현재 frontend는 native ingestion이 연결되더라도 major UI redesign 없이 데이터를 소비할 수 있도록 설계되었습니다.
-
-### 4.9 Notification Flow
-
-```mermaid
-flowchart LR
-    App[Flutter App] --> Permission[Notification Permission]
-    Permission --> FCM[Firebase Messaging Token]
-    FCM --> API[POST /api/v1/devices/fcm-token]
-    API --> Backend[FastAPI Backend]
-    Backend --> Stored[Device Token Registered]
-```
-
-현재 구현:
-
-* Notification permission request
-* FCM token acquisition
-* FCM token backend registration
-* Korean/English notification copy localization
-
-### 4.10 Frontend 실행
+### 4.5 Frontend 실행
 
 ```bash
 cd frontend
@@ -726,7 +556,7 @@ flutter test
 flutter run
 ```
 
-### 4.11 테스트
+### 4.6 테스트
 
 Frontend validation:
 
