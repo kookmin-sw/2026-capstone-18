@@ -80,6 +80,22 @@ resource "aws_iam_role_policy" "ecs_task_xray" {
   policy = data.aws_iam_policy_document.ecs_task_xray.json
 }
 
+data "aws_iam_policy_document" "ecs_task_bedrock" {
+  statement {
+    actions = ["bedrock:InvokeModel"]
+    resources = [
+      # Allow any Anthropic Claude Haiku 4.5 foundation model in the configured region.
+      "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-haiku-4-5-*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_task_bedrock" {
+  name   = "${local.name_prefix}-task-bedrock"
+  role   = aws_iam_role.ecs_task.id
+  policy = data.aws_iam_policy_document.ecs_task_bedrock.json
+}
+
 resource "aws_cloudwatch_log_group" "otel_collector" {
   name              = "/ecs/${local.name_prefix}-otel-collector"
   retention_in_days = 14
