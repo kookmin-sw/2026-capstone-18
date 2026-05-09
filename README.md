@@ -1,11 +1,62 @@
 # Little Signals — 2026 Capstone 18
 
+[![Total commits](https://img.shields.io/github/commit-activity/t/kookmin-sw/2026-capstone-18)](https://github.com/kookmin-sw/2026-capstone-18/commits/master)
+[![Last commit](https://img.shields.io/github/last-commit/kookmin-sw/2026-capstone-18)](https://github.com/kookmin-sw/2026-capstone-18/commits/master)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/kookmin-sw/2026-capstone-18)](https://github.com/kookmin-sw/2026-capstone-18/pulse)
+[![Contributors](https://img.shields.io/github/contributors/kookmin-sw/2026-capstone-18)](https://github.com/kookmin-sw/2026-capstone-18/graphs/contributors)
+[![License](https://img.shields.io/github/license/kookmin-sw/2026-capstone-18)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/kookmin-sw/2026-capstone-18?style=flat)](https://github.com/kookmin-sw/2026-capstone-18/stargazers)
+
 여성 사용자를 위한 실시간 스트레스 탐지 및 생리 주기 추적 애플리케이션. Galaxy Watch 8에서 수집한 원시 생체신호(PPG, HRV, EDA, 가속도)를 기반으로 온디바이스(Mamba) 추론을 수행하고, 사전 스트레스(Pre-Stress) 단계에서 손목 호흡 가이드를 제시합니다. 백엔드는 AWS Seoul(ap-northeast-2)에 배포되며 한국 PIPA를 전제로 설계되었습니다.
 
 - **팀**: 국민대학교 2026 캡스톤 18조
 - **팀페이지**: <https://kookmin-sw.github.io/2026-capstone-18/>
 - **타깃 플랫폼**: Galaxy Watch 8 (Wear OS) + Android (Flutter)
 - **배포 리전**: AWS Seoul (`ap-northeast-2`)
+
+### 기술 스택
+
+**Backend**
+![Python](https://img.shields.io/badge/Python_3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI_0.136-009688?logo=fastapi&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy_2.0-D71F00?logo=sqlalchemy&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic_v2-E92063?logo=pydantic&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_15-4169E1?logo=postgresql&logoColor=white)
+![TimescaleDB](https://img.shields.io/badge/TimescaleDB-FDB515?logo=timescale&logoColor=white)
+![Poetry](https://img.shields.io/badge/Poetry-60A5FA?logo=poetry&logoColor=white)
+
+**Cloud / Infra**
+![AWS](https://img.shields.io/badge/AWS_Seoul-232F3E?logo=amazonwebservices&logoColor=white)
+![ECS](https://img.shields.io/badge/ECS_Fargate-FF9900?logo=amazonecs&logoColor=white)
+![RDS](https://img.shields.io/badge/RDS-527FFF?logo=amazonrds&logoColor=white)
+![S3](https://img.shields.io/badge/S3-569A31?logo=amazons3&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-7B42BC?logo=terraform&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?logo=githubactions&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-FFCA28?logo=firebase&logoColor=black)
+
+**AI / ML**
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)
+![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-005CED?logo=onnx&logoColor=white)
+![NumPy](https://img.shields.io/badge/NumPy-013243?logo=numpy&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-150458?logo=pandas&logoColor=white)
+![Jupyter](https://img.shields.io/badge/Jupyter-F37626?logo=jupyter&logoColor=white)
+
+**Frontend / Watch**
+![Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-0175C2?logo=dart&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white)
+![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
+![Wear OS](https://img.shields.io/badge/Wear_OS-4285F4?logo=wearos&logoColor=white)
+![Gradle](https://img.shields.io/badge/Gradle-02303A?logo=gradle&logoColor=white)
+
+**Quality / Tooling**
+![Ruff](https://img.shields.io/badge/Ruff-D7FF64?logo=ruff&logoColor=black)
+![mypy](https://img.shields.io/badge/mypy_strict-2A6DB2?logo=python&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white)
+![Sentry](https://img.shields.io/badge/Sentry-362D59?logo=sentry&logoColor=white)
+![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?logo=opentelemetry&logoColor=white)
 
 ---
 
@@ -409,11 +460,47 @@ AWS Seoul (ap-northeast-2)
 
 ## 6. 팀 소개
 
+<table>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://github.com/nukktae">
+        <img src="https://github.com/nukktae.png" width="96" height="96" alt="Anu Bilegdemberel"/><br/>
+        <sub><b>아노 (Anu)</b></sub>
+      </a><br/>
+      <sub>Backend / Infra / AI 통합</sub><br/>
+      <sub><a href="mailto:anu.bnda@gmail.com">anu.bnda@gmail.com</a></sub>
+    </td>
+    <td align="center" width="160">
+      <a href="https://github.com/joonseojj">
+        <img src="https://github.com/joonseojj.png" width="96" height="96" alt="joonseojj"/><br/>
+        <sub><b>joonseojj</b></sub>
+      </a><br/>
+      <sub>팀원</sub>
+    </td>
+    <td align="center" width="160">
+      <a href="https://github.com/pnpn777">
+        <img src="https://github.com/pnpn777.png" width="96" height="96" alt="pnpn777"/><br/>
+        <sub><b>pnpn777</b></sub>
+      </a><br/>
+      <sub>팀원</sub>
+    </td>
+    <td align="center" width="160">
+      <a href="https://github.com/seennothing">
+        <img src="https://github.com/seennothing.png" width="96" height="96" alt="seennothing"/><br/>
+        <sub><b>seennothing</b></sub>
+      </a><br/>
+      <sub>팀원</sub>
+    </td>
+  </tr>
+</table>
+
 | 이름 | 역할 | 담당 영역 | 연락처 |
 | :--- | :--- | :--- | :--- |
 | 아노 (Anu) | Backend Engineer | • AWS 클라우드 인프라(ECS Fargate, RDS, ALB, S3, EventBridge, Terraform)<br>• Agentic AI 파이프라인 설계·운영<br>• UX 설계 및 사용자 흐름<br>• Frontend ↔ Backend ↔ ONNX 온디바이스 추론 간 종단 연동(REST/WebSocket/FCM, 모델 직렬화·배포 파이프라인) | <anu.bnda@gmail.com> |
 
-*나머지 팀원 정보는 추후 추가 예정.*
+*나머지 팀원의 역할/담당 영역은 추후 추가 예정.*
+
+전체 기여자 그래프: <https://github.com/kookmin-sw/2026-capstone-18/graphs/contributors>
 
 ---
 
