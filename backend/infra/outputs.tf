@@ -90,3 +90,18 @@ output "gha_production_role_arn" {
   value       = aws_iam_role.gha_production.arn
   description = "IAM role ARN for GitHub Actions to assume via OIDC for production deploys."
 }
+
+output "ml_demo_ecr_repository_url" {
+  value       = aws_ecr_repository.ml_demo.repository_url
+  description = "ECR repository URL for the ML demo image."
+}
+
+output "ml_demo_service_name" {
+  value       = aws_ecs_service.ml_demo.name
+  description = "ECS service name for the ML demo."
+}
+
+output "ml_demo_target_group_arn" {
+  value       = aws_lb_target_group.ml_demo.arn
+  description = "ALB target group ARN for the ML demo."
+}
