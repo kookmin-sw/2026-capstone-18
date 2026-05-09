@@ -42,12 +42,19 @@ class BiosignalCaptureService {
     required String accessToken,
     int? durationSec,
     String backendBase = 'https://api-staging.friendlykr.com',
+    String source = 'watch',
   }) async {
     await _methodChannel.invokeMethod<void>('start', <String, dynamic>{
       'accessToken': accessToken,
       'durationSec': durationSec ?? -1,
       'backendBase': backendBase,
+      'source': source,
     });
+  }
+
+  Future<bool> isWatchConnected() async {
+    final result = await _methodChannel.invokeMethod<bool>('isWatchConnected');
+    return result ?? false;
   }
 
   Future<void> stop() async {
