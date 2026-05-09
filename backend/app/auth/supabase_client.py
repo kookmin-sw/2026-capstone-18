@@ -96,6 +96,39 @@ class SupabaseAuthClient:
             raise SupabaseAuthError(r.status_code, r.text)
         return self._session_from_response(r.json())
 
+    async def sign_in_with_password(self, *, email: str, password: str) -> SupabaseSession:
+        async with self._client() as http:
+            r = await http.post(
+                "/token",
+                params={"grant_type": "password"},
+                json={"email": email, "password": password},
+            )
+        if r.status_code != 200:
+            raise SupabaseAuthError(r.status_code, r.text)
+        return self._session_from_response(r.json())
+
+    async def sign_up_with_email(
+        self,
+        *,
+        email: str,
+        password: str,
+        user_metadata: dict[str, Any] | None = None,
+        email_confirm: bool = True,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "email": email,
+            "password": password,
+            "email_confirm": email_confirm,
+        }
+        if user_metadata is not None:
+            body["user_metadata"] = user_metadata
+        async with self._client(admin=True) as http:
+            r = await http.post("/admin/users", json=body)
+        if r.status_code not in (200, 201):
+            raise SupabaseAuthError(r.status_code, r.text)
+        result: dict[str, Any] = r.json()
+        return result
+
     async def refresh_session(self, refresh_token: str) -> SupabaseSession:
         async with self._client() as http:
             r = await http.post(

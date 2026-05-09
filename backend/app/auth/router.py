@@ -25,6 +25,8 @@ from app.config import get_settings
 from app.db.dependencies import get_db
 from app.models.user import User
 from app.schemas.auth import (
+    EmailSignInRequest,
+    EmailSignUpRequest,
     GoogleSignInRequest,
     LogoutResponse,
     RefreshRequest,
@@ -51,16 +53,27 @@ async def _verify_google_id_token(id_token: str) -> dict[str, Any]:
 
 
 async def _ensure_user_row(
-    db: AsyncSession, supabase_user_id: uuid.UUID, *, anon_id: uuid.UUID | None
+    db: AsyncSession,
+    supabase_user_id: uuid.UUID,
+    *,
+    anon_id: uuid.UUID | None,
+    display_name: str | None = None,
 ) -> User:
     """Return the User row for the given Supabase id, creating one if missing."""
     existing = (
         await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
     ).scalar_one_or_none()
     if existing is not None:
+        if display_name and not existing.display_name:
+            existing.display_name = display_name
+            await db.flush()
         await ensure_user_settings(db, existing)
         return existing
-    user = User(supabase_user_id=supabase_user_id, anon_id=anon_id)
+    user = User(
+        supabase_user_id=supabase_user_id,
+        anon_id=anon_id,
+        display_name=display_name,
+    )
     db.add(user)
     await db.flush()
     await ensure_user_settings(db, user)
@@ -199,6 +212,92 @@ async def sign_in_with_google(
         ) from exc
 
     await _ensure_user_row(db, session.user_id, anon_id=None)
+    return TokenResponse(
+        access_token=session.access_token,
+        refresh_token=session.refresh_token,
+        expires_in=session.expires_in,
+        is_anonymous=session.is_anonymous,
+    )
+
+
+@router.post(
+    "/email/login",
+    response_model=TokenResponse,
+    summary="Sign in with email and password",
+)
+async def sign_in_with_email_password(
+    payload: EmailSignInRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TokenResponse:
+    client = _get_supabase_client()
+    try:
+        session = await client.sign_in_with_password(email=payload.email, password=payload.password)
+    except SupabaseAuthError as exc:
+        if 400 <= exc.status_code < 500:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"status": "error", "reason": "invalid_email_credentials"},
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"status": "error", "reason": "supabase_unavailable"},
+        ) from exc
+
+    await _ensure_user_row(db, session.user_id, anon_id=None)
+    return TokenResponse(
+        access_token=session.access_token,
+        refresh_token=session.refresh_token,
+        expires_in=session.expires_in,
+        is_anonymous=session.is_anonymous,
+    )
+
+
+@router.post(
+    "/email/signup",
+    response_model=TokenResponse,
+    summary="Create a new email/password account",
+)
+async def sign_up_with_email_password(
+    payload: EmailSignUpRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TokenResponse:
+    settings = get_settings()
+    if not settings.email_signup_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"status": "error", "reason": "signup_disabled"},
+        )
+
+    client = _get_supabase_client()
+    user_metadata = {"display_name": payload.display_name} if payload.display_name else None
+    try:
+        await client.sign_up_with_email(
+            email=payload.email,
+            password=payload.password,
+            user_metadata=user_metadata,
+            email_confirm=True,
+        )
+    except SupabaseAuthError as exc:
+        body_str = str(exc.body).lower()
+        if exc.status_code == 422 or "email_exists" in body_str or "already registered" in body_str:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"status": "error", "reason": "email_in_use"},
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"status": "error", "reason": "supabase_unavailable"},
+        ) from exc
+
+    try:
+        session = await client.sign_in_with_password(email=payload.email, password=payload.password)
+    except SupabaseAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"status": "error", "reason": "supabase_unavailable"},
+        ) from exc
+
+    await _ensure_user_row(db, session.user_id, anon_id=None, display_name=payload.display_name)
     return TokenResponse(
         access_token=session.access_token,
         refresh_token=session.refresh_token,

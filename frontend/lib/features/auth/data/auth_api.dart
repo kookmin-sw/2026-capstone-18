@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/errors/api_exception.dart';
@@ -65,20 +66,38 @@ class AuthApi {
     }
   }
 
-  Future<AuthTokens> emailLogin(String email, String password) {
-    throw const ApiException(
-      message: '현재 이메일 로그인은 지원되지 않아요. 익명 또는 Google 로그인을 이용해 주세요.',
-    );
+  Future<AuthTokens> emailLogin(String email, String password) async {
+    try {
+      final response = await _apiClient.post(
+        '/api/v1/auth/email/login',
+        body: {'email': email, 'password': password},
+        auth: false,
+      );
+      return AuthTokens.fromJson(_asMap(response));
+    } on ApiException catch (error) {
+      throw _mapEmailAuthError(error, fallback: '로그인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
   }
 
   Future<AuthTokens> emailSignUp({
     required String email,
     required String password,
     String? name,
-  }) {
-    throw const ApiException(
-      message: '현재 이메일 계정 만들기는 지원되지 않아요. 익명 또는 Google 로그인을 이용해 주세요.',
-    );
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/api/v1/auth/email/signup',
+        body: {
+          'email': email,
+          'password': password,
+          if (name != null && name.isNotEmpty) 'display_name': name,
+        },
+        auth: false,
+      );
+      return AuthTokens.fromJson(_asMap(response));
+    } on ApiException catch (error) {
+      throw _mapEmailAuthError(error, fallback: '계정을 만들지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
   }
 
   Future<AppUser> me() async {
@@ -111,9 +130,9 @@ class AuthApi {
 
     await _googleSignIn.initialize(
       clientId: _googleServerClientId.isEmpty ? null : _googleServerClientId,
-      serverClientId: _googleServerClientId.isEmpty
+      serverClientId: kIsWeb
           ? null
-          : _googleServerClientId,
+          : (_googleServerClientId.isEmpty ? null : _googleServerClientId),
     );
     _googleInitialized = true;
   }
@@ -145,5 +164,31 @@ class AuthApi {
     }
 
     return error.message == 'invalid_google_token';
+  }
+
+  ApiException _mapEmailAuthError(
+    ApiException error, {
+    required String fallback,
+  }) {
+    final reason = _extractReason(error.details);
+    final message = switch (reason) {
+      'email_in_use' => '이미 사용 중인 이메일이에요.',
+      'invalid_email_credentials' => '이메일이나 비밀번호를 확인해 주세요.',
+      'signup_disabled' => '지금은 새 계정을 만들 수 없어요.',
+      _ => fallback,
+    };
+    return ApiException(
+      statusCode: error.statusCode,
+      message: message,
+      details: error.details,
+    );
+  }
+
+  String? _extractReason(dynamic details) {
+    if (details is Map<String, dynamic>) {
+      final reason = details['reason'];
+      if (reason is String) return reason;
+    }
+    return null;
   }
 }
