@@ -94,12 +94,7 @@ class _BrandIntro extends StatelessWidget {
           width: 104,
           height: 104,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.26),
             shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.72),
-              width: 1,
-            ),
             boxShadow: [
               BoxShadow(
                 color: AppColors.primary.withValues(alpha: 0.16),
@@ -115,32 +110,15 @@ class _BrandIntro extends StatelessWidget {
               ),
             ],
           ),
-          child: Center(
-            child: Container(
-              width: 66,
-              height: 66,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.76),
-                    const Color(0xFFFFE8EE).withValues(alpha: 0.58),
-                  ],
-                ),
-              ),
-              child: const Icon(
-                Icons.favorite_border_rounded,
-                color: AppColors.primary,
-                size: 31,
-              ),
-            ),
+          clipBehavior: Clip.antiAlias,
+          child: Image.asset(
+            'assets/images/logo.png',
+            fit: BoxFit.cover,
           ),
         ),
         const SizedBox(height: 26),
         Text(
-          'LittleSignals',
+          'Luma',
           textAlign: TextAlign.center,
           style: AppTextStyles.display.copyWith(
             fontSize: 35,

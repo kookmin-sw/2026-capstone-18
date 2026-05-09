@@ -34,7 +34,7 @@ import 'screens/home/home_screen.dart';
 import 'screens/insight/insight_screen.dart';
 import 'screens/my/my_screen.dart';
 
-const SystemUiOverlayStyle _littleSignalsSystemUiOverlayStyle =
+const SystemUiOverlayStyle _lumaSystemUiOverlayStyle =
     SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       systemNavigationBarColor: AppColors.background,
@@ -50,12 +50,12 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _configureSystemBars();
   await _initializeFirebase();
-  runApp(const LittleSignalsApp());
+  runApp(const LumaApp());
 }
 
 Future<void> _configureSystemBars() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setSystemUIOverlayStyle(_littleSignalsSystemUiOverlayStyle);
+  SystemChrome.setSystemUIOverlayStyle(_lumaSystemUiOverlayStyle);
 }
 
 Future<void> _initializeFirebase() async {
@@ -68,14 +68,14 @@ Future<void> _initializeFirebase() async {
   }
 }
 
-class LittleSignalsApp extends StatefulWidget {
-  const LittleSignalsApp({super.key});
+class LumaApp extends StatefulWidget {
+  const LumaApp({super.key});
 
   @override
-  State<LittleSignalsApp> createState() => _LittleSignalsAppState();
+  State<LumaApp> createState() => _LumaAppState();
 }
 
-class _LittleSignalsAppState extends State<LittleSignalsApp> {
+class _LumaAppState extends State<LumaApp> {
   late final SecureTokenStorage _tokenStorage;
   late final ApiClient _apiClient;
   late final AuthApi _authApi;
@@ -152,13 +152,13 @@ class _LittleSignalsAppState extends State<LittleSignalsApp> {
         Provider<NotificationService>.value(value: _notificationService),
       ],
       child: MaterialApp(
-        title: 'LittleSignals',
+        title: 'Luma',
         debugShowCheckedModeBanner: false,
         color: AppColors.background,
         theme: AppTheme.light,
         builder: (context, child) {
           return AnnotatedRegion<SystemUiOverlayStyle>(
-            value: _littleSignalsSystemUiOverlayStyle,
+            value: _lumaSystemUiOverlayStyle,
             child: ColoredBox(
               color: AppColors.background,
               child: child ?? const SizedBox.shrink(),
