@@ -12,7 +12,7 @@
 [![Stars](https://img.shields.io/github/stars/kookmin-sw/2026-capstone-18?style=flat)](https://github.com/kookmin-sw/2026-capstone-18/stargazers)
 
 <p align="center">
-  <video src="docs/images/demo.mp4" controls muted playsinline width="320"></video>
+  <video src="https://github.com/user-attachments/assets/9077115f-dcfc-4898-a309-afc126edbf79" controls muted playsinline width="320"></video>
 </p>
 
 ![AWS Seoul (ap-northeast-2) architecture](docs/images/architecture.png)
