@@ -27,6 +27,7 @@ class BiosignalCaptureService : Service() {
         const val EXTRA_DURATION_SEC = "duration_sec"
         const val EXTRA_ACCESS_TOKEN = "access_token"
         const val EXTRA_BACKEND_BASE = "backend_base"
+        const val EXTRA_SOURCE = "source"  // "watch" or "synthetic"
         private const val NOTIFICATION_ID = 1042
         private const val CHANNEL_ID = "biosignal_capture"
     }
@@ -45,8 +46,9 @@ class BiosignalCaptureService : Service() {
                     stopSelf(); return START_NOT_STICKY
                 }
                 val backendBase = intent.getStringExtra(EXTRA_BACKEND_BASE) ?: "https://api-staging.friendlykr.com"
+                val source = intent.getStringExtra(EXTRA_SOURCE) ?: "synthetic"
                 startForeground(NOTIFICATION_ID, buildNotification(0))
-                startCapture(durationSec, token, backendBase)
+                startCapture(durationSec, token, backendBase, source)
             }
             ACTION_STOP -> stopCapture()
         }
@@ -58,10 +60,31 @@ class BiosignalCaptureService : Service() {
         super.onDestroy()
     }
 
-    private fun startCapture(durationSec: Int, accessToken: String, backendBase: String) {
+    private fun startCapture(durationSec: Int, accessToken: String, backendBase: String, source: String) {
         captureJob?.cancel()
+
+        val wear = WearMessageClient.forContext(applicationContext)
+
+        if (source == "watch") {
+            val nodeId = wear.connectedNodeId()
+            if (nodeId == null) {
+                CaptureChannels.emit(state = "error", error = "watch_not_connected")
+                stopForegroundCompat(); stopSelf(); return
+            }
+            val ok = wear.send(
+                "/biosignals/start",
+                """{"durationSec":${if (durationSec > 0) durationSec else -1}}""",
+            )
+            if (!ok) {
+                CaptureChannels.emit(state = "error", error = "watch_send_failed")
+                stopForegroundCompat(); stopSelf(); return
+            }
+            WatchSourceController.instance.reset()
+        }
+
         captureJob = scope.launch {
-            val source = SyntheticSampleSource()
+            val syntheticSource = if (source == "synthetic") SyntheticSampleSource() else null
+            val watchSource = if (source == "watch") WatchSourceController.instance else null
             val client = OkHttpClient()
             val uploader = WindowUploader(client, backendBase, accessToken)
             val startedAtMs = System.currentTimeMillis()
@@ -75,24 +98,34 @@ class BiosignalCaptureService : Service() {
                 val nowMs = System.currentTimeMillis()
                 val elapsedSec = ((nowMs - startedAtMs) / 1000L).toInt()
 
-                source.advanceTo(toMs = nowMs, fromMs = lastWindowStart + (windowsUploaded * 60_000L))
+                syntheticSource?.advanceTo(toMs = nowMs, fromMs = lastWindowStart + (windowsUploaded * 60_000L))
 
                 updateNotification(elapsedSec)
                 CaptureChannels.emit(state = "capturing", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
 
+                if (watchSource != null) {
+                    val sinceLast = nowMs - watchSource.lastSampleAtMs
+                    if (watchSource.lastSampleAtMs > 0 && sinceLast > 5_000) {
+                        CaptureChannels.emit(state = "error", error = "watch_disconnected")
+                        wear.send("/biosignals/stop", "{}")
+                        stopForegroundCompat(); stopSelf(); return@launch
+                    }
+                }
+
                 if (nowMs - lastWindowStart >= 60_000L) {
                     val window = WindowPayload(
                         recordedAtMs = lastWindowStart,
-                        hr = source.drainHr(),
-                        ppg = source.drainPpg(),
-                        eda = source.drainEda(),
-                        accel = source.drainAccel(),
+                        hr = syntheticSource?.drainHr() ?: watchSource!!.drainHr(),
+                        ppg = syntheticSource?.drainPpg() ?: watchSource!!.drainPpg(),
+                        eda = syntheticSource?.drainEda() ?: watchSource!!.drainEda(),
+                        accel = syntheticSource?.drainAccel() ?: watchSource!!.drainAccel(),
                     )
                     val result = uploader.upload(window)
                     if (result.success) {
                         windowsUploaded++
                     } else if (result.errorCode == "auth_expired" || result.errorCode == "consent_required") {
                         CaptureChannels.emit(state = "error", error = result.errorCode)
+                        if (source == "watch") wear.send("/biosignals/stop", "{}")
                         stopForegroundCompat(); stopSelf(); return@launch
                     } else {
                         CaptureChannels.emit(
@@ -105,6 +138,7 @@ class BiosignalCaptureService : Service() {
 
                 if (durationSec > 0 && elapsedSec >= durationSec) {
                     CaptureChannels.emit(state = "done", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
+                    if (source == "watch") wear.send("/biosignals/stop", "{}")
                     stopForegroundCompat(); stopSelf(); return@launch
                 }
             }
