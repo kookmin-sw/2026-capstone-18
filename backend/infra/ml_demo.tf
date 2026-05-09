@@ -107,8 +107,12 @@ resource "aws_ecs_service" "ml_demo" {
   launch_type      = "FARGATE"
   platform_version = "LATEST"
 
+  # Single-task service: allow zero healthy during rollout so we don't need a 2nd task slot.
   deployment_minimum_healthy_percent = 0
   deployment_maximum_percent         = 200
+
+  # Python + ML deps cold-start is ~10-15s; TG min-healthy time is 60s. 120s grace gives headroom.
+  health_check_grace_period_seconds = 120
 
   network_configuration {
     subnets          = aws_subnet.private[*].id
