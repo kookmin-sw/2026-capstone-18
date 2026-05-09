@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     google_oauth_client_id: str
     """Google Cloud OAuth client ID. Used as the expected `aud` when verifying Google ID tokens directly."""
 
+    email_signup_enabled: bool = True
+    """Kill switch for /auth/email/signup."""
+
     sentry_dsn: str | None = None
     """Sentry DSN. None disables Sentry entirely (local dev, CI)."""
 
