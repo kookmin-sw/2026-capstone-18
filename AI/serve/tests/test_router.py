@@ -92,3 +92,12 @@ def test_run_endpoint_rejects_short_recording(client: TestClient) -> None:
     )
     assert resp.status_code == 400
     assert "too short" in resp.json()["detail"].lower()
+
+
+def test_lifespan_fails_when_onnx_missing(monkeypatch, tmp_path: Path) -> None:
+    """Lifespan must raise RuntimeError if the configured ONNX file does not exist."""
+    monkeypatch.setenv("ML_DEMO_ONNX_PATH", str(tmp_path / "missing.onnx"))
+    app = build_app()
+    with pytest.raises(RuntimeError, match="ONNX model not found"):
+        with TestClient(app):
+            pass
