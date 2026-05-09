@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -32,6 +33,8 @@ class BiosignalCaptureService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var captureJob: Job? = null
     private var csvConsumer: CsvWriterConsumer? = null
+    private var phoneSender: PhoneSenderConsumer? = null
+    private var phoneFlushJob: Job? = null
 
     private val statsConsumer = object : CaptureConsumer {
         override fun onSessionStart(startedAtMs: Long, durationMs: Long) {
@@ -80,6 +83,28 @@ class BiosignalCaptureService : Service() {
         csvConsumer = csv
         CaptureBus.subscribe(csv)
         CaptureBus.subscribe(statsConsumer)
+        val sender = PhoneSenderConsumer { path, body ->
+            try {
+                val nodeId = com.google.android.gms.tasks.Tasks.await(
+                    com.google.android.gms.wearable.Wearable.getNodeClient(this@BiosignalCaptureService).connectedNodes
+                ).firstOrNull()?.id ?: return@PhoneSenderConsumer false
+                com.google.android.gms.tasks.Tasks.await(
+                    com.google.android.gms.wearable.Wearable.getMessageClient(this@BiosignalCaptureService)
+                        .sendMessage(nodeId, path, body.toByteArray(Charsets.UTF_8))
+                )
+                true
+            } catch (t: Throwable) {
+                false
+            }
+        }
+        phoneSender = sender
+        CaptureBus.subscribe(sender)
+        phoneFlushJob = scope.launch {
+            while (true) {
+                delay(1_000)
+                sender.flushNow(System.currentTimeMillis())
+            }
+        }
         captureJob = scope.launch {
             try {
                 CaptureSession(this@BiosignalCaptureService).run(durationMs) { elapsed ->
@@ -89,6 +114,10 @@ class BiosignalCaptureService : Service() {
             } catch (_: Throwable) {
                 // CaptureSession publishes ERROR on the bus.
             } finally {
+                phoneFlushJob?.cancel()
+                phoneFlushJob = null
+                phoneSender?.let { CaptureBus.unsubscribe(it) }
+                phoneSender = null
                 csvConsumer?.let { CaptureBus.unsubscribe(it) }
                 CaptureBus.unsubscribe(statsConsumer)
                 csvConsumer = null
@@ -103,6 +132,10 @@ class BiosignalCaptureService : Service() {
         CaptureBus.publishEnd(EndReason.USER_STOPPED, null)
         csvConsumer?.let { CaptureBus.unsubscribe(it) }
         CaptureBus.unsubscribe(statsConsumer)
+        phoneFlushJob?.cancel()
+        phoneFlushJob = null
+        phoneSender?.let { CaptureBus.unsubscribe(it) }
+        phoneSender = null
         csvConsumer = null
         stopForegroundCompat()
         stopSelf()
