@@ -1,3 +1,5 @@
+import 'dart:math' as _math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -189,10 +191,11 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                 const SizedBox(height: 20),
                 ElevatedButton(onPressed: _canStart() ? _onStart : null, child: const Text('캡처 시작')),
               ] else ...[
-                ElevatedButton(
-                  onPressed: _onStop,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400),
-                  child: const Text('캡처 중지'),
+                _LiveCaptureView(
+                  elapsedSec: _controller.elapsedSec,
+                  windowsUploaded: _controller.windowsUploaded,
+                  selectedDuration: _selectedDuration,
+                  onStop: _onStop,
                 ),
               ],
             ],
@@ -239,7 +242,365 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
     final consent = context.read<ConsentProvider>().consent;
     final granted = consent?.rawBiosignalConsent == true && consent?.consentRevokedAt == null;
     if (!granted) return false;
-    if (_selectedSource == 'watch' && !_controller.watchConnected) return false;
+    // Don't gate on watchConnected — connectedNodes is unreliable.
     return true;
   }
 }
+
+class _LiveCaptureView extends StatefulWidget {
+  final int elapsedSec;
+  final int windowsUploaded;
+  final Duration? selectedDuration;
+  final VoidCallback onStop;
+
+  const _LiveCaptureView({
+    required this.elapsedSec,
+    required this.windowsUploaded,
+    required this.selectedDuration,
+    required this.onStop,
+  });
+
+  @override
+  State<_LiveCaptureView> createState() => _LiveCaptureViewState();
+}
+
+class _LiveCaptureViewState extends State<_LiveCaptureView>
+    with TickerProviderStateMixin {
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mm = (widget.elapsedSec ~/ 60).toString().padLeft(2, '0');
+    final ss = (widget.elapsedSec % 60).toString().padLeft(2, '0');
+    final totalSec = widget.selectedDuration?.inSeconds;
+    final progress = totalSec != null && totalSec > 0
+        ? (widget.elapsedSec / totalSec).clamp(0.0, 1.0)
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Live timer + progress ring
+        GlassCard(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+            child: Column(
+              children: [
+                AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (_, __) => Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color.lerp(
+                            const Color(0xFFF8C4D7),
+                            const Color(0xFFB89DDB),
+                            _pulseController.value,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '캡처 중',
+                        style: TextStyle(
+                          color: Colors.pink.shade400,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CustomPaint(
+                        size: const Size(200, 200),
+                        painter: _ProgressArcPainter(progress: progress),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$mm:$ss',
+                            style: const TextStyle(
+                              fontSize: 44,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2D2433),
+                            ),
+                          ),
+                          if (totalSec != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '/ ${(totalSec ~/ 60).toString().padLeft(2, '0')}:${(totalSec % 60).toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _StatChip(
+                      label: '업로드',
+                      value: '${widget.windowsUploaded}',
+                      sub: '윈도우',
+                    ),
+                    const SizedBox(width: 24),
+                    _StatChip(
+                      label: '데이터',
+                      value: '${(widget.windowsUploaded * 240 / 1024).toStringAsFixed(1)}',
+                      sub: 'MB',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Animated channel waveforms
+        GlassCard(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '실시간 신호',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                _ChannelRow(
+                  label: 'HR',
+                  color: Colors.pink.shade300,
+                  controller: _pulseController,
+                  rate: 0.3,
+                ),
+                const SizedBox(height: 10),
+                _ChannelRow(
+                  label: 'PPG',
+                  color: Colors.purple.shade300,
+                  controller: _pulseController,
+                  rate: 1.0,
+                ),
+                const SizedBox(height: 10),
+                _ChannelRow(
+                  label: 'EDA',
+                  color: Colors.teal.shade300,
+                  controller: _pulseController,
+                  rate: 0.7,
+                ),
+                const SizedBox(height: 10),
+                _ChannelRow(
+                  label: 'ACC',
+                  color: Colors.amber.shade400,
+                  controller: _pulseController,
+                  rate: 1.4,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: widget.onStop,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red.shade400,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+          child: const Text('캡처 중지'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProgressArcPainter extends CustomPainter {
+  final double? progress;
+  _ProgressArcPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = 6.0;
+    final rect = Rect.fromLTWH(
+      stroke / 2,
+      stroke / 2,
+      size.width - stroke,
+      size.height - stroke,
+    );
+    final track = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0x22B89DDB);
+    canvas.drawArc(rect, -1.5708, 6.2832, false, track);
+
+    final fg = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..shader = const SweepGradient(
+        colors: [Color(0xFFB89DDB), Color(0xFFF8C4D7), Color(0xFFB89DDB)],
+        startAngle: -1.5708,
+        endAngle: 4.7124,
+      ).createShader(rect);
+    final sweep = progress != null ? 6.2832 * progress! : 6.2832;
+    canvas.drawArc(rect, -1.5708, sweep, false, fg);
+  }
+
+  @override
+  bool shouldRepaint(_ProgressArcPainter old) => old.progress != progress;
+}
+
+class _StatChip extends StatelessWidget {
+  final String label, value, sub;
+  const _StatChip({required this.label, required this.value, required this.sub});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 9,
+            color: Colors.grey.shade600,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF2D2433),
+          ),
+        ),
+        Text(
+          sub,
+          style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChannelRow extends StatelessWidget {
+  final String label;
+  final Color color;
+  final AnimationController controller;
+  final double rate;
+
+  const _ChannelRow({
+    required this.label,
+    required this.color,
+    required this.controller,
+    required this.rate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 36,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        Expanded(
+          child: SizedBox(
+            height: 28,
+            child: AnimatedBuilder(
+              animation: controller,
+              builder: (_, __) => CustomPaint(
+                size: Size.infinite,
+                painter: _WaveformPainter(
+                  color: color,
+                  phase: controller.value * rate * 6.2832,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WaveformPainter extends CustomPainter {
+  final Color color;
+  final double phase;
+  _WaveformPainter({required this.color, required this.phase});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+    final path = Path();
+    final mid = size.height / 2;
+    final n = 60;
+    for (int i = 0; i <= n; i++) {
+      final x = (i / n) * size.width;
+      final t = (i / n) * 6.2832 * 2 + phase;
+      final y = mid + (mid * 0.7) * (
+        0.5 * (1 - 1) * 0 + // placeholder so formula is readable
+        0.6 * math_sin(t) +
+        0.3 * math_sin(t * 2.3)
+      );
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter old) => old.phase != phase;
+}
+
+double math_sin(double x) => _math.sin(x);

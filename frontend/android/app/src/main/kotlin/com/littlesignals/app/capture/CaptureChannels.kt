@@ -46,8 +46,12 @@ object CaptureChannels {
                     result.success(null)
                 }
                 "isWatchConnected" -> {
-                    val client = WearMessageClient.forContext(appContext)
-                    result.success(client.connectedNodeId() != null)
+                    // Tasks.await blocks; must not run on the main thread.
+                    Thread {
+                        val client = WearMessageClient.forContext(appContext)
+                        val connected = client.connectedNodeId() != null
+                        mainHandler.post { result.success(connected) }
+                    }.start()
                 }
                 else -> result.notImplemented()
             }

@@ -65,24 +65,25 @@ class BiosignalCaptureService : Service() {
 
         val wear = WearMessageClient.forContext(applicationContext)
 
-        if (source == "watch") {
-            val nodeId = wear.connectedNodeId()
-            if (nodeId == null) {
-                CaptureChannels.emit(state = "error", error = "watch_not_connected")
-                stopForegroundCompat(); stopSelf(); return
-            }
-            val ok = wear.send(
-                "/biosignals/start",
-                """{"durationSec":${if (durationSec > 0) durationSec else -1}}""",
-            )
-            if (!ok) {
-                CaptureChannels.emit(state = "error", error = "watch_send_failed")
-                stopForegroundCompat(); stopSelf(); return
-            }
-            WatchSourceController.instance.reset()
-        }
-
         captureJob = scope.launch {
+            // Wear API calls (Tasks.await) must run off the main thread.
+            if (source == "watch") {
+                val nodeId = wear.connectedNodeId()
+                if (nodeId == null) {
+                    CaptureChannels.emit(state = "error", error = "watch_not_connected")
+                    stopForegroundCompat(); stopSelf(); return@launch
+                }
+                val ok = wear.send(
+                    "/biosignals/start",
+                    """{"durationSec":${if (durationSec > 0) durationSec else -1}}""",
+                )
+                if (!ok) {
+                    CaptureChannels.emit(state = "error", error = "watch_send_failed")
+                    stopForegroundCompat(); stopSelf(); return@launch
+                }
+                WatchSourceController.instance.reset()
+            }
+
             val syntheticSource = if (source == "synthetic") SyntheticSampleSource() else null
             val watchSource = if (source == "watch") WatchSourceController.instance else null
             val client = OkHttpClient()
