@@ -130,3 +130,26 @@ resource "aws_ecs_service" "ml_demo" {
 
   tags = local.common_tags
 }
+
+resource "aws_cloudwatch_metric_alarm" "ml_demo_unhealthy" {
+  alarm_name          = "${local.name_prefix}-ml-demo-unhealthy"
+  alarm_description   = "ML demo target group has zero healthy hosts for two consecutive 5-minute periods."
+  namespace           = "AWS/ApplicationELB"
+  metric_name         = "HealthyHostCount"
+  statistic           = "Minimum"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 1
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    TargetGroup  = aws_lb_target_group.ml_demo.arn_suffix
+    LoadBalancer = aws_lb.api.arn_suffix
+  }
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
+
+  tags = local.common_tags
+}
