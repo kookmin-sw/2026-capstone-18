@@ -30,6 +30,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL_15-4169E1?logo=postgresql&logoColor=white)
 ![TimescaleDB](https://img.shields.io/badge/TimescaleDB-FDB515?logo=timescale&logoColor=white)
 ![Poetry](https://img.shields.io/badge/Poetry-60A5FA?logo=poetry&logoColor=white)
+![Wear OS](https://img.shields.io/badge/Wear_OS-4285F4?logo=wearos&logoColor=white)
 
 **Cloud / Infra**
 ![AWS](https://img.shields.io/badge/AWS_Seoul-232F3E?logo=amazonwebservices&logoColor=white)
@@ -54,7 +55,6 @@
 ![Dart](https://img.shields.io/badge/Dart-0175C2?logo=dart&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white)
 ![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
-![Wear OS](https://img.shields.io/badge/Wear_OS-4285F4?logo=wearos&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-02303A?logo=gradle&logoColor=white)
 
 **Quality / Tooling**
