@@ -40,3 +40,16 @@ class DrilldownResponse(BaseModel):
     summary: DrilldownSummary
     heatmap: list[DrilldownHeatmapDay]
     recent_events: list[DrilldownEvent]
+
+
+class Takeaway(BaseModel):
+    title: str
+    body: str
+
+
+class WeeklyReportResponse(BaseModel):
+    week_start: date
+    headline: str
+    body_md: str
+    takeaways: list[Takeaway]
+    generated_at: datetime
