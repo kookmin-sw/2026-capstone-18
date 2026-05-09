@@ -803,10 +803,12 @@ AWS Seoul (ap-northeast-2)
     </td>
     <td align="center" width="160">
       <a href="https://github.com/joonseojj">
-        <img src="https://github.com/joonseojj.png" width="96" height="96" alt="joonseojj"/><br/>
-        <sub><b>joonseojj</b></sub>
-      </a><br/>
-      <sub>팀원</sub>
+        <img src="https://github.com/joonseojj.png" width="96" height="96" alt="윤준서"/><br/>
+        <sub><b>윤준서</b></sub>
+        </a><br/>
+        <sub>Data / AI</sub><br/>
+        <sub><a href="mailto:joonseojj@gmail.com">joonseojj@gmail.com</a></sub>
+      </a><br/> 
     </td>
     <td align="center" width="160">
       <a href="https://github.com/pnpn777">
@@ -830,7 +832,7 @@ AWS Seoul (ap-northeast-2)
 | :--- | :--- | :--- | :--- |
 | 아노 (Anu) | Backend Engineer | • AWS 클라우드 인프라(ECS Fargate, RDS, ALB, S3, EventBridge, Terraform)<br>• Agentic AI 파이프라인 설계·운영<br>• UX 설계 및 사용자 흐름<br>• Frontend ↔ Backend ↔ ONNX 온디바이스 추론 간 종단 연동(REST/WebSocket/FCM, 모델 직렬화·배포 파이프라인) | <anu.bnda@gmail.com> |
 | 예르잔 울판 (pnpn777) | Frontend / UX-UI Engineer | • Flutter frontend architecture <br>•  Korean UX copy 및 interaction flow 설계<br>• UX research 및 여성 스트레스·생리 주기 기반 사용자 흐름 설계<br>• MVP 범위 정의 및 feature prioritization<br>• Home / Insight / Profile UX 및 visual hierarchy 설계<br>• Figma 기반 mobile UI design system 및 component flow 정리 | <yerzhanulpan@kookmin.ac.kr> |
-
+| 윤준서 (joonseojj) | Data / AI Engineer | • WESAD 전처리 파이프라인 구현 및 반복 개선 (피처 확장, 정규화 방식 고도화)<br>• 데이터셋 적합성 분석<br>• 여성 스트레스 데이터셋 후보 7개 검토, WESAD·WorkStress3D 선정 및 전처리 파이프라인 구현<br>• 9채널 실시간 피처 구조 설계 및 SW팀 연동 명세서 작성 (EMA context, MACD delta, 노이즈 분산)<br>• 여성 대상 프로젝트 계획서 v2.0 작성 | <joonseojj@gmail.com> |
 *나머지 팀원의 역할/담당 영역은 추후 추가 예정.*
 
 전체 기여자 그래프: <https://github.com/kookmin-sw/2026-capstone-18/graphs/contributors>
