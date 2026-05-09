@@ -7,6 +7,8 @@
 [![License](https://img.shields.io/github/license/kookmin-sw/2026-capstone-18)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/kookmin-sw/2026-capstone-18?style=flat)](https://github.com/kookmin-sw/2026-capstone-18/stargazers)
 
+![AWS Seoul (ap-northeast-2) architecture](docs/images/architecture.png)
+
 여성 사용자를 위한 실시간 스트레스 탐지 및 생리 주기 추적 애플리케이션. Galaxy Watch 8에서 수집한 원시 생체신호(PPG, HRV, EDA, 가속도)를 기반으로 온디바이스(Mamba) 추론을 수행하고, 사전 스트레스(Pre-Stress) 단계에서 손목 호흡 가이드를 제시합니다. 백엔드는 AWS Seoul(ap-northeast-2)에 배포되며 한국 PIPA를 전제로 설계되었습니다.
 
 - **팀**: 국민대학교 2026 캡스톤 18조
