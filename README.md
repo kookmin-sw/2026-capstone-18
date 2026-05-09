@@ -863,7 +863,23 @@ flowchart TD
 
 ## 8. 시연 영상
 
-작성 예정.
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/9077115f-dcfc-4898-a309-afc126edbf79" controls muted playsinline width="320"></video>
+</p>
+
+> 🔊 소리를 켜고 보세요.
+
+### 주요 화면
+
+<table>
+  <tr>
+    <td align="center" width="20%"><img src="docs/images/screen-home.jpg" width="180" alt="홈"/><br/><sub><b>홈</b><br/>실시간 스트레스·수면·주기</sub></td>
+    <td align="center" width="20%"><img src="docs/images/screen-insights.jpg" width="180" alt="인사이트"/><br/><sub><b>인사이트</b><br/>주기 단계별 스트레스 흐름</sub></td>
+    <td align="center" width="20%"><img src="docs/images/screen-profile.jpg" width="180" alt="프로필"/><br/><sub><b>프로필</b><br/>스트레스 요인 태그 관리</sub></td>
+    <td align="center" width="20%"><img src="docs/images/screen-sleep.jpg" width="180" alt="수면"/><br/><sub><b>수면</b><br/>일별 수면 시간 추이</sub></td>
+    <td align="center" width="20%"><img src="docs/images/screen-launcher.jpg" width="180" alt="런처"/><br/><sub><b>런처</b><br/>Galaxy 런처에 설치된 Luma</sub></td>
+  </tr>
+</table>
 
 ---
 
