@@ -16,12 +16,25 @@ class WearMessageClient(
     }
 
     companion object {
+        private const val CAPABILITY = "biosignal_capture"
+
         fun forContext(ctx: Context): WearMessageClient {
+            val capClient = Wearable.getCapabilityClient(ctx)
             val nodeClient = Wearable.getNodeClient(ctx)
             val msgClient = Wearable.getMessageClient(ctx)
             return WearMessageClient(
                 nodesSupplier = {
-                    runCatching { Tasks.await(nodeClient.connectedNodes).map { it.id } }
+                    // Prefer capability-based discovery (works across different applicationIds).
+                    val byCap = runCatching {
+                        Tasks.await(
+                            capClient.getCapability(
+                                CAPABILITY,
+                                com.google.android.gms.wearable.CapabilityClient.FILTER_REACHABLE,
+                            )
+                        ).nodes.map { it.id }
+                    }.getOrDefault(emptyList())
+                    if (byCap.isNotEmpty()) byCap
+                    else runCatching { Tasks.await(nodeClient.connectedNodes).map { it.id } }
                         .getOrDefault(emptyList())
                 },
                 sender = { nodeId, path, bytes ->
