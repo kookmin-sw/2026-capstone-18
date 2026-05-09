@@ -12,6 +12,7 @@
 ## 목차
 
 - [저장소 구조](#저장소-구조)
+- [선행 요구사항](#선행-요구사항)
 - [1. AI — 사전 스트레스 예측 (Mamba)](#1-ai--사전-스트레스-예측-mamba)
   - [1.1 주요 기술 결정](#11-주요-기술-결정)
   - [1.2 9-채널 입력 텐서 매핑](#12-9-채널-입력-텐서-매핑)
@@ -35,6 +36,8 @@
 - [5. 문서](#5-문서)
 - [6. 팀 소개](#6-팀-소개)
 - [7. 시연 영상](#7-시연-영상)
+- [기여 가이드](#기여-가이드)
+- [라이선스](#라이선스)
 
 ---
 
@@ -61,6 +64,30 @@
 ├── README.md
 └── index.md                  # GitHub Pages 진입점
 ```
+
+---
+
+## 선행 요구사항
+
+전체 시스템(AI 학습 → 백엔드 → Watch → Flutter 앱)을 로컬·스테이징에서 구동하려면 다음 계정·도구·하드웨어가 필요합니다. 각 영역만 단독으로 실행할 때 필요한 항목은 하단 "필수 영역" 열을 참고하세요.
+
+| 분류 | 항목 | 용도 | 필수 영역 | 비용 (베타 코호트 기준) |
+| :--- | :--- | :--- | :--- | :--- |
+| 클라우드 | **AWS 계정 (Seoul `ap-northeast-2`)** | ECS Fargate, RDS Postgres 15, ALB, S3, EventBridge, Secrets Manager, CloudWatch, SQS, ECR, Route53, ACM | Backend 배포 | Free Tier + 소액 사용량 |
+| 인증 | **Supabase 프로젝트** | JWT 발급, 익명 사용자, Google OAuth 교환 | Backend, Frontend | Free Tier |
+| 푸시 | **Firebase 프로젝트** | Cloud Messaging(FCM) 토큰 등록 + 백그라운드 푸시 | Backend, Frontend | Free |
+| OAuth | **Google Cloud 프로젝트** (OAuth 클라이언트) | Supabase Auth와 연동되는 Google 로그인 | Frontend | Free |
+| 도메인 | 사용자 소유 도메인 1개 | 스테이징 ACM/Route53 (`api-staging.<도메인>`) | Backend 배포 | 기존 도메인 재사용 |
+| CI/CD | **GitHub** (조직 권한) | GitHub Actions로 ECR 푸시·Terraform plan·마이그레이션 실행 | 전 영역 | Public 저장소 무료 |
+| 로컬 도구 | Python 3.12 (pyenv), Poetry 2.x, Docker Desktop, `psql`, `jq` | 백엔드 로컬 개발/테스트 | Backend | — |
+| 로컬 도구 | Terraform 1.7+, AWS CLI v2 | 인프라 프로비저닝 | Backend 배포 | — |
+| 로컬 도구 | Flutter SDK (stable), Android Studio Iguana 이상, Android SDK 34+ | Phone 앱 빌드 | Frontend | — |
+| 로컬 도구 | Android Studio + Wear OS 에뮬레이터/실기기, `adb` | Watch 캡처 도구 빌드 | Watch | — |
+| 하드웨어 | **Galaxy Watch 8** (개발자 모드, 80% 이상 충전) | 4채널 원시 센서 캡처, 온디바이스 추론 | Watch | — |
+| 하드웨어 | Android 폰 (Galaxy Z Flip 5 등) | Flutter 앱 실기기 테스트 | Frontend | — |
+| SDK | Samsung Health Sensor SDK 1.4.1 (`samsung-health-sensor-api-1.4.1.aar`) | Watch 센서 채널 접근 | Watch | 저장소에 포함 |
+
+각 도구의 정확한 버전 핀은 `backend/pyproject.toml`, `backend/infra/versions.tf`, `frontend/pubspec.yaml`, `watch/sensor-capture/build.gradle.kts`에서 확인합니다.
 
 ---
 
@@ -198,8 +225,8 @@ jupyter notebook notebooks/eval_scripts.ipynb
 | Sprint 5 | Real-time + sync (WebSocket, FCM, 옵트인 업로드) | 완료 |
 | Sprint 6 | 삭제·정리 잡 (`purge_accounts`, `purge_biosignals`) | 완료 |
 | Sprint 7 | EventBridge + Audit (`audit_log` 테이블 추가) | 완료 |
-| **Sprint 8** | **Observability + CI/CD (Sentry, OTel, GHA prod)** | **완료** |
-| Sprint 9 | Hardening + beta-ready (rate limiting, load test, admin) | 예정 |
+| Sprint 8 | Observability + CI/CD (Sentry, OTel, GHA prod) | 완료 |
+| **Sprint 9** | **Hardening + beta-ready (rate limiting, load test, admin)** | **완료** |
 
 Sprint 7에서는 in-process `_purge_loop`를 AWS EventBridge Scheduler + ECS RunTask로 이관하고, 모든 하드 삭제·생체신호 퍼지를 기록하는 `audit_log` 테이블을 추가했습니다. 자세한 내용은 [`backend/docs/sprint-7-deploy-runbook.md`](backend/docs/sprint-7-deploy-runbook.md).
 
@@ -365,19 +392,48 @@ AWS Seoul (ap-northeast-2)
 
 ## 5. 문서
 
-- 백엔드 아키텍처 스펙 — 외부 비공개. 핵심 결정 요약은 본 README §2.1–§2.5와 [`backend/README.md`](backend/README.md) 참고.
-- 스프린트 7 배포 런북 — [`backend/docs/sprint-7-deploy-runbook.md`](backend/docs/sprint-7-deploy-runbook.md)
-- Wear OS 캡처 도구 — [`watch/sensor-capture/README.md`](watch/sensor-capture/README.md)
-- 인프라 — [`backend/infra/README.md`](backend/infra/README.md)
+내부 검토자(평가위원·심사자·신규 합류자)는 다음 순서로 읽으면 됩니다.
+
+| # | 문서 | 다루는 범위 |
+| :---: | :--- | :--- |
+| 1 | 본 README §2.1–§2.5 | 백엔드 설계 원칙·기술 스택·인프라·데이터 모델·API 요약 |
+| 2 | [`backend/README.md`](backend/README.md) | 모듈별(라우터/서비스/스키마/관측성) 상세 |
+| 3 | [`backend/infra/README.md`](backend/infra/README.md) | Terraform 모듈 구성, 변수, 배포 절차 |
+| 4 | [`backend/docs/sprint-7-deploy-runbook.md`](backend/docs/sprint-7-deploy-runbook.md) | EventBridge + ECS RunTask 이관, `audit_log` 도입 런북 |
+| 5 | [`watch/sensor-capture/README.md`](watch/sensor-capture/README.md) | Wear OS 4채널 캡처 도구 사용·검증 |
+| 6 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 브랜치 규칙·PR 워크플로우·보안 영역 추가 승인 |
+
+내부 전체 스펙(공개 저장소에 포함하지 않는 부분)이 필요한 경우 §6 팀 연락처로 요청해 주세요.
 
 ---
 
 ## 6. 팀 소개
 
-작성 예정 — 팀원 정보, 담당 영역, 연락처를 추가하세요.
+| 이름 | 역할 | 담당 영역 | 연락처 |
+| :--- | :--- | :--- | :--- |
+| 아노 (Anu) | Backend Engineer | • AWS 클라우드 인프라(ECS Fargate, RDS, ALB, S3, EventBridge, Terraform)<br>• Agentic AI 파이프라인 설계·운영<br>• UX 설계 및 사용자 흐름<br>• Frontend ↔ Backend ↔ ONNX 온디바이스 추론 간 종단 연동(REST/WebSocket/FCM, 모델 직렬화·배포 파이프라인) | <anu.bnda@gmail.com> |
+
+*나머지 팀원 정보는 추후 추가 예정.*
 
 ---
 
 ## 7. 시연 영상
 
 작성 예정.
+
+---
+
+## 기여 가이드
+
+`master`에 직접 푸시하지 않고 PR-only 워크플로우로 운영합니다. 브랜치 prefix(`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`, `test/`, `infra/`), Conventional Commits 메시지, PR 체크리스트, 보안 영역 추가 승인 규칙은 [`CONTRIBUTING.md`](CONTRIBUTING.md)를 참고하세요.
+
+---
+
+## 라이선스
+
+본 저장소는 [MIT 라이선스](LICENSE) 하에 배포됩니다.
+
+다음 구성 요소는 별도 라이선스가 적용되며 MIT 적용 범위에서 제외됩니다.
+
+- Samsung Health Sensor SDK (`watch/sensor-capture/libs/samsung-health-sensor-api-1.4.1.aar`) — Samsung Health SDK License Agreement
+- WESAD / Stress-Predict 데이터셋 — 원본 연구용 라이선스 (자세한 내용은 `AI/src/dataset/`)
