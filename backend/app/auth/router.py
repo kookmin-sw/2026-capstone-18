@@ -51,16 +51,27 @@ async def _verify_google_id_token(id_token: str) -> dict[str, Any]:
 
 
 async def _ensure_user_row(
-    db: AsyncSession, supabase_user_id: uuid.UUID, *, anon_id: uuid.UUID | None
+    db: AsyncSession,
+    supabase_user_id: uuid.UUID,
+    *,
+    anon_id: uuid.UUID | None,
+    display_name: str | None = None,
 ) -> User:
     """Return the User row for the given Supabase id, creating one if missing."""
     existing = (
         await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
     ).scalar_one_or_none()
     if existing is not None:
+        if display_name and not existing.display_name:
+            existing.display_name = display_name
+            await db.flush()
         await ensure_user_settings(db, existing)
         return existing
-    user = User(supabase_user_id=supabase_user_id, anon_id=anon_id)
+    user = User(
+        supabase_user_id=supabase_user_id,
+        anon_id=anon_id,
+        display_name=display_name,
+    )
     db.add(user)
     await db.flush()
     await ensure_user_settings(db, user)
