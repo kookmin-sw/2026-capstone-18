@@ -293,3 +293,31 @@ p { margin: 0; color: var(--ink-soft); }
   background: var(--brand);
   color: white;
 }
+
+/* ============================================================
+   Mobile polish
+   ============================================================ */
+
+@media (max-width: 760px) {
+  .nav { padding: 14px 20px; }
+  .nav-brand img { height: 26px; }
+
+  .hero {
+    text-align: center;
+    padding-top: 24px;
+  }
+  .hero-text { display: grid; justify-items: center; }
+  .hero-sub { margin-inline: auto; }
+  .hero-art img { max-width: 380px; margin: 0 auto; }
+
+  .blob { opacity: 0.45; filter: blur(80px); }
+
+  .phones-rail img:nth-child(1),
+  .phones-rail img:nth-child(3) { transform: none; }
+}
+
+@media (max-width: 480px) {
+  .pillar { padding: 28px 24px; }
+  .foot-links { flex-direction: column; }
+  .foot-links a { width: 100%; }
+}
