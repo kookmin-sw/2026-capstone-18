@@ -7,12 +7,15 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.config import get_settings
 from app.db.dependencies import get_db
 from app.models.user import User
-from app.schemas.reports import DrilldownResponse
+from app.models.weekly_report import WeeklyReport
+from app.schemas.reports import DrilldownResponse, Takeaway, WeeklyReportResponse
 from app.services.reports.drilldown import compute_drilldown
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -54,4 +57,41 @@ async def drilldown(
         phase=phase,
         frm=f,
         to=t,
+    )
+
+
+@router.get(
+    "/weekly",
+    response_model=WeeklyReportResponse,
+    summary="Latest AI-generated weekly report for the current user",
+)
+async def get_latest_weekly_report(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> WeeklyReportResponse:
+    settings = get_settings()
+    if not settings.ai_features_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "ai_disabled"},
+        )
+    row = (
+        await db.execute(
+            select(WeeklyReport)
+            .where(WeeklyReport.user_id == user.id)
+            .order_by(WeeklyReport.week_start.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "no_report"},
+        )
+    return WeeklyReportResponse(
+        week_start=row.week_start,
+        headline=row.headline,
+        body_md=row.body_md,
+        takeaways=[Takeaway(**t) for t in row.takeaways],
+        generated_at=row.generated_at,
     )

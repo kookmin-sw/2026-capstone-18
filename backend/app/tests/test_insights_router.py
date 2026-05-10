@@ -119,3 +119,22 @@ async def test_inverted_range_returns_422(
         headers=auth_headers(str(me.supabase_user_id)),
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_pattern_tip_disabled_when_flag_off(
+    client: AsyncClient,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+    resp = await client.get(
+        "/api/v1/insights/tips/none:luteal",
+        headers=auth_headers(str(me.supabase_user_id)),
+    )
+    assert resp.status_code == 404
+    body = resp.json()
+    # Backend flattens detail dicts; the field may be top-level or under "detail"
+    reason = body.get("reason") or (body.get("detail") or {}).get("reason")
+    assert reason == "ai_disabled"

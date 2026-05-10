@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -69,3 +69,9 @@ class PatternCard(BaseModel):
 
 class InsightsPatternsResponse(BaseModel):
     patterns: list[PatternCard]
+
+
+class PatternTipResponse(BaseModel):
+    pattern_key: str
+    tip_text: str
+    generated_at: datetime

@@ -24,6 +24,8 @@ import 'package:little_signals/features/events/data/events_api.dart';
 import 'package:little_signals/features/events/events_provider.dart';
 import 'package:little_signals/features/events/models/stress_event.dart';
 import 'package:little_signals/features/home/home_provider.dart';
+import 'package:little_signals/features/insight/data/ai_insights_api.dart';
+import 'package:little_signals/features/insight/data/weekly_report.dart';
 import 'package:little_signals/features/insight/insight_provider.dart';
 import 'package:little_signals/features/privacy/data/privacy_api.dart';
 import 'package:little_signals/features/settings/data/settings_api.dart';
@@ -764,6 +766,7 @@ class _SmokeData {
     insightProvider = InsightProvider(
       eventsApi: eventsApi,
       cyclesApi: cyclesApi,
+      aiInsightsApi: _FakeAiInsightsApi(),
     );
     triggersProvider = TriggersProvider(categoriesApi: categoriesApi);
     sleepProvider = SleepProvider(sleepApi: sleepApi);
@@ -1200,6 +1203,13 @@ class _FakeCategoriesApi extends CategoriesApi {
   Future<void> deleteCategory(String id) async {
     categories.removeWhere((category) => category.id == id);
   }
+}
+
+class _FakeAiInsightsApi extends AiInsightsApi {
+  _FakeAiInsightsApi() : super(apiClient: _dummyApiClient());
+
+  @override
+  Future<WeeklyReport?> getLatestWeeklyReport() async => null;
 }
 
 class _FakePrivacyApi extends PrivacyApi {

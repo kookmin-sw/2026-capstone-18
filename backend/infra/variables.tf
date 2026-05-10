@@ -82,3 +82,9 @@ variable "ml_demo_image" {
   type        = string
   default     = "public.ecr.aws/docker/library/hello-world:latest"
 }
+
+variable "ai_features_enabled" {
+  description = "Master kill switch for AI tips + weekly reports endpoints. Default false; flip to true once Bedrock model access is approved and at least one weekly report row exists."
+  type        = bool
+  default     = false
+}

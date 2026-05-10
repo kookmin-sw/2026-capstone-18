@@ -20,6 +20,7 @@ import 'features/cycles/data/cycles_api.dart';
 import 'features/events/data/events_api.dart';
 import 'features/events/events_provider.dart';
 import 'features/home/home_provider.dart';
+import 'features/insight/data/ai_insights_api.dart';
 import 'features/insight/insight_provider.dart';
 import 'features/notifications/notification_service.dart';
 import 'features/notifications/notifications_api.dart';
@@ -88,6 +89,7 @@ class _LumaAppState extends State<LumaApp> {
   late final PrivacyApi _privacyApi;
   late final NotificationsApi _notificationsApi;
   late final NotificationService _notificationService;
+  late final AiInsightsApi _aiInsightsApi;
 
   @override
   void initState() {
@@ -106,6 +108,7 @@ class _LumaAppState extends State<LumaApp> {
     _notificationService = NotificationService(
       notificationsApi: _notificationsApi,
     );
+    _aiInsightsApi = AiInsightsApi(apiClient: _apiClient);
   }
 
   @override
@@ -139,8 +142,11 @@ class _LumaAppState extends State<LumaApp> {
           ),
         ),
         ChangeNotifierProvider(
-          create: (_) =>
-              InsightProvider(eventsApi: _eventsApi, cyclesApi: _cyclesApi),
+          create: (_) => InsightProvider(
+            eventsApi: _eventsApi,
+            cyclesApi: _cyclesApi,
+            aiInsightsApi: _aiInsightsApi,
+          ),
         ),
         ChangeNotifierProvider(
           create: (_) => TriggersProvider(categoriesApi: _categoriesApi),
