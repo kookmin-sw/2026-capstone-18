@@ -5,11 +5,14 @@ import '../cycles/data/cycles_api.dart';
 import '../cycles/models/cycle.dart';
 import '../events/data/events_api.dart';
 import '../events/models/stress_event.dart';
+import 'data/ai_insights_api.dart';
+import 'data/weekly_report.dart';
 import 'services/insight_analytics_service.dart';
 
 class InsightProvider extends ChangeNotifier {
   final EventsApi eventsApi;
   final CyclesApi cyclesApi;
+  final AiInsightsApi aiInsightsApi;
   final InsightAnalyticsService analyticsService;
 
   bool _loading = false;
@@ -18,15 +21,18 @@ class InsightProvider extends ChangeNotifier {
   List<Cycle> _cycles = [];
   DateTime? _selectedStartMonth;
   DateTime? _selectedEndMonth;
+  WeeklyReport? _weeklyReport;
 
   InsightProvider({
     required this.eventsApi,
     required this.cyclesApi,
+    required this.aiInsightsApi,
     InsightAnalyticsService? analyticsService,
   }) : analyticsService = analyticsService ?? InsightAnalyticsService();
 
   bool get loading => _loading;
   String? get errorMessage => _errorMessage;
+  WeeklyReport? get weeklyReport => _weeklyReport;
   List<StressEvent> get events => List.unmodifiable(_events);
   List<Cycle> get cycles => List.unmodifiable(_cycles);
   List<DateTime> get availableMonths {
@@ -148,6 +154,17 @@ class InsightProvider extends ChangeNotifier {
     return analyticsService.cycleDayForEvent(event, _cycles);
   }
 
+  Future<void> loadWeeklyReport() async {
+    try {
+      _weeklyReport = await aiInsightsApi.getLatestWeeklyReport();
+      notifyListeners();
+    } catch (_) {
+      // Swallow — report card will simply not render.
+      _weeklyReport = null;
+      notifyListeners();
+    }
+  }
+
   void clearSessionData() {
     _loading = false;
     _errorMessage = null;
@@ -155,6 +172,7 @@ class InsightProvider extends ChangeNotifier {
     _cycles = [];
     _selectedStartMonth = null;
     _selectedEndMonth = null;
+    _weeklyReport = null;
     notifyListeners();
   }
 

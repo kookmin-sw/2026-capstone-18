@@ -11,6 +11,7 @@ import '../../core/widgets/section_title.dart';
 import '../../features/insight/insight_provider.dart';
 import '../../features/insight/services/insight_analytics_service.dart';
 import 'report_detail_screen.dart';
+import 'weekly_report_screen.dart';
 
 class MyReportScreen extends StatefulWidget {
   const MyReportScreen({super.key});
@@ -28,6 +29,10 @@ class _MyReportScreenState extends State<MyReportScreen> {
       if (context.read<InsightProvider>().events.isEmpty) {
         context.read<InsightProvider>().refresh();
       }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<InsightProvider>().loadWeeklyReport();
     });
   }
 
@@ -60,6 +65,56 @@ class _MyReportScreenState extends State<MyReportScreen> {
                         const SizedBox(height: 20),
                         _RangeSelector(provider: provider),
                         const SizedBox(height: 12),
+                        Builder(builder: (context) {
+                          final weeklyReport =
+                              context.watch<InsightProvider>().weeklyReport;
+                          if (weeklyReport == null) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GestureDetector(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      WeeklyReportScreen(report: weeklyReport),
+                                ),
+                              ),
+                              child: _GlassCard(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      '이번 주 리포트',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF9888A0),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      weeklyReport.headline,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Color(0xFF201C28),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (weeklyReport.takeaways.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        '· ${weeklyReport.takeaways.first.title}: ${weeklyReport.takeaways.first.body}',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF615A6A),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
                         if (provider.errorMessage != null)
                           _InfoCard(
                             text: provider.errorMessage!,
