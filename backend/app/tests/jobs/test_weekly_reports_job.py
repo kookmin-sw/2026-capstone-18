@@ -11,9 +11,32 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.jobs.weekly_reports_job import run_weekly_reports_job
+from app.jobs.weekly_reports_job import _last_full_week_monday, run_weekly_reports_job
 from app.models.stress_event import StressEvent
 from app.models.weekly_report import WeeklyReport
+
+
+@pytest.mark.parametrize(
+    ("today", "expected_monday"),
+    [
+        # The most-recently-completed Mon-Sun week relative to `today`.
+        # Week of Apr 27 - May 3 is the last full week for any day Sat May 2 - Sun May 10.
+        (date(2026, 5, 4), date(2026, 4, 27)),  # Monday
+        (date(2026, 5, 5), date(2026, 4, 27)),  # Tuesday
+        (date(2026, 5, 6), date(2026, 4, 27)),  # Wednesday
+        (date(2026, 5, 7), date(2026, 4, 27)),  # Thursday
+        (date(2026, 5, 8), date(2026, 4, 27)),  # Friday
+        (date(2026, 5, 9), date(2026, 4, 27)),  # Saturday — schedule fires here
+        (date(2026, 5, 10), date(2026, 5, 4)),  # Sunday — week just ended today
+        (date(2026, 5, 11), date(2026, 5, 4)),  # Monday after
+    ],
+)
+def test_last_full_week_monday(today: date, expected_monday: date) -> None:
+    """Lock in: function returns Monday of the most-recently-completed Mon-Sun week.
+
+    The schedule fires Sat 17:00 UTC, so the most common path is the Saturday case.
+    """
+    assert _last_full_week_monday(today) == expected_monday
 
 
 @pytest.mark.asyncio

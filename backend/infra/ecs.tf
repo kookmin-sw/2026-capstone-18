@@ -139,6 +139,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "TASK_ID", value = "ecs-${var.environment}" },
         { name = "ENVIRONMENT", value = var.environment },
         { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://localhost:4317" },
+        { name = "AI_FEATURES_ENABLED", value = var.ai_features_enabled ? "true" : "false" },
       ]
       secrets = [
         {
