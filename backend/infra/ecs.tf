@@ -81,11 +81,19 @@ resource "aws_iam_role_policy" "ecs_task_xray" {
 }
 
 data "aws_iam_policy_document" "ecs_task_bedrock" {
+  # Haiku 4.5 in ap-northeast-2 is only available via inference profiles
+  # (the foundation-model ID alone returns ValidationException). Requests
+  # use the `global.` profile, which routes to the underlying foundation
+  # model in whichever supported region has capacity, so we have to grant
+  # InvokeModel on both the profile ARN and the foundation-model ARNs in
+  # any region the profile may route to.
   statement {
     actions = ["bedrock:InvokeModel"]
     resources = [
-      # Allow any Anthropic Claude Haiku 4.5 foundation model in the configured region.
-      "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-haiku-4-5-*",
+      # The Global Anthropic Claude Haiku 4.5 inference profile (account-scoped).
+      "arn:aws:bedrock:${var.aws_region}:*:inference-profile/global.anthropic.claude-haiku-4-5-*",
+      # The underlying foundation models the profile may route to (any region).
+      "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-*",
     ]
   }
 }
