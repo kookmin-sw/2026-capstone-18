@@ -150,7 +150,11 @@ resource "aws_scheduler_schedule" "purge_accounts" {
     role_arn = aws_iam_role.scheduler.arn
 
     ecs_parameters {
-      task_definition_arn = aws_ecs_task_definition.cron.arn
+      # Family-only ARN: EventBridge resolves to the LATEST ACTIVE revision
+      # at fire time. CI registers a new cron revision per deploy (with the
+      # real image SHA); we want each schedule fire to use the most recent
+      # revision rather than whichever one Terraform last wrote.
+      task_definition_arn = aws_ecs_task_definition.cron.arn_without_revision
       launch_type         = "FARGATE"
       task_count          = 1
 
@@ -198,7 +202,11 @@ resource "aws_scheduler_schedule" "purge_biosignals" {
     role_arn = aws_iam_role.scheduler.arn
 
     ecs_parameters {
-      task_definition_arn = aws_ecs_task_definition.cron.arn
+      # Family-only ARN: EventBridge resolves to the LATEST ACTIVE revision
+      # at fire time. CI registers a new cron revision per deploy (with the
+      # real image SHA); we want each schedule fire to use the most recent
+      # revision rather than whichever one Terraform last wrote.
+      task_definition_arn = aws_ecs_task_definition.cron.arn_without_revision
       launch_type         = "FARGATE"
       task_count          = 1
 
@@ -246,7 +254,11 @@ resource "aws_scheduler_schedule" "weekly_reports" {
     role_arn = aws_iam_role.scheduler.arn
 
     ecs_parameters {
-      task_definition_arn = aws_ecs_task_definition.cron.arn
+      # Family-only ARN: EventBridge resolves to the LATEST ACTIVE revision
+      # at fire time. CI registers a new cron revision per deploy (with the
+      # real image SHA); we want each schedule fire to use the most recent
+      # revision rather than whichever one Terraform last wrote.
+      task_definition_arn = aws_ecs_task_definition.cron.arn_without_revision
       launch_type         = "FARGATE"
       task_count          = 1
 
