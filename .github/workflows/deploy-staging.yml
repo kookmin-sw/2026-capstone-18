@@ -26,6 +26,10 @@ env:
   ECS_SERVICE: little-signals-staging-backend
   ECS_TASK_FAMILY: little-signals-staging-backend
   ECS_CONTAINER: backend
+  # Cron task family runs the same image (Alembic migrations, purge jobs,
+  # weekly AI report job, …) — kept in sync via the cron-render step below.
+  ECS_CRON_TASK_FAMILY: little-signals-staging-cron
+  ECS_CRON_CONTAINER: cron
 
 jobs:
   deploy:
@@ -104,6 +108,29 @@ jobs:
             td.json > td.new.json
           NEW_REV=$(aws ecs register-task-definition \
             --cli-input-json file://td.new.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def_arn=$NEW_REV" >> "$GITHUB_OUTPUT"
+
+      # Cron task family shares the backend image — Alembic, purge jobs, and
+      # the weekly AI report job all run from /app via container command
+      # overrides set on the EventBridge schedules. Without this overlay,
+      # `terraform apply` resets the cron image to the bootstrap placeholder
+      # (`python:3.12-slim`) and cron tasks crash with `cd: can't cd to /app`.
+      - name: Render new cron task definition with new image
+        id: render_cron
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_CRON_TASK_FAMILY" \
+            --query 'taskDefinition' --output json > cron_td.json
+          NEW_IMAGE="${{ steps.ecr.outputs.registry }}/${ECR_REPOSITORY_NAME}:${{ steps.sha.outputs.sha }}"
+          jq --arg img "$NEW_IMAGE" \
+             --arg name "$ECS_CRON_CONTAINER" \
+            '.containerDefinitions |= map(if .name == $name then .image = $img else . end)
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            cron_td.json > cron_td.new.json
+          NEW_REV=$(aws ecs register-task-definition \
+            --cli-input-json file://cron_td.new.json \
             --query 'taskDefinition.taskDefinitionArn' --output text)
           echo "task_def_arn=$NEW_REV" >> "$GITHUB_OUTPUT"
 
