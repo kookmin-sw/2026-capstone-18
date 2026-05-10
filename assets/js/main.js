@@ -13,8 +13,8 @@
     // Reveal everything immediately, no transitions
     document.querySelectorAll('[data-animate]').forEach(el => el.classList.add('is-in'));
   } else {
-    // Hero animates on load
-    document.querySelectorAll('.hero [data-animate]').forEach((el, i) => reveal(el, i * 100));
+    // Hero animates on load — CSS owns the stagger via transition-delay on hero-art
+    document.querySelectorAll('.hero [data-animate]').forEach(el => reveal(el, 0));
 
     // Sections animate when 20% visible — children staggered
     const io = new IntersectionObserver((entries) => {

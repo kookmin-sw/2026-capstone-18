@@ -106,6 +106,7 @@ p { margin: 0; color: var(--ink-soft); }
   padding: 20px clamp(20px, 5vw, 64px);
   backdrop-filter: saturate(180%) blur(16px);
   -webkit-backdrop-filter: saturate(180%) blur(16px);
+  background: rgba(251, 248, 255, 0.78); /* fallback for browsers without color-mix */
   background: color-mix(in oklab, var(--bg) 78%, transparent);
 }
 .nav-brand img { height: 32px; }
