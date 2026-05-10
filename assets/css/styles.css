@@ -225,3 +225,71 @@ p { margin: 0; color: var(--ink-soft); }
   background-clip: text;
   color: transparent;
 }
+/* ============================================================
+   Phone strip, ribbon, footer
+   ============================================================ */
+
+.phones {
+  padding: clamp(60px, 10vw, 120px) clamp(20px, 5vw, 64px);
+  max-width: 1280px; margin: 0 auto;
+  overflow: hidden;
+}
+.phones-rail {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(16px, 3vw, 40px);
+  align-items: center;
+}
+.phones-rail img {
+  width: 100%;
+  border-radius: 32px;
+  box-shadow: var(--shadow-soft);
+  transition: transform var(--dur-2) var(--ease);
+}
+/* Off-axis stagger: outer phones sit slightly lower for a relaxed feel */
+.phones-rail img:nth-child(1) { transform: translateY(20px); }
+.phones-rail img:nth-child(3) { transform: translateY(20px); }
+
+.ribbon {
+  padding: clamp(40px, 8vw, 80px) clamp(20px, 5vw, 64px);
+  text-align: center;
+}
+.ribbon p {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2vw + 8px, 28px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.foot {
+  padding: clamp(80px, 12vw, 140px) clamp(20px, 5vw, 64px) 80px;
+  max-width: 1280px; margin: 0 auto;
+  text-align: center;
+}
+.foot h2 {
+  font-size: clamp(28px, 3vw + 8px, 44px);
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.foot > div > p {
+  font-size: 16px;
+  margin-bottom: 32px;
+}
+.foot-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.foot-links a {
+  padding: 14px 22px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-weight: 500;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.foot-links a:hover {
+  background: var(--brand);
+  color: white;
+}
