@@ -86,6 +86,7 @@
   - [2.5 API 요약](#25-api-요약)
   - [2.6 로컬 개발](#26-로컬-개발)
   - [2.7 스테이징 배포](#27-스테이징-배포)
+  - [2.8 Agentic AI — Bedrock + Claude Haiku 4.5](#28-agentic-ai--bedrock--claude-haiku-45)
 - [3. Wear OS — Galaxy Watch 8 센서 캡처](#3-wear-os--galaxy-watch-8-센서-캡처)
   - [3.1 캡처 채널](#31-캡처-채널)
   - [3.2 SDK 검증 결과 (2026-05-04)](#32-sdk-검증-결과-2026-05-04)
@@ -267,7 +268,8 @@ jupyter notebook notebooks/eval_scripts.ipynb
 | RDS Postgres 15 | 관계형 데이터(`stress_events`, `cycles`, `raw_biosignal_uploads` 등) |
 | S3 `sync` (Seoul, SSE, versioning, lifecycle) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`) |
 | S3 `biosignals` (Seoul, SSE, versioning, lifecycle) | 옵트인 원시 생체신호 — 사용자 보유 키로 암호화, 서버 복호화 불가 |
-| EventBridge Scheduler + ECS RunTask | `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 |
+| EventBridge Scheduler + ECS RunTask | `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 · `weekly_reports` 토 17:00 UTC (= 일 02:00 KST, §2.8) |
+| AWS Bedrock (Anthropic Claude Haiku 4.5) | 패턴 팁 + 주간 리포트 생성, IAM에서 Haiku 4.5 인퍼런스 프로파일 + 그 하부 foundation-model에만 `InvokeModel` 허용 (§2.8) |
 | SQS DLQ + CloudWatch Metric Alarm | 스케줄러 실패 격리 + DLQ depth 알람 |
 | CloudWatch Log Groups (`backend`, `cron`) | structlog JSON 로그 수집 |
 | Secrets Manager (`supabase`, `firebase`) | Supabase 서비스 키 / Firebase Admin 자격증명 |
@@ -290,6 +292,8 @@ jupyter notebook notebooks/eval_scripts.ipynb
 - `sync/biosignals` — 옵트인 원시 생체신호 업로드
 - `devices/fcm-token` — FCM 토큰 등록
 - `ws/realtime` — Watch ↔ Phone 실시간 채널 (JWT in query)
+- `insights/tips/{pattern_key}` — Bedrock(Haiku 4.5) 기반 패턴 카드 팁, 24h 캐시 (§2.8)
+- `reports/weekly` — 주간 잡이 미리 생성한 한국어 리포트 조회 (§2.8)
 
 스프린트 1 단계의 헬스체크: `GET /health → {"status":"ok","version":"0.1.0"}`. Swagger는 `/docs`, ReDoc은 `/redoc`, OpenAPI는 `/openapi.json`.
 
@@ -345,6 +349,69 @@ make smoke-staging
 ```
 
 스테이징 URL: `https://api-staging.friendlykr.com`.
+
+### 2.8 Agentic AI — Bedrock + Claude Haiku 4.5
+
+![Agentic AI architecture — Flow 1 (on-demand tip generation): Phone → FastAPI → RDS pattern_tips cache, miss → Bedrock InvokeModel → upsert → response. Flow 2 (scheduled weekly report): EventBridge cron(Sat 17:00 UTC) → ECS RunTask → aggregate stress + sleep + cycle → Bedrock JSON-schema prompt → upsert weekly_reports. Privacy & Safety panel — sent: display_name, category, phase, deltas, summary lines; never sent: UUID, email, free text, raw biosignals, FCM tokens. Tech stack: Flutter, FastAPI, ECS Fargate, RDS Postgres, Bedrock (Claude Haiku 4.5), EventBridge, AWS IAM.](docs/images/agenticai.png)
+
+기존 통계 기반 패턴 탐지(§1의 Mamba 예측과는 별개) 위에 LLM이 두 가지 형태로 사용자 경험을 보강합니다. 모든 호출은 백엔드 ECS에서 출발하며, 폰은 결과 텍스트만 받습니다.
+
+**왜 별도 레이어인가**: §1의 Mamba는 *예측*(다가오는 스트레스를 미리 알리는 분류기), 이 레이어는 *해석/요약*(이미 일어난 패턴을 자연어로 풀어주는 생성형). 두 모델은 입력·운영·비용 특성이 모두 달라 같은 코드 경로에 묶지 않았습니다.
+
+| 표면 | 트리거 | 캐시/주기 | 출력 |
+| :--- | :--- | :--- | :--- |
+| 패턴 카드 팁 | `GET /api/v1/insights/tips/{pattern_key}` (폰 요청 시) | 24시간, `pattern_tips` 행 | 1-2 문장 한국어 팁 |
+| 주간 리포트 | EventBridge `cron(0 17 ? * SAT *)` → ECS RunTask | 주 1회 (일 02:00 KST) | 헤드라인 + 마크다운 본문 + takeaways[] |
+
+**기술 결정**
+
+1. **AWS Bedrock + Anthropic Claude Haiku 4.5** — 한국어 톤·길이 제어, 의료적 진술 회피 등 안전성 요구사항을 만족하면서 가장 저렴한 frontier 모델. OpenAI/Google 대신 Bedrock을 택한 이유는 *데이터가 AWS 경계를 벗어나지 않는다*는 약속 한 줄이 §2.1의 프라이버시 원칙과 정합하기 때문입니다.
+2. **`global.` 인퍼런스 프로파일** — `ap-northeast-2`에서 Haiku 4.5는 foundation-model ID 단독 호출 시 `ValidationException: on-demand throughput isn't supported`를 반환합니다. `global.anthropic.claude-haiku-4-5-20251001-v1:0` 프로파일이 가용 용량이 있는 리전으로 자동 라우팅합니다.
+3. **24시간 DB 캐시** — 같은 패턴 카드가 하루 안에 여러 번 호출되어도 Bedrock 호출은 한 번뿐. `pattern_tips_user_key_unique`(`user_id`, `pattern_key`) 유니크 제약으로 중복 행을 차단.
+4. **JSON 스키마 강제 + 결정적 폴백** — 주간 리포트 프롬프트는 `{headline, body_md, takeaways[]}` JSON만 출력하도록 지시. 모델이 JSON을 깨뜨리면 `_fallback_summary()`가 통계 기반 결정적 요약을 대신 저장하므로 주간 잡이 *항상* 행을 쓴다는 불변식을 유지.
+5. **kill switch** — `AI_FEATURES_ENABLED` 환경변수가 `false`면 두 엔드포인트가 모두 404. 모델 액세스/한도 문제 시 코드 배포 없이 차단할 수 있습니다.
+
+**Bedrock에 보내는 데이터 vs 보내지 않는 데이터**
+
+| 보내는 것 | 절대 보내지 않는 것 |
+| :--- | :--- |
+| `display_name`(한국어 닉네임만) | 사용자 UUID·이메일 |
+| 카테고리 이름 (예: "업무") | 자유 텍스트 노트(`note`, `log_text`) |
+| 사이클 단계 (예: "황체기") | 원시 생체신호 (HR/EDA/PPG) |
+| 집계 수치·델타 (예: "+28%") | FCM 토큰·기기 식별자 |
+| 익명 요약 라인 (예: "월 09:00 · 강도 3") | 이메일·전화번호·비밀번호 |
+
+프롬프트 빌더([`backend/app/services/ai/prompts.py`](backend/app/services/ai/prompts.py))가 이 경계를 강제합니다. 생성기 코드는 집계만 받으므로 위 표 오른쪽 칼럼은 구조적으로 외부로 나갈 수 없습니다.
+
+**주간 잡 흐름**
+
+```
+EventBridge Scheduler  ──Sat 17:00 UTC──►  ECS RunTask (cron task definition)
+(weekly_reports)                                │
+                                                ├─ 지난 Mon-Sun 윈도우 내 stress_event를
+                                                │  남긴 user_id 집합 조회
+                                                │
+                                                ├─ for each user:
+                                                │    ① stress + sleep + cycle 집계
+                                                │    ② 한국어 JSON 스키마 프롬프트 생성
+                                                │    ③ Bedrock InvokeModel (Haiku 4.5)
+                                                │    ④ JSON 파싱 (실패 시 폴백)
+                                                │    ⑤ weekly_reports 행 UPSERT
+                                                │       (user_id, week_start) 유니크
+                                                │
+                                                └─ db.commit()
+
+폰  ──GET /reports/weekly──►  API ──최신 행 SELECT──►  Markdown 화면
+```
+
+**관련 파일**
+
+- 어댑터: [`backend/app/services/ai/bedrock_client.py`](backend/app/services/ai/bedrock_client.py) (boto3를 asyncio 익스큐터로 감싼 얇은 래퍼)
+- 프롬프트: [`backend/app/services/ai/prompts.py`](backend/app/services/ai/prompts.py) (한국어 system + user 페어)
+- 팁 생성기: [`backend/app/services/ai/tip_generator.py`](backend/app/services/ai/tip_generator.py)
+- 리포트 생성기: [`backend/app/services/ai/weekly_report.py`](backend/app/services/ai/weekly_report.py)
+- 잡 / 스크립트: [`backend/app/jobs/weekly_reports_job.py`](backend/app/jobs/weekly_reports_job.py), [`backend/scripts/run_weekly_reports.py`](backend/scripts/run_weekly_reports.py)
+- 인프라: [`backend/infra/scheduler.tf`](backend/infra/scheduler.tf) (`aws_scheduler_schedule.weekly_reports`), [`backend/infra/ecs.tf`](backend/infra/ecs.tf) (`aws_iam_role_policy.ecs_task_bedrock` — `bedrock:InvokeModel`을 Haiku 4.5에만 한정)
 
 ---
 
