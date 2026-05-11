@@ -6,10 +6,6 @@ import ai.onnxruntime.OrtSession
 import java.nio.FloatBuffer
 import kotlin.math.exp
 
-interface InferenceEngine : AutoCloseable {
-    fun runChunkProbStress(channels: Array<FloatArray>): Double
-}
-
 class OnnxInferenceEngine private constructor(
     private val env: OrtEnvironment,
     private val session: OrtSession,

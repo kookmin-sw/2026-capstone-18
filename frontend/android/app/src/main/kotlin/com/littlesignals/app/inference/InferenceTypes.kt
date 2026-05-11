@@ -24,6 +24,6 @@ data class ChunkResult(
 
 sealed class InferenceError(message: String, cause: Throwable? = null) : RuntimeException(message, cause) {
     class Preprocess(message: String, cause: Throwable? = null) : InferenceError(message, cause)
-    class Runner(message: String) : InferenceError(message)
+    class Runner(message: String, cause: Throwable? = null) : InferenceError(message, cause)
     class ModelLoad(message: String, cause: Throwable? = null) : InferenceError(message, cause)
 }

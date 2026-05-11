@@ -4,7 +4,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
-object DspPrimitives {
+internal object DspPrimitives {
 
     fun linearInterp(xs: DoubleArray, ys: DoubleArray, queries: DoubleArray): DoubleArray {
         require(xs.size == ys.size && xs.size >= 2) { "need at least 2 sample points" }
@@ -220,7 +220,7 @@ object DspPrimitives {
         return lfilter(b, a, arr, ziScaled)
     }
 
-    data class MeanStd(val mean: DoubleArray, val std: DoubleArray)
+    internal data class MeanStd(val mean: DoubleArray, val std: DoubleArray)
 
     fun causalRollingStats(arr: DoubleArray, window: Int): MeanStd {
         require(window >= 1 && arr.isNotEmpty()) { "bad inputs" }
