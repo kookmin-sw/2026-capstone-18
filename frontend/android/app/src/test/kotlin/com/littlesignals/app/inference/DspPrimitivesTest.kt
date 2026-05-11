@@ -2,6 +2,7 @@ package com.littlesignals.app.inference
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DspPrimitivesTest {
@@ -97,5 +98,27 @@ class DspPrimitivesTest {
         for (i in actual.indices) {
             assertEquals("sample $i", filtfiltExpected[i], actual[i], 1e-6)
         }
+    }
+
+    private val savgolInput = doubleArrayOf(
+        0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
+        10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0
+    )
+    private val savgolExpected = doubleArrayOf(
+        4.2949816071993055e-16, 1.0000000000000007, 1.9999999999999991, 2.9999999999999987, 3.9999999999999982,
+        4.999999999999998, 5.999999999999997, 6.9999999999999964, 7.9999999999999964, 8.999999999999996,
+        9.999999999999996, 10.999999999999995, 11.999999999999995, 12.999999999999993, 13.999999999999993,
+        14.999999999999993, 15.999999999999993, 16.999999999999993, 17.99999999999999, 18.99999999999999
+    )
+
+    @Test fun `savgolWindow5Poly2 matches scipy reference within 1e-9`() {
+        val actual = DspPrimitives.savgolWindow5Poly2(savgolInput)
+        assertEquals(savgolExpected.size, actual.size)
+        var maxErr = 0.0; var maxIdx = -1
+        for (i in actual.indices) {
+            val e = kotlin.math.abs(actual[i] - savgolExpected[i])
+            if (e > maxErr) { maxErr = e; maxIdx = i }
+        }
+        assertTrue("max abs err $maxErr at index $maxIdx exceeds 1e-9", maxErr < 1e-9)
     }
 }

@@ -169,4 +169,44 @@ object DspPrimitives {
         for (i in zi.indices) out[i] = zi[i] * x0
         return out
     }
+
+    // scipy.signal.savgol_coeffs(5, 2) = [-3/35, 12/35, 17/35, 12/35, -3/35]
+    private val SAVGOL_5_2_KERNEL = doubleArrayOf(-3.0/35, 12.0/35, 17.0/35, 12.0/35, -3.0/35)
+
+    fun savgolWindow5Poly2(x: DoubleArray): DoubleArray {
+        require(x.size >= 5) { "input must have at least 5 samples" }
+        val k = SAVGOL_5_2_KERNEL
+        val out = DoubleArray(x.size)
+        // scipy's default mode is "interp" — fits a polynomial to the edge points.
+        // For window=5 polyorder=2 this reduces to evaluating the same polynomial fit at the edge.
+        // First two and last two samples: solve a degree-2 least-squares fit on the first/last 5 samples.
+        val firstFit = polyFit2(x.copyOfRange(0, 5))
+        out[0] = firstFit(-2.0); out[1] = firstFit(-1.0)
+        val lastFit = polyFit2(x.copyOfRange(x.size - 5, x.size))
+        out[x.size - 2] = lastFit(1.0); out[x.size - 1] = lastFit(2.0)
+        for (i in 2 until x.size - 2) {
+            var acc = 0.0
+            for (j in -2..2) acc += k[j + 2] * x[i + j]
+            out[i] = acc
+        }
+        return out
+    }
+
+    // Fits y_i = c0 + c1*i + c2*i^2 to five points at i = -2,-1,0,1,2 and returns evaluator.
+    private fun polyFit2(window5: DoubleArray): (Double) -> Double {
+        require(window5.size == 5)
+        // Closed-form normal equations for symmetric x = [-2,-1,0,1,2]:
+        //   sum_x = 0, sum_x2 = 10, sum_x3 = 0, sum_x4 = 34, n = 5
+        //   c0 = (34*sum_y - 10*sum_x2y) / (5*34 - 10*10)
+        //   c1 = sum_xy / sum_x2
+        //   c2 = (5*sum_x2y - 10*sum_y) / (5*34 - 10*10)
+        val sy = window5.sum()
+        val sxy = -2.0*window5[0] - 1.0*window5[1] + 1.0*window5[3] + 2.0*window5[4]
+        val sx2y = 4.0*window5[0] + 1.0*window5[1] + 1.0*window5[3] + 4.0*window5[4]
+        val det = 5.0 * 34.0 - 10.0 * 10.0  // 70
+        val c0 = (34.0 * sy - 10.0 * sx2y) / det
+        val c1 = sxy / 10.0
+        val c2 = (5.0 * sx2y - 10.0 * sy) / det
+        return { t -> c0 + c1 * t + c2 * t * t }
+    }
 }
