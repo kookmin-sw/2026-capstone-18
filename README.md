@@ -17,7 +17,7 @@
 
 ![AWS Seoul (ap-northeast-2) architecture](docs/images/architecture.png)
 
-여성 사용자를 위한 실시간 스트레스 탐지 및 생리 주기 추적 애플리케이션. Galaxy Watch 8에서 수집한 원시 생체신호(PPG, HRV, EDA, 가속도)를 기반으로 온디바이스(Mamba) 추론을 수행하고, 사전 스트레스(Pre-Stress) 단계에서 손목 호흡 가이드를 제시합니다. 백엔드는 AWS Seoul(ap-northeast-2)에 배포되며 한국 PIPA를 전제로 설계되었습니다.
+여성 사용자를 위한 실시간 스트레스 탐지 및 생리 주기 추적 애플리케이션입니다. Galaxy Watch 8에서 수집한 생체신호(PPG, EDA, HRV, 가속도)를 스마트폰 온디바이스(Mamba) 환경에서 분석하여 스트레스 이벤트를 탐지하며, 탐지된 이벤트 종료 후 사후 체크업(Post-event Check-up) 알림과 호흡 가이드를 제공합니다. 백엔드는 AWS 서울 리전(ap-northeast-2)에 배포되어 있으며, 한국의 개인정보보호법(PIPA)을 준수하도록 설계되었습니다.
 
 - **팀**: 국민대학교 2026 캡스톤 18조
 - **팀페이지**: <https://kookmin-sw.github.io/2026-capstone-18/>
@@ -159,60 +159,97 @@
 
 ---
 
-## 1. AI — 사전 스트레스 예측 (Mamba)
+## AI — 생체신호 기반 스트레스 탐지 및 사후 체크업 파이프라인 (MeltdownGuard-Mamba v2)
 
-WESAD 데이터셋을 활용하여 사전 스트레스(Pre-Stress)를 예측하기 위해 최적화된 시계열 분류(TSC) Mamba 파이프라인입니다. v2.2 아키텍처는 명시적 수학적 피처 주입과 간소화된 3-Class 상태 머신을 채택하여, 엣지 환경(ESP32-S3, Wear OS)에서의 INT8 양자화와 효율적인 추론을 목적으로 설계되었습니다.
+WESAD 및 StressPredict 데이터셋을 통합 활용하여 연속적인 생체신호(PPG, EDA, ACC)로부터 스트레스 상태를 탐지하는 시계열 분류(TSC) 파이프라인입니다. 본 시스템의 목적은 일상생활 중 발생하는 스트레스 이벤트를 감지하고, 이후 사용자 상태를 확인하는 **사후 체크업(Post-event Check-up)** 알림을 온디바이스 환경에서 제공하는 것입니다.
 
 ![Stress ML demo pipeline — 9 stages from watch capture through server-side Mamba inference to per-chunk JSON output](docs/images/ml-demo.png)
 
-> **현재 구현 (as-built today)**: 추론은 ECS Fargate 위 FastAPI 서버에서 ONNX Runtime CPU로 실행됩니다. 워치에는 ML 런타임이 없으며, ONNX Runtime Mobile 온디바이스 추론과 손목 알림은 후속 작업입니다. 모델 출력은 2-class(`Baseline` / `Stress`)이며, "Pre-Stress"는 `process_buffer` 결정 엔진의 상태 머신 개념입니다(별도 클래스가 아닙니다).
-
-### 1.1 주요 기술 결정
-
-- **9-채널 명시적 피처 주입(Explicit Feature Injection)**: 모델이 고주파 노이즈로부터 거시적 추세를 강제로 학습하도록 두지 않고, 인과적 EMA(Causal EMA), MACD Delta 기울기, 후행 노이즈 분산(Trailing Variance)을 입력 텐서에 직접 주입.
-- **배포 지향적 3-Class 시스템**: 노이즈가 큰 5-Class WESAD 프로토콜을 견고한 3-Class 시스템(`0: Baseline`, `1: Pre-Stress`, `2: Stress`)으로 통합. 사후 회복(Cooldown)과 즐거움(Amusement)은 INT8 양자화 경계를 보존하기 위해 알고리즘적으로 Baseline에 매핑.
-- **Causal MACD 동적 라벨링**: 9초 Temporal Debouncing이 적용된 인과적 15분 Lookback 알고리즘으로 생리학적 각성의 시작점을 수학적으로 특정.
-- **전역 가속도 스케일링(Global ACC Scaling)**: 피험자별 Z-Score를 제거하고 1g(64.0) 휴식 기준의 전역 스케일(`-3.0` ~ `+3.0`)을 적용하여 INT8 양자화 시 스케일 스트레칭을 방지.
-- **Pure PyTorch Mamba**: 제한된 엣지 환경에서의 호환성을 위해 `mamba-ssm` 패키지 의존성 없이 순수 PyTorch로 구현.
-
-### 1.2 9-채널 입력 텐서 매핑
-
-추론 시 입력 텐서의 인덱스 순서를 정확히 준수해야 합니다. **피부 온도(TEMP)는 사용하지 않으며, EDA/GSR은 반드시 포함되어야 합니다.**
-
-| 인덱스 | 피처명 | 설명 | 대상 하드웨어 |
-| :---: | :--- | :--- | :--- |
-| **0** | `bvp_calib` | 고주파 원본 BVP (PPG) 신호 | Galaxy Watch 8 PPG Green |
-| **1** | `eda_calib` | 절대 피부 전도도 (Z-Score) | Galaxy Watch 8 EDA |
-| **2** | `acc_mag_global` | 전역 물리적 활동량 (고정 스케일) | Galaxy Watch 8 Accelerometer |
-| **3** | `eda_ema_context` | 5분 Causal EMA (EDA 거시 추세) | *(소프트웨어 연산)* |
-| **4** | `bvp_ema_context` | 5분 Causal EMA (BVP 거시 추세) | *(소프트웨어 연산)* |
-| **5** | `eda_macd_delta` | EDA Phasic 파생 변수 | *(소프트웨어 연산)* |
-| **6** | `bvp_macd_delta` | BVP Phasic 파생 변수 | *(소프트웨어 연산)* |
-| **7** | `norm_std_eda` | 후행 EDA 노이즈 플로어 (Variance) | *(소프트웨어 연산)* |
-| **8** | `norm_std_bvp` | 후행 BVP 노이즈 플로어 (Variance) | *(소프트웨어 연산)* |
-
-### 1.3 빠른 시작
-
-```bash
-cd AI
-pip install -r requirements.txt
-
-# 1) WESAD 데이터셋 자동 다운로드
-python src/dataset/download_wesad.py
-
-# 2) 9-채널 / 3-Class 전처리 파이프라인
-python src/dataset/preprocess_wesad.py
-
-# 3) GroupKFold 학습 (피험자 간 데이터 누수 방지)
-python src/train.py --epochs 50 --batch_size 64
-
-# 4) 평가 및 시각화
-jupyter notebook notebooks/eval_scripts.ipynb
-```
-
-학습이 중단된 경우 `--resume` 플래그로 안전하게 재개할 수 있습니다.
+### 1. 시스템 아키텍처 (On-Device Inference)
+데이터의 수집부터 추론, 알림 트리거까지의 과정은 개인정보보호(PIPA)를 엄격히 준수하도록 설계되었습니다.
+* **Galaxy Watch (Sensor Node):** PPG, EDA, HRV, Accelerometer 센서 데이터를 25Hz로 캡처하여 60초 단위로 스마트폰에 실시간 스트리밍합니다. (워치 내부에서는 ML 추론이 발생하지 않습니다.)
+* **Smartphone App (Inference & Decision Engine):** 스마트폰 애플리케이션 내에서 Flutter ONNX Runtime을 통해 Mamba 모델이 온디바이스로 실행됩니다. 60초 윈도우 버퍼링과 사후 체크업 상태 머신 평가를 수행하여 호흡 가이드 및 알림을 로컬에서 트리거합니다.
+* **Backend Server (Privacy Logging):** 최종 스트레스 이벤트 로그와 메타데이터만 서버로 전송되며, 원시 생체신호는 사용자 기기 외부로 절대 유출되지 않습니다.
 
 ---
+
+### 2. 데이터셋 엔지니어링 및 전처리 (Unified Binary Classification)
+다양한 환경의 생체신호를 학습하기 위해 WESAD(통제 환경)와 StressPredict(일상/Ambulatory 환경) 데이터셋을 이진 분류(Baseline vs. Stress) 태스크로 통합했습니다. 휴식, 명상, 즐거움 등의 상태는 모두 Class 0(Baseline)으로 매핑됩니다.
+
+**2.1 비대칭 학습 및 평가 전략 (Asymmetric Setup)**
+타겟 사용자층에 맞춘 견고한 증명(Proof-of-Concept)을 위해 비대칭 스플릿을 적용했습니다.
+* **Training Split (정규화 및 다양성):** 전체 WESAD(15명) 및 StressPredict(35명) 피험자를 모두 학습에 포함하여 생물학적 다양성과 정규화 효과를 확보했습니다.
+* **Evaluation Split (타겟 검증):** 모델이 타겟 인구통계에서 안정적으로 작동하는지 확인하기 위해, 여성 비율이 압도적으로 높은 분할(WESAD 여성 피험자 + StressPredict 전체)을 구성하여 검증했습니다.
+* **Deployment Model Selection:** K-Fold 평균에 의존하지 않고, 모델 안정성을 확인하기 위해 가장 대표적인 피험자 5명(WESAD 1명, StressPredict 4명)을 Hold-out Validation으로 분리해 최종 배포 모델(Official WESAD w2.0)을 선정했습니다.
+
+**2.2 텐서 아키텍처 및 9-채널 입력 (`[Batch, 9, 1500]`)**
+Galaxy Watch 8 SDK 출력에 맞춰 25Hz 목표 주파수로 동기화되었으며, 60초 윈도우(Stride 5초)를 사용합니다. 
+
+| 인덱스 | 피처명 | 설명 및 연산 방식 |
+| :---: | :--- | :--- |
+| **0** | `ppg_calib` | 4차 Butterworth 및 Savitzky-Golay 필터링된 PPG 신호 (Z-Score) |
+| **1** | `eda_calib` | 절대 피부 전도도 (Z-Score) |
+| **2** | `acc_global` | 전역 물리적 활동량 (1g 휴식 기준 매핑, [-3.0, 3.0] 클리핑) |
+| **3** | `eda_ema_context` | 300초(5분) Causal EMA (EDA 거시 추세) |
+| **4** | `bvp_ema_context` | 300초(5분) Causal EMA (PPG 거시 추세) |
+| **5** | `eda_macd` | EDA Phasic 변화량 (10s EMA - 60s EMA) |
+| **6** | `bvp_macd` | PPG Phasic 변화량 (10s EMA - 60s EMA) |
+| **7** | `norm_std_eda` | 300초 후행 EDA 노이즈 분산 (Log-compressed, Z-Score) |
+| **8** | `norm_std_bvp` | 300초 후행 PPG 노이즈 분산 (Log-compressed, Z-Score) |
+
+**2.3 최종 클래스 분포**
+* **Full Training Pool:** 총 38,742 Chunks (~53.8 시간) | Class 0: 75.87% / Class 1: 24.13%
+* **Evaluation Pool:** 총 25,322 Chunks (~35.2 시간) | Class 0: 69.32% / Class 1: 30.68%
+
+---
+
+### 3. 모델 아키텍처 및 학습 다이내믹스 (MeltdownGuard-Mamba v2)
+엣지 환경(모바일/웨어러블)에서의 원활한 ONNX 변환 및 CPU 추론을 위해, `mamba-ssm`의 CUDA 커널 의존성을 제거한 순수 PyTorch 기반 Selective SSM을 설계했습니다.
+
+**3.1 차원 축소 및 흐름 (Dimensionality Flow)**
+1. **Conv1d Stem:** `[Batch, 9, 1500]` 크기의 입력은 Kernel/Stride가 50인 1D 합성곱을 통과하여 지역적 특징을 추출하고 `[Batch, 64, 30]`으로 공격적인 다운샘플링(Patching)을 수행합니다.
+2. **Selective SSM (MambaPure):** `[Batch, 30, 64]`로 Permute된 텐서는 $d\_state=16$, $dconv=4$로 설정된 Mamba 블록을 통과하며 시간적 의존성을 모델링합니다. (연산량 최소화를 위해 Forward-only 스캔 채택).
+3. **Global Pooling & Classifier:** `mean(dim=1)` 풀링으로 시간 차원을 압축한 후, 두 개의 선형 계층(64 -> 32 -> 2)을 거쳐 최종 이진 Logit을 출력합니다.
+
+**3.2 인스턴스 가중치 초점 손실 (Instance-Weighted Focal Loss)**
+데이터셋 간의 노이즈 차이와 클래스 불균형을 극복하기 위해, 예측이 쉬운 Baseline Chunk의 그래디언트 기여도를 억제하는 Focal Loss($\gamma=3.0$)를 적용했습니다.
+
+$$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, y_i)$$
+
+현실적인 노이즈가 포함된 StressPredict의 Stress 이벤트 누락에 가장 큰 수학적 페널티를 부여하기 위해 그리드 서치 기반 가중치($w_i$)를 적용했습니다:
+* **WESAD Baseline:** 0.5
+* **WESAD Stress:** 1.0
+* **StressPredict Baseline:** 1.0
+* **StressPredict Stress:** 2.0
+
+---
+
+### 4. 사후 체크업 결정 엔진 (Check-up Decision Engine)
+단순한 Softmax 확률값에 의존하지 않고, 오알림(False Alarms)으로 인한 사용자 피로도를 극단적으로 낮추기 위해 4단계 UX 상태 머신 필터를 적용합니다.
+
+* **Confidence Threshold:** 모델의 스트레스 확률값이 60% 이상일 때만 활성화.
+* **Motion Artifact Rejection (MAR 0.10):** 60초 구간의 평균 가속도 크기가 0.10을 초과하면 움직임 노이즈로 간주하여 확률값과 무관하게 스트레스 판정 기각.
+* **Gap Bridging (120s):** 신호 단절을 보정하기 위해, 120초(2 Chunks) 연속 평상시 상태가 유지되어야 스트레스 이벤트가 종료된 것으로 간주.
+* **Notification Cooldown (300s):** 알림 피로도 방지를 위해 체크업 알림 발생 후 5분간 추가 알림 차단.
+
+---
+
+### 5. 성능 평가 및 UX 지표 (Model Evaluation)
+모델 평가는 단순한 Chunk 단위의 F1-Score를 넘어 실제 스마트워치 알림의 품질을 대변하는 **UX Robustness Metrics**에 중점을 두었습니다. (UX Score = Mean Detection Rate - (Mean False Alarms * 20)).
+
+| Model | Acc | F1 | Prec | Rec | Mean_Det(%) | Mean_FA | UX_Score |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Fold 2 | 0.895 | 0.821 | 0.801 | 0.843 | 83.900 | 1.500 | 78.900 |
+| Fold 5 | 0.872 | 0.775 | 0.779 | 0.771 | 65.100 | 3.170 | 54.500 |
+| Fold 1 | 0.858 | 0.765 | 0.726 | 0.808 | 56.200 | 1.580 | 51.000 |
+| Fold 3 | 0.809 | 0.663 | 0.670 | 0.657 | 44.300 | 0.250 | 43.400 |
+| Fold 4 | 0.752 | 0.544 | 0.573 | 0.518 | 0.000 | 0.000 | 0.000 |
+| **K-Fold Average** | **0.837** | **0.714** | **0.710** | **0.719** | **49.900** | **1.300** | **45.600** |
+| **Official WESAD w2.0** | **0.751** | **0.522** | **0.580** | **0.474** | **62.500** | **0.250** | **61.700** |
+
+**결론 (Trade-off Analysis):**
+최종 배포용으로 채택된 Official 모델은 평균 K-Fold 대비 파편화된 정확도(Acc: 0.751)와 재현율이 다소 낮습니다. 그러나 피험자당 오알림 횟수(Mean_FA)를 1.3회에서 **0.25회**로 압도적으로 억제하여 최종 UX Score(61.700)에서 월등한 성능을 보입니다. 이는 잦은 오알림으로 인한 시스템 신뢰도 하락을 방지해야 하는 사후 체크업 프로토콜에 가장 부합하는 결과입니다.
+
 
 ## 2. Backend — FastAPI on AWS Seoul
 
