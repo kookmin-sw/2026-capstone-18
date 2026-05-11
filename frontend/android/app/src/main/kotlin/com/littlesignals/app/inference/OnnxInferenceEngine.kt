@@ -6,13 +6,17 @@ import ai.onnxruntime.OrtSession
 import java.nio.FloatBuffer
 import kotlin.math.exp
 
+interface InferenceEngine : AutoCloseable {
+    fun runChunkProbStress(channels: Array<FloatArray>): Double
+}
+
 class OnnxInferenceEngine private constructor(
     private val env: OrtEnvironment,
     private val session: OrtSession,
     private val inputName: String,
-) : AutoCloseable {
+) : InferenceEngine {
 
-    fun runChunkProbStress(channels: Array<FloatArray>): Double {
+    override fun runChunkProbStress(channels: Array<FloatArray>): Double {
         require(channels.size == 9) { "expected 9 channels, got ${channels.size}" }
         val steps = channels[0].size
         require(steps == 1500) { "expected 1500 steps, got $steps" }
