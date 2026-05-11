@@ -233,12 +233,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 800));
       _expectNoFlutterException(tester);
-      expect(find.text('워치'), findsOneWidget);
-      await tester.tap(find.text('연결하기'));
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pumpAndSettle();
-      _expectNoFlutterException(tester);
-      expect(find.text('Galaxy Watch가 연결됐어요'), findsOneWidget);
+      expect(find.text('Watch'), findsOneWidget);
+      expect(find.text('원시 생체신호 데이터 업로드 동의'), findsOneWidget);
+      expect(find.text('소스'), findsOneWidget);
+      expect(find.text('지속 시간'), findsOneWidget);
+      expect(find.text('캡처 시작'), findsOneWidget);
       await _systemBack(tester);
 
       expect(find.text('개인정보 처리방침'), findsNothing);
