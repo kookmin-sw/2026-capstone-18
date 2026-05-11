@@ -20,9 +20,11 @@ from app.schemas.insights import (
     InsightsPatternsResponse,
     InsightsPhaseAveragesResponse,
     InsightsTrendsResponse,
+    MorningTipResponse,
     PatternTipResponse,
 )
 from app.services.ai.bedrock_client import BedrockError
+from app.services.ai.morning_tip import MorningTipGenerator, MorningTipUnavailable
 from app.services.ai.tip_generator import TipGenerator
 from app.services.insights.calendar import compute_calendar
 from app.services.insights.heatmap import compute_heatmap
@@ -110,6 +112,48 @@ async def patterns(
 ) -> InsightsPatternsResponse:
     f, t = _validate_range(frm, to)
     return await compute_patterns(db, user_id=user.id, frm=f, to=t)
+
+
+@router.get(
+    "/morning-tip",
+    response_model=MorningTipResponse,
+    summary="Get today's contextual morning tip (cached per day)",
+)
+async def get_morning_tip(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MorningTipResponse:
+    settings = get_settings()
+    if not settings.ai_features_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "ai_disabled"},
+        )
+
+    try:
+        tip = await MorningTipGenerator().get_or_generate(
+            db,
+            user_id=user.id,
+            display_name=user.display_name or "사용자",
+        )
+    except MorningTipUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"status": "error", "reason": "no_signal"},
+        ) from exc
+    except BedrockError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"status": "error", "reason": "ai_unavailable"},
+        ) from exc
+
+    return MorningTipResponse(
+        headline=tip.headline,
+        body=tip.body,
+        context_line=tip.context_line,
+        pattern_key=tip.pattern_key,
+        generated_at=tip.generated_at,
+    )
 
 
 @router.get(

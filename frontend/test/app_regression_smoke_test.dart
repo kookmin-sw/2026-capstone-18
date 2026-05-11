@@ -25,6 +25,7 @@ import 'package:little_signals/features/events/events_provider.dart';
 import 'package:little_signals/features/events/models/stress_event.dart';
 import 'package:little_signals/features/home/home_provider.dart';
 import 'package:little_signals/features/insight/data/ai_insights_api.dart';
+import 'package:little_signals/features/insight/data/morning_tip.dart';
 import 'package:little_signals/features/insight/data/weekly_report.dart';
 import 'package:little_signals/features/insight/insight_provider.dart';
 import 'package:little_signals/features/privacy/data/privacy_api.dart';
@@ -751,15 +752,17 @@ class _SmokeData {
     );
     settingsProvider = SettingsProvider(settingsApi: settingsApi);
     consentProvider = ConsentProvider(consentApi: consentApi);
+    final fakeAiInsightsApi = _FakeAiInsightsApi();
     homeProvider = HomeProvider(
       eventsApi: eventsApi,
       cyclesApi: cyclesApi,
       consentApi: consentApi,
+      aiInsightsApi: fakeAiInsightsApi,
     );
     insightProvider = InsightProvider(
       eventsApi: eventsApi,
       cyclesApi: cyclesApi,
-      aiInsightsApi: _FakeAiInsightsApi(),
+      aiInsightsApi: fakeAiInsightsApi,
     );
     triggersProvider = TriggersProvider(categoriesApi: categoriesApi);
     sleepProvider = SleepProvider(sleepApi: sleepApi);
@@ -1203,6 +1206,9 @@ class _FakeAiInsightsApi extends AiInsightsApi {
 
   @override
   Future<WeeklyReport?> getLatestWeeklyReport() async => null;
+
+  @override
+  Future<MorningTip?> getMorningTip() async => null;
 }
 
 class _FakePrivacyApi extends PrivacyApi {

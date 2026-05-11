@@ -1,5 +1,6 @@
 import '../../../core/errors/api_exception.dart';
 import '../../../core/network/api_client.dart';
+import 'morning_tip.dart';
 import 'pattern_tip.dart';
 import 'weekly_report.dart';
 
@@ -15,6 +16,20 @@ class AiInsightsApi {
       final response = await _apiClient.get('/api/v1/reports/weekly');
       if (response is! Map<String, dynamic>) return null;
       return WeeklyReport.fromJson(response);
+    } on ApiException catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  /// Fetch today's contextual morning tip composed by the backend agent
+  /// from current cycle phase, last night's sleep, and recent patterns.
+  /// Returns null when the backend has nothing to surface (404).
+  Future<MorningTip?> getMorningTip() async {
+    try {
+      final response = await _apiClient.get('/api/v1/insights/morning-tip');
+      if (response is! Map<String, dynamic>) return null;
+      return MorningTip.fromJson(response);
     } on ApiException catch (error) {
       if (error.statusCode == 404) return null;
       rethrow;

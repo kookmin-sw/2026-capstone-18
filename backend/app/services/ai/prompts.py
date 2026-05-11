@@ -47,6 +47,51 @@ def tip_prompt(
     return system, user
 
 
+def morning_tip_prompt(
+    *,
+    display_name: str,
+    phase: str,
+    cycle_day: int | None,
+    sleep_minutes: int | None,
+    sleep_rating: str | None,
+    top_pattern_line: str | None,
+) -> tuple[str, str]:
+    system = (
+        "당신은 사용자의 아침 컨텍스트를 보고 짧은 한국어 신호 메시지를 만드는 어시스턴트입니다. "
+        "어젯밤 수면, 현재 생리주기 단계, 최근 스트레스 패턴을 종합해 오늘을 위한 부드러운 제안을 작성합니다. "
+        "의학적 진단·단정적 표현은 피하고, 친근하고 실천 가능한 톤을 유지하세요. "
+        "반드시 다음 JSON 스키마로만 답하세요. JSON 외 텍스트는 출력하지 마세요.\n\n"
+        "스키마:\n"
+        "{\n"
+        '  "headline": "20자 이내, 오늘의 한 줄 신호",\n'
+        '  "body": "2-3 문장, 왜 그렇게 제안하는지와 구체적 행동",\n'
+        '  "context_line": "아주 짧은 컨텍스트 한 줄 (예: \\"어젯밤 5h 30m · 황체기\\"), 50자 이내"\n'
+        "}"
+    )
+    sleep_block = (
+        f"- 어젯밤 수면: {sleep_minutes}분 ({sleep_rating or '평점 없음'})"
+        if sleep_minutes is not None
+        else "- 어젯밤 수면: 기록 없음"
+    )
+    phase_block = f"- 사이클 단계: {_phase_label(phase)}" + (
+        f" {cycle_day}일차" if cycle_day else ""
+    )
+    pattern_block = (
+        f"- 최근 관찰된 패턴: {top_pattern_line}"
+        if top_pattern_line
+        else "- 최근 관찰된 패턴: 없음"
+    )
+    user = (
+        f"사용자: {display_name}\n"
+        f"오늘 아침 컨텍스트:\n"
+        f"{sleep_block}\n"
+        f"{phase_block}\n"
+        f"{pattern_block}\n\n"
+        "위 컨텍스트로 오늘 아침에 보낼 짧은 신호 메시지를 JSON으로 출력하세요."
+    )
+    return system, user
+
+
 def weekly_report_prompt(
     *,
     display_name: str,
