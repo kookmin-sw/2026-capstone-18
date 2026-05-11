@@ -219,4 +219,36 @@ object DspPrimitives {
         val ziScaled = DoubleArray(zi.size) { i -> zi[i] * arr[0] }
         return lfilter(b, a, arr, ziScaled)
     }
+
+    data class MeanStd(val mean: DoubleArray, val std: DoubleArray)
+
+    fun causalRollingStats(arr: DoubleArray, window: Int): MeanStd {
+        require(window >= 1 && arr.isNotEmpty()) { "bad inputs" }
+        val padLen = window - 1
+        val padded = DoubleArray(arr.size + padLen)
+        for (i in 0 until padLen) padded[i] = arr[0]
+        for (i in arr.indices) padded[padLen + i] = arr[i]
+
+        val cs = DoubleArray(padded.size)
+        val cs2 = DoubleArray(padded.size)
+        var acc = 0.0; var acc2 = 0.0
+        for (i in padded.indices) {
+            acc += padded[i]; acc2 += padded[i] * padded[i]
+            cs[i] = acc; cs2[i] = acc2
+        }
+        val n = arr.size
+        val mean = DoubleArray(n)
+        val std = DoubleArray(n)
+        for (i in 0 until n) {
+            val end = padLen + i
+            val start = end - window + 1
+            val sum = cs[end] - if (start > 0) cs[start - 1] else 0.0
+            val sumSq = cs2[end] - if (start > 0) cs2[start - 1] else 0.0
+            val m = sum / window
+            val v = (sumSq / window) - m * m
+            mean[i] = m
+            std[i] = sqrt(if (v < 0.0) 0.0 else v)
+        }
+        return MeanStd(mean, std)
+    }
 }
