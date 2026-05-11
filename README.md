@@ -74,7 +74,7 @@
 
 - [저장소 구조](#저장소-구조)
 - [선행 요구사항](#선행-요구사항)
-- [1. AI — 사전 스트레스 예측 (Mamba)](#1-ai--사전-스트레스-예측-mamba)
+- [1. AI — 스트레스 탐지 (Mamba)](#1-ai--스트레스-탐지-mamba)
   - [1.1 주요 기술 결정](#11-주요-기술-결정)
   - [1.2 9-채널 입력 텐서 매핑](#12-9-채널-입력-텐서-매핑)
   - [1.3 빠른 시작](#13-빠른-시작)
@@ -118,7 +118,7 @@
 
 ```text
 2026-capstone-18/
-├── AI/                       # 사전 스트레스 예측 Mamba 파이프라인 (학습/평가)
+├── AI/                       # 스트레스 탐지 Mamba 파이프라인 (학습/평가, 60s 윈도우 이진 분류)
 │   ├── notebooks/
 │   └── src/
 │       ├── dataset/          # WESAD / Stress-Predict 다운로드·전처리
@@ -396,9 +396,9 @@ make smoke-staging
 
 ![Agentic AI architecture — Flow 1 (on-demand tip generation): Phone → FastAPI → RDS pattern_tips cache, miss → Bedrock InvokeModel → upsert → response. Flow 2 (scheduled weekly report): EventBridge cron(Sat 17:00 UTC) → ECS RunTask → aggregate stress + sleep + cycle → Bedrock JSON-schema prompt → upsert weekly_reports. Privacy & Safety panel — sent: display_name, category, phase, deltas, summary lines; never sent: UUID, email, free text, raw biosignals, FCM tokens. Tech stack: Flutter, FastAPI, ECS Fargate, RDS Postgres, Bedrock (Claude Haiku 4.5), EventBridge, AWS IAM.](docs/images/agenticai.png)
 
-기존 통계 기반 패턴 탐지(§1의 Mamba 예측과는 별개) 위에 LLM이 두 가지 형태로 사용자 경험을 보강합니다. 모든 호출은 백엔드 ECS에서 출발하며, 폰은 결과 텍스트만 받습니다.
+기존 통계 기반 패턴 탐지(§1의 Mamba 탐지와는 별개) 위에 LLM이 두 가지 형태로 사용자 경험을 보강합니다. 모든 호출은 백엔드 ECS에서 출발하며, 폰은 결과 텍스트만 받습니다.
 
-**왜 별도 레이어인가**: §1의 Mamba는 *예측*(다가오는 스트레스를 미리 알리는 분류기), 이 레이어는 *해석/요약*(이미 일어난 패턴을 자연어로 풀어주는 생성형). 두 모델은 입력·운영·비용 특성이 모두 달라 같은 코드 경로에 묶지 않았습니다.
+**왜 별도 레이어인가**: §1의 Mamba는 *탐지*(60초 생체신호 윈도우의 마지막 5초 구간을 Baseline/Stress 이진 분류), 이 레이어는 *해석/요약*(이미 일어난 패턴을 자연어로 풀어주는 생성형). 두 모델은 입력·운영·비용 특성이 모두 달라 같은 코드 경로에 묶지 않았습니다.
 
 | 표면 | 트리거 | 캐시/주기 | 출력 |
 | :--- | :--- | :--- | :--- |
@@ -775,7 +775,7 @@ flowchart TD
     subgraph Watch["Galaxy Watch 8 — Wear OS, Kotlin"]
         SDK["Samsung Health Sensor SDK 1.4.1<br/>PPG_GREEN · HEART_RATE_CONTINUOUS<br/>EDA_CONTINUOUS · ACCELEROMETER_CONTINUOUS"]
         Pre["Signal Preprocessor<br/>60s 슬라이딩 윈도 · 5분 EMA 베이스라인 · 활동 게이트"]
-        Inf["Mamba 추론<br/>ONNX Runtime Mobile · 9-channel 3-class"]
+        Inf["Mamba 추론<br/>ONNX Runtime Mobile · 9-channel 2-class (Baseline/Stress)"]
         Dec["Decision Engine<br/>손목 알림 + 호흡 가이드"]
         SDK --> Pre --> Inf --> Dec
     end
