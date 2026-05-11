@@ -58,6 +58,88 @@ class StressPipeline(
         isCalibrated = true
     }
 
+    private companion object {
+        const val TARGET_HZ = 25
+        const val CHUNK_STEPS = 60 * TARGET_HZ   // 1500
+        const val BUFFER_STEPS = 300 * TARGET_HZ // 7500
+    }
+
+    fun processBuffer(
+        bufferPpg: DoubleArray,
+        bufferEda: DoubleArray,
+        bufferAccMag: DoubleArray,
+        currentTimeSec: Int,
+    ): Pair<Boolean, Double> {
+        if (!isCalibrated) return false to 0.0
+        require(bufferPpg.size == BUFFER_STEPS && bufferEda.size == BUFFER_STEPS && bufferAccMag.size == BUFFER_STEPS) {
+            "buffer must be exactly $BUFFER_STEPS samples"
+        }
+
+        val edaCalib = DoubleArray(BUFFER_STEPS) { i -> clip((bufferEda[i] - meanEdaBase) / stdEdaBase, -35.0, 35.0) }
+        val ppgCalib = DoubleArray(BUFFER_STEPS) { i -> clip((bufferPpg[i] - meanPpgBase) / stdPpgBase, -35.0, 35.0) }
+        val accGlobal = DoubleArray(BUFFER_STEPS) { i -> clip((bufferAccMag[i] - acc1gBaseline) / acc1gBaseline, -3.0, 3.0) }
+
+        val fast = 10 * TARGET_HZ; val slow = 60 * TARGET_HZ; val ctx = 300 * TARGET_HZ
+        val emaEdaFast = DspPrimitives.ema(edaCalib, fast)
+        val emaEdaSlow = DspPrimitives.ema(edaCalib, slow)
+        val absPpg = DoubleArray(BUFFER_STEPS) { i -> kotlin.math.abs(ppgCalib[i]) }
+        val emaBvpFast = DspPrimitives.ema(absPpg, fast)
+        val emaBvpSlow = DspPrimitives.ema(absPpg, slow)
+        val edaEmaCtx = DspPrimitives.ema(edaCalib, ctx)
+        val bvpEmaCtx = DspPrimitives.ema(absPpg, ctx)
+
+        val edaMacd = DoubleArray(BUFFER_STEPS) { i -> emaEdaFast[i] - emaEdaSlow[i] }
+        val bvpMacd = DoubleArray(BUFFER_STEPS) { i -> emaBvpFast[i] - emaBvpSlow[i] }
+        val edaStat = DspPrimitives.causalRollingStats(edaMacd, ctx)
+        val bvpStat = DspPrimitives.causalRollingStats(bvpMacd, ctx)
+        val normStdEda = DoubleArray(BUFFER_STEPS) { i -> (kotlin.math.ln1p(edaStat.std[i]) - meanLogStdEdaBase) / stdLogStdEdaBase }
+        val normStdBvp = DoubleArray(BUFFER_STEPS) { i -> (kotlin.math.ln1p(bvpStat.std[i]) - meanLogStdBvpBase) / stdLogStdBvpBase }
+
+        // Take last CHUNK_STEPS of each channel, transpose to (9, 1500), float32.
+        val start = BUFFER_STEPS - CHUNK_STEPS
+        val channels = Array(9) { FloatArray(CHUNK_STEPS) }
+        for (i in 0 until CHUNK_STEPS) {
+            val j = start + i
+            channels[0][i] = ppgCalib[j].toFloat()
+            channels[1][i] = edaCalib[j].toFloat()
+            channels[2][i] = accGlobal[j].toFloat()
+            channels[3][i] = edaEmaCtx[j].toFloat()
+            channels[4][i] = bvpEmaCtx[j].toFloat()
+            channels[5][i] = edaMacd[j].toFloat()
+            channels[6][i] = bvpMacd[j].toFloat()
+            channels[7][i] = normStdEda[j].toFloat()
+            channels[8][i] = normStdBvp[j].toFloat()
+        }
+
+        val probStress = engine.runChunkProbStress(channels)
+        var chunkMeanAcc = 0.0
+        for (i in start until BUFFER_STEPS) chunkMeanAcc += accGlobal[i]
+        chunkMeanAcc /= CHUNK_STEPS
+
+        var isActive = probStress >= confThresh
+        if (chunkMeanAcc > marThresh) isActive = false
+
+        var shouldNotify = false
+        if (isActive) {
+            isInStressEvent = true
+            silentChunksSinceStress = 0
+            if ((currentTimeSec - lastNotificationSec) >= cooldownSec) {
+                shouldNotify = true
+                lastNotificationSec = currentTimeSec
+            }
+        } else if (isInStressEvent) {
+            silentChunksSinceStress += 1
+            if (silentChunksSinceStress > maxGapChunks) {
+                isInStressEvent = false
+                silentChunksSinceStress = 0
+            }
+        }
+        return shouldNotify to probStress
+    }
+
+    private fun clip(v: Double, lo: Double, hi: Double): Double =
+        if (v < lo) lo else if (v > hi) hi else v
+
     private fun stddev(a: DoubleArray): Double {
         val mean = a.average()
         var sq = 0.0
