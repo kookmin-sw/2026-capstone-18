@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../core/errors/api_exception.dart';
@@ -6,22 +8,27 @@ import '../cycles/data/cycles_api.dart';
 import '../cycles/models/cycle.dart';
 import '../events/data/events_api.dart';
 import '../events/models/stress_event.dart';
+import '../insight/data/ai_insights_api.dart';
+import '../insight/data/morning_tip.dart';
 
 class HomeProvider extends ChangeNotifier {
   final EventsApi eventsApi;
   final CyclesApi cyclesApi;
   final ConsentApi consentApi;
+  final AiInsightsApi aiInsightsApi;
 
   bool _loading = false;
   String? _errorMessage;
   List<StressEvent> _todayEvents = [];
   Cycle? _currentCycle;
   ConsentState? _consent;
+  MorningTip? _morningTip;
 
   HomeProvider({
     required this.eventsApi,
     required this.cyclesApi,
     required this.consentApi,
+    required this.aiInsightsApi,
   });
 
   bool get loading => _loading;
@@ -31,6 +38,7 @@ class HomeProvider extends ChangeNotifier {
       _todayEvents.isEmpty ? null : _todayEvents.first;
   Cycle? get currentCycle => _currentCycle;
   ConsentState? get consent => _consent;
+  MorningTip? get morningTip => _morningTip;
 
   int get todayStress {
     final scoredEvents = _todayEvents
@@ -90,6 +98,18 @@ class HomeProvider extends ChangeNotifier {
 
     _loading = false;
     notifyListeners();
+
+    unawaited(_loadMorningTip());
+  }
+
+  Future<void> _loadMorningTip() async {
+    try {
+      final tip = await aiInsightsApi.getMorningTip();
+      _morningTip = tip;
+      notifyListeners();
+    } catch (_) {
+      _morningTip = null;
+    }
   }
 
   void applyRealtimeEvent(StressEvent event) {
@@ -106,6 +126,7 @@ class HomeProvider extends ChangeNotifier {
     _todayEvents = [];
     _currentCycle = null;
     _consent = null;
+    _morningTip = null;
     notifyListeners();
   }
 }

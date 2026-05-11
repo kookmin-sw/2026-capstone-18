@@ -14,6 +14,7 @@ import '../../features/events/events_provider.dart';
 import '../../features/events/models/stress_event.dart';
 import '../../features/home/greeting.dart';
 import '../../features/home/home_provider.dart';
+import '../../features/insight/data/morning_tip.dart';
 import '../../features/insight/insight_provider.dart';
 import '../../features/sleep/sleep_provider.dart';
 import '../../features/triggers/triggers_provider.dart';
@@ -150,6 +151,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (home.errorMessage != null) ...[
                   const SizedBox(height: 12),
                   _ErrorBanner(message: home.errorMessage!),
+                ],
+
+                if (home.morningTip != null) ...[
+                  const SizedBox(height: 20),
+                  _MorningTipCard(tip: home.morningTip!),
                 ],
 
                 const SizedBox(height: 20),
@@ -564,6 +570,81 @@ class _MetricCardContent extends StatelessWidget {
           Text(value, style: AppTextStyles.metricNumber.copyWith(fontSize: 22)),
           if (caption.isNotEmpty)
             Text(caption, style: TextStyle(fontSize: 10, color: captionColor)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MorningTipCard extends StatelessWidget {
+  final MorningTip tip;
+
+  const _MorningTipCard({required this.tip});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      blur: 4,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF3C4CE), Color(0xFFB7A6D8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '오늘의 신호',
+                style: AppTextStyles.label.copyWith(color: AppColors.textM),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            tip.headline,
+            style: AppTextStyles.cardTitle.copyWith(fontSize: 17, height: 1.35),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            tip.body,
+            style: AppTextStyles.body.copyWith(color: AppColors.textB),
+          ),
+          if (tip.contextLine != null && tip.contextLine!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                tip.contextLine!,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textM,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

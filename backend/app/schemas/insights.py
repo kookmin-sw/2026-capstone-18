@@ -75,3 +75,11 @@ class PatternTipResponse(BaseModel):
     pattern_key: str
     tip_text: str
     generated_at: datetime
+
+
+class MorningTipResponse(BaseModel):
+    headline: str
+    body: str
+    context_line: str | None = None
+    pattern_key: str | None = None
+    generated_at: datetime
