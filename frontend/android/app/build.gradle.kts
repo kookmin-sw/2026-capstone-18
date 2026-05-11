@@ -47,8 +47,25 @@ flutter {
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.android.gms:play-services-wearable:18.2.0")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.18.0")
+    testImplementation("com.microsoft.onnxruntime:onnxruntime:1.18.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+}
+
+tasks.register<Copy>("syncInferenceAssets") {
+    from(rootProject.file("../../AI/checkpoints_final/wesad_w2.0/wesad_mamba_v1.onnx"))
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+
+tasks.register<Copy>("syncInferenceFixtures") {
+    from(rootProject.file("../../AI/serve/tests/fixtures/synthetic_capture.zip"))
+    into(layout.projectDirectory.dir("src/test/resources"))
+}
+
+tasks.named("preBuild") { dependsOn("syncInferenceAssets") }
+tasks.matching { it.name.endsWith("UnitTestJavaRes") }.configureEach {
+    dependsOn("syncInferenceFixtures")
 }
