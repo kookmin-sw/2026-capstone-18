@@ -144,7 +144,34 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> signInWithEmail(String email, String password) async {
-    _errorMessage = '현재 이메일 로그인은 지원되지 않아요. 익명 또는 Google 로그인을 이용해 주세요.';
+    _status = AuthStatus.checking;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final tokens = await authApi.emailLogin(email, password);
+      await tokenStorage.saveTokens(tokens);
+
+      _localNickname = await tokenStorage.readNickname();
+      _user = _applyLocalNickname(await authApi.me());
+      _status = AuthStatus.authenticated;
+      _errorMessage = null;
+      notifyListeners();
+      return true;
+    } on ApiException catch (error) {
+      await tokenStorage.clear();
+      _user = null;
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = error.message;
+    } catch (error, stackTrace) {
+      debugPrint('AUTH email login unexpected error: $error');
+      debugPrint('$stackTrace');
+      await tokenStorage.clear();
+      _user = null;
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = '로그인하지 못했어요. 잠시 후 다시 시도해 주세요.';
+    }
+
     notifyListeners();
     return false;
   }
@@ -154,7 +181,38 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     String? name,
   }) async {
-    _errorMessage = '현재 이메일 계정 만들기는 지원되지 않아요. 익명 또는 Google 로그인을 이용해 주세요.';
+    _status = AuthStatus.checking;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final tokens = await authApi.emailSignUp(
+        email: email,
+        password: password,
+        name: name,
+      );
+      await tokenStorage.saveTokens(tokens);
+
+      _localNickname = await tokenStorage.readNickname();
+      _user = _applyLocalNickname(await authApi.me());
+      _status = AuthStatus.authenticated;
+      _errorMessage = null;
+      notifyListeners();
+      return true;
+    } on ApiException catch (error) {
+      await tokenStorage.clear();
+      _user = null;
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = error.message;
+    } catch (error, stackTrace) {
+      debugPrint('AUTH email signup unexpected error: $error');
+      debugPrint('$stackTrace');
+      await tokenStorage.clear();
+      _user = null;
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = '계정을 만들지 못했어요. 잠시 후 다시 시도해 주세요.';
+    }
+
     notifyListeners();
     return false;
   }
