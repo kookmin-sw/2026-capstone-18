@@ -241,13 +241,7 @@ void main() {
       expect(find.text('Galaxy Watch가 연결됐어요'), findsOneWidget);
       await _systemBack(tester);
 
-      await tester.ensureVisible(find.text('개인정보 처리방침'));
-      await tester.tap(find.text('개인정보 처리방침'));
-      await tester.pumpAndSettle();
-      _expectNoFlutterException(tester);
-      expect(find.text('내 데이터는 내가 선택해요.'), findsNothing);
-      expect(find.text('1. 수집하는 정보'), findsOneWidget);
-      await _systemBack(tester);
+      expect(find.text('개인정보 처리방침'), findsNothing);
 
       await tester.ensureVisible(find.text('계정 및 보안'));
       await tester.tap(find.text('계정 및 보안'));

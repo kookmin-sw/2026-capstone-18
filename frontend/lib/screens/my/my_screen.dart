@@ -14,7 +14,6 @@ import '../../features/triggers/triggers_provider.dart';
 import 'my_cycle_screen.dart';
 import 'my_triggers_screen.dart';
 import 'watch_connect_screen.dart';
-import 'privacy_policy_screen.dart';
 import 'account_security_screen.dart';
 import 'sleep_data_screen.dart';
 
@@ -227,24 +226,6 @@ class MyScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const WatchConnectScreen(),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      _SectionLabel(label: '데이터 및 개인정보'),
-                      const SizedBox(height: 8),
-                      _MenuCard(
-                        icon: Icons.privacy_tip_outlined,
-                        iconColor: const Color(0xFF9888A0),
-                        iconBg: const Color(0xFFF2DCF3),
-                        title: '개인정보 처리방침',
-                        subtitle: '데이터가 어떻게 쓰이는지 확인해요',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PrivacyPolicyScreen(),
                           ),
                         ),
                       ),
