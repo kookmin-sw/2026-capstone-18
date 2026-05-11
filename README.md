@@ -2,7 +2,7 @@
   <img src="docs/images/luma-wordmark.svg" alt="Luma" width="480"/>
 </p>
 
-# Luma (formerly Little Signals) — 2026 Capstone 18
+# Luma — 2026 Capstone 18
 
 [![Total commits](https://img.shields.io/github/commit-activity/t/kookmin-sw/2026-capstone-18)](https://github.com/kookmin-sw/2026-capstone-18/commits/master)
 [![Last commit](https://img.shields.io/github/last-commit/kookmin-sw/2026-capstone-18)](https://github.com/kookmin-sw/2026-capstone-18/commits/master)
@@ -94,16 +94,21 @@
   - [3.4 빌드와 실행](#34-빌드와-실행)
   - [3.5 데이터 추출](#35-데이터-추출)
 - [4. Frontend — Flutter Android App](#4-frontend--flutter-android-app)
-  - [4.1 설계 목표](#41-설계-목표)
-  - [4.2 기술 스택](#42-기술-스택)
-  - [4.3 주요 사용자 흐름](#43-주요-사용자-흐름)
-  - [4.4 구현 완료 기능](#44-구현-완료-기능)
-  - [4.5 Frontend 실행](#45-frontend-실행)
-  - [4.6 테스트](#46-테스트)
-- [5. 아키텍처 전체 흐름 (요약)](#4-아키텍처-전체-흐름-요약)
-- [6. 문서](#5-문서)
-- [7. 팀 소개](#6-팀-소개)
-- [8. 시연 영상](#7-시연-영상)
+  - [4.1 Frontend 개요](#41-frontend-개요)
+  - [4.2 설계 목표](#42-설계-목표)
+  - [4.3 기술 스택](#43-기술-스택)
+  - [4.4 구현된 주요 기능](#44-구현된-주요-기능)
+  - [4.5 Architecture 요약](#45-architecture-요약)
+  - [4.6 사용자 흐름](#46-사용자-흐름)
+  - [4.7 Frontend Data Flow](#47-frontend-data-flow)
+  - [4.8 Backend Integration](#48-backend-integration)
+  - [4.9 Native Capture Integration](#49-native-capture-integration)
+  - [4.10 Notification Flow](#410-notification-flow)
+  - [4.11 Frontend 실행과 테스트](#411-frontend-실행과-테스트)
+- [5. 아키텍처 전체 흐름 (요약)](#5-아키텍처-전체-흐름-요약)
+- [6. 문서](#6-문서)
+- [7. 팀 소개](#7-팀-소개)
+- [8. 시연 영상](#8-시연-영상)
 - [기여 가이드](#기여-가이드)
 - [라이선스](#라이선스)
 
@@ -549,108 +554,200 @@ unzip -p ${SESSION}.zip ppg_green.csv | wc -l   # 10분 ≈ 15,000 행
 
 ## 4. Frontend — Flutter Android App
 
-`frontend/` 디렉토리는 Luma의 Flutter 기반 Android 모바일 애플리케이션입니다.
-사용자 스트레스 기록, 생리 주기 기반 인사이트 시각화, 수면 데이터 흐름, 알림 등록, 향후 웨어러블 데이터 연동을 위한 사용자 인터페이스 계층을 담당합니다.
+### 4.1 Frontend 개요
 
-현재 frontend는 Provider 기반 아키텍처로 구현되어 있으며, staging backend와 직접 통신합니다.
+`frontend/`는 Luma의 Flutter 기반 Android 모바일 애플리케이션입니다. 사용자가 직접 만나는 presentation layer로서 스트레스 기록, 생리 주기 맥락 기반 인사이트, 수면 데이터 화면, 주간 리포트, 알림 등록, 원시 생체신호 캡처 UX를 담당합니다.
 
-### 4.1 설계 목표
+앱은 staging FastAPI backend와 REST API로 통신하며, 화면 상태는 Provider 기반으로 관리됩니다. 사용자는 Auth 화면에서 진입한 뒤 Home dashboard를 중심으로 스트레스 기록, My Cycle, Sleep Data, Insight, Profile, Watch/Biosignal Capture 화면을 오갑니다. UI copy는 한국어 사용 맥락에 맞춰 부드럽고 부담이 적은 tone을 유지합니다.
 
-Frontend는 다음 세 가지 UX 목표를 중심으로 설계되었습니다.
+### 4.2 설계 목표
 
-#### 1. 빠른 스트레스 기록 UX
+Frontend는 사용자의 기록 부담을 낮추고, 민감한 건강 맥락을 조심스럽게 다루는 것을 목표로 설계되었습니다.
 
-사용자는 복잡한 화면 이동 없이 스트레스 강도, 요인(trigger), 메모를 빠르게 기록할 수 있어야 합니다.
+1. **빠른 stress logging UX**
+   사용자는 Home 또는 기록 목록에서 스트레스 강도, 요인, 메모를 빠르게 남기고 수정할 수 있습니다. 저장된 기록은 provider refresh를 통해 Home, Insight, Report 화면에 반영됩니다.
 
-#### 2. Cycle-aware Context
+2. **Cycle-aware insight visualization**
+   스트레스 기록은 생리 주기 정보와 함께 해석됩니다. Home의 cycle card, My Cycle auto-save, Insight calendar, report UI는 사용자가 주기 단계와 스트레스 패턴을 함께 볼 수 있도록 구성되어 있습니다.
 
-스트레스 기록은 생리 주기 phase 정보와 함께 시각화되어, 황체기 스트레스 집중이나 주기 기반 패턴 변화를 사용자가 인식할 수 있도록 설계되었습니다.
+3. **Staging backend 기반 실사용 flow**
+   Auth, profile, events, cycles, categories, consent, sleep logs, weekly reports, device token registration, biosignal sync metadata가 staging API client layer를 통해 호출됩니다.
 
-#### 3. Integration-ready Wearable UX
+4. **Biosignal capture/upload UX**
+   Watch/Biosignal 화면은 raw biosignal consent, capture source 선택, duration 선택, live status, upload window count, summary screen을 제공합니다. Flutter UI는 Android native capture layer와 MethodChannel/EventChannel로 연결됩니다.
 
-UI와 Provider 계층은 향후 Galaxy Watch / Health Connect 데이터를 소비할 수 있도록 준비되어 있습니다. 현재 구현에는 service contract, populated/empty state가 포함되어 있으며, 실제 native wearable ingestion은 다음 단계 integration task로 남아 있습니다.
+5. **Korean UI copy 중심의 interaction**
+   nickname, trigger, cycle, sleep, notification, privacy copy는 한국어 서비스 tone에 맞춰 정리되어 있으며, 사용자-facing label과 backend/raw data를 분리하는 formatter를 사용합니다.
 
-### 4.2 기술 스택
+### 4.3 기술 스택
 
-| 영역                    | 기술                                                 |
-| --------------------- | -------------------------------------------------- |
-| Framework             | Flutter / Dart                                     |
-| State Management      | Provider                                           |
-| Backend Communication | REST API client layer                              |
-| Authentication        | Anonymous auth, Google Sign-In frontend flow       |
-| Push Notification     | Firebase Messaging / FCM device token registration |
-| Platform Target       | Android (`com.littlesignals.app`)                  |
-| Testing               | Flutter unit tests + regression smoke tests        |
+| 영역 | 기술 |
+| :--- | :--- |
+| App framework | Flutter / Dart |
+| State management | Provider |
+| Backend communication | REST API client layer |
+| Auth frontend flow | Anonymous auth, Google Sign-In frontend flow |
+| Push registration | Firebase Messaging / FCM device token registration |
+| Native bridge | MethodChannel / EventChannel |
+| Android native integration | Kotlin, Android foreground service |
+| Wear communication boundary | Wear Data Layer |
+| Android package | `com.littlesignals.app` |
+| Testing | Flutter tests, regression smoke tests, Android/Kotlin unit tests |
 
+사용자-facing branding은 `Luma`입니다. Android package와 일부 runtime env key는 현재 빌드 및 배포 호환성을 위해 `com.littlesignals.app`, `LITTLESIGNALS_GOOGLE_SERVER_CLIENT_ID` 이름을 사용합니다.
 
-### 4.3 주요 사용자 흐름
+### 4.4 구현된 주요 기능
+
+현재 frontend에는 다음 사용자 흐름과 integration이 구현되어 있습니다.
+
+* Auth landing
+* Anonymous auth
+* Google Sign-In frontend request flow
+* Home dashboard
+* Stress log create/edit
+* Trigger/category management
+* Cycle current/history/create/update flow
+* My Cycle auto-save UX
+* Sleep log display states
+* Insight calendar / report UI
+* AI weekly report card/detail UI
+* Profile / nickname editing
+* Notification permission handling
+* FCM device token registration
+* Watch / biosignal capture UI
+* Raw biosignal consent toggle
+* Capture source picker
+* Capture status / summary screen
+* Session cleanup/provider reset
+* Korean UI copy polish
+* Regression smoke tests
+
+### 4.5 Architecture 요약
+
+Frontend는 shared core layer, feature layer, screen layer, native capture layer로 나뉩니다.
+
+* `lib/core/`는 app-wide foundation입니다. API base URL, shared `ApiClient`, secure token storage, theme, spacing, shared widgets, Korean UI formatter를 포함합니다.
+* `lib/features/`는 domain별 provider, model, service, API adapter를 포함합니다. Auth, Events, Cycles, Sleep, Triggers, Insight, Consent, Notifications, Privacy, Biosignals가 이 계층에 있습니다.
+* `lib/screens/`는 실제 화면 composition을 담당합니다. Home, Insight, My/Profile, Stress Log, My Cycle, Sleep Data, Watch/Biosignal Capture 화면이 Provider state를 소비합니다.
+* Provider는 화면 상태와 사용자 action을 조율합니다. 예를 들어 `EventsProvider`는 stress event create/edit flow를 관리하고, `CycleProvider`는 cycle save/update와 My Cycle auto-save를 담당하며, `InsightProvider`는 event/cycle data와 weekly report를 조합합니다.
+* `features/*/data` API layer는 backend endpoint와 JSON mapping을 캡슐화합니다. UI는 HTTP path나 backend response shape를 직접 다루지 않고 provider를 통해 domain state를 읽습니다.
+* Native capture layer는 `features/biosignals/`의 Flutter bridge와 `android/app/src/main/kotlin/com/littlesignals/app/capture/`의 Android service/controller/uploader로 구성됩니다. Flutter는 capture command와 status stream을 다루고, Android는 foreground capture session, Wear Data Layer messaging, sample buffering, upload window 생성, presigned S3 PUT upload를 처리합니다.
+
+### 4.6 사용자 흐름
 
 ```mermaid
 flowchart TD
-    A[Auth Landing] --> B{사용자 로그인 방식 선택}
-    B --> C[Anonymous Login]
-    B --> D[Google Sign-In]
-    B --> E[Email Login UI]
+    A["Auth Landing"] --> B{"Login method"}
+    B --> C["Anonymous Auth"]
+    B --> D["Google Sign-In frontend flow"]
+    C --> E["Home Dashboard"]
+    D --> E
 
-    C --> F[Home Dashboard]
-    D --> F
-    E --> F
+    E --> F["Stress Log"]
+    E --> G["My Cycle"]
+    E --> H["Sleep Data"]
+    E --> I["Insight / Report"]
+    E --> J["Profile"]
+    J --> K["Watch / Biosignal Capture"]
+    H --> K
 
-    F --> G[Stress Log]
-    F --> H[Cycle Tracking]
-    F --> I[Sleep Data]
-    F --> J[Insight Calendar]
-    F --> K[Profile]
+    F --> F1["Stress score"]
+    F --> F2["Trigger/category"]
+    F --> F3["Memo"]
+    F --> F4["Create or edit event"]
 
-    G --> G1[스트레스 강도 선택]
-    G --> G2[Trigger 선택]
-    G --> G3[메모 작성]
-    G --> G4[스트레스 기록 생성/수정]
+    G --> G1["Select period start/end"]
+    G1 --> G2["Auto-save cycle"]
+    G2 --> G3["Refresh Home and Insight"]
 
-    H --> H1[생리 시작/종료일 선택]
-    H --> H2[Auto-save cycle data]
-    H --> H3[Home / Insight refresh]
+    H --> H1["Empty state"]
+    H --> H2["Latest/history sleep state"]
 
-    I --> I1[수면 기록이 없을 때 Empty State]
-    I --> I2[수면 기록이 있을 때 Populated State]
+    I --> I1["Insight calendar"]
+    I --> I2["Cycle x stress report"]
+    I --> I3["AI weekly report card/detail"]
 
-    J --> J1[Cycle × Stress 리포트]
-    J --> J2[Trigger 분포]
-    J --> J3[일별 이벤트 상세]
-
-    K --> K1[닉네임 수정]
-    K --> K2[Trigger 관리]
-    K --> K3[개인정보 처리방침]
+    K --> K1["Raw biosignal consent"]
+    K1 --> K2["Source picker"]
+    K2 --> K3["Duration picker"]
+    K3 --> K4["Native capture session"]
+    K4 --> K5["Capture summary"]
 ```
 
+### 4.7 Frontend Data Flow
 
-### 4.4 구현 완료 기능
+```mermaid
+flowchart LR
+    UI["Flutter UI<br/>screens"] --> Provider["Provider state<br/>Auth, Events, Cycle, Sleep, Insight, Triggers"]
+    Provider --> DataAPI["Feature data API<br/>features/*/data"]
+    DataAPI --> ApiClient["Shared ApiClient<br/>token refresh, request id, JSON mapping"]
+    ApiClient --> Backend["FastAPI staging backend"]
+    Backend --> ApiClient
+    ApiClient --> DataAPI
+    DataAPI --> Provider
+    Provider --> UI
 
-현재 frontend 구현에는 다음 기능이 포함됩니다.
+    UI --> CaptureController["BiosignalCaptureController"]
+    CaptureController --> Channels["MethodChannel / EventChannel"]
+    Channels --> ForegroundService["Android foreground service"]
+    ForegroundService --> Source{"Capture source"}
+    Source --> Wear["Wear Data Layer"]
+    Source --> Synthetic["SyntheticSampleSource"]
+    Wear --> Receiver["WatchSampleReceiver"]
+    Receiver --> WatchBuffer["WatchSourceController"]
+    Synthetic --> Uploader["WindowUploader"]
+    WatchBuffer --> Uploader
+    Uploader --> Batch["POST /api/v1/sync/biosignals/batch"]
+    Batch --> Backend
+    Backend --> Presigned["Presigned S3 PUT URL"]
+    Presigned --> S3["S3 raw biosignal object"]
+```
 
-* Auth landing screen
-* Anonymous authentication flow
-* Google Sign-In frontend request flow
-* Home dashboard
-* Stress log create/edit flow
-* Default/custom trigger management
-* Duplicate trigger inline validation
-* Cycle tracking + auto-save UX
-* Cycle-aware insight copy
-* Sleep empty/populated states
-* Insight calendar 및 monthly report UI
-* Profile nickname editing
-* Korean UI copy polish
-* Notification permission handling
-* FCM device token registration
-* Session cleanup 및 provider reset
-* Staging API integration
-* Regression smoke tests
+### 4.8 Backend Integration
 
+Frontend는 staging backend와 다음 API 흐름을 사용합니다.
 
-심화 내용(아키텍처, Data Flow, Backend Integration Status, Watch/Sleep/Cycle Contract, Notification Flow)은 별도 문서로 분리되어 있습니다 → [`docs/frontend.md`](docs/frontend.md).
+| 기능 | API |
+| :--- | :--- |
+| User profile | `GET /api/v1/me`, `PATCH /api/v1/me` |
+| Stress events | `GET /api/v1/events`, `POST /api/v1/events`, `PATCH /api/v1/events/{id}`, `DELETE /api/v1/events/{id}` |
+| Cycle | `GET /api/v1/cycles/current`, `GET /api/v1/cycles/history`, `POST /api/v1/cycles/period-start`, `PATCH /api/v1/cycles/{id}` |
+| Trigger/category | `GET /api/v1/categories`, `POST /api/v1/categories`, `PATCH /api/v1/categories/{id}`, `DELETE /api/v1/categories/{id}` |
+| Consent | `GET /api/v1/consent`, `PATCH /api/v1/consent` |
+| Sleep logs | `GET /api/v1/sleep-logs/latest`, `GET /api/v1/sleep-logs`, `POST /api/v1/sleep-logs`, `PATCH /api/v1/sleep-logs/{id}`, `DELETE /api/v1/sleep-logs/{id}` |
+| Device token | `POST /api/v1/devices/fcm-token` |
+| Weekly report | `GET /api/v1/reports/weekly` |
+| Raw biosignal sync | `POST /api/v1/sync/biosignals/batch`, presigned S3 `PUT` upload flow |
 
-### 4.5 Frontend 실행
+Stress, cycle, sleep, trigger, profile, consent, report data는 feature별 API adapter에서 domain model로 변환된 뒤 Provider를 통해 화면에 전달됩니다. Raw biosignal upload는 Android native `WindowUploader`가 batch metadata를 backend에 등록하고, backend가 반환한 presigned S3 PUT URL로 채널별 payload를 업로드하는 구조입니다.
+
+### 4.9 Native Capture Integration
+
+Watch/Biosignal capture 화면은 phone-side raw biosignal capture/upload infrastructure와 연결되어 있습니다.
+
+* Flutter `BiosignalCaptureService`는 `MethodChannel('littlesignals/capture')`로 `start`, `stop`, `isWatchConnected` command를 호출합니다.
+* Flutter `BiosignalCaptureService`는 `EventChannel('littlesignals/capture/status')`로 capture state, elapsed seconds, uploaded window count, error state를 수신합니다.
+* Android `CaptureChannels`는 Flutter method/event channel을 등록하고, `BiosignalCaptureService` foreground service를 시작합니다.
+* Android foreground service는 timed/manual capture session을 실행하고 notification으로 capture 상태를 유지합니다.
+* `WearMessageClient`는 Wear Data Layer reachable node/capability를 확인하고 `/biosignals/start`, `/biosignals/stop` message를 보냅니다.
+* `WatchSampleReceiver`는 `/biosignals/samples`, `/biosignals/end` message를 수신합니다.
+* `WatchSourceController`는 HR, PPG, EDA, accelerometer sample batch를 buffer에 모읍니다.
+* `SyntheticSampleSource`는 capture/upload plumbing을 확인할 수 있는 synthetic sample source를 제공합니다.
+* `WindowUploader`는 1분 단위 window를 만들고 `hrv`, `ppg`, `eda`, `accel` payload를 backend batch registration 및 presigned S3 PUT upload flow로 보냅니다.
+* Capture session이 끝나면 Flutter는 elapsed time, uploaded window count, estimated data size를 summary screen에 표시합니다.
+
+이 섹션의 범위는 wearable-oriented raw biosignal capture/upload infrastructure이며, app의 stress/cycle/sleep 기록 UX와 병렬로 동작하는 capture/upload 경로를 다룹니다.
+
+### 4.10 Notification Flow
+
+앱은 Firebase Messaging을 사용해 알림 권한과 device token registration을 처리합니다.
+
+* Authenticated session load 시 `NotificationService.requestPermissionAndRegister()`가 호출됩니다.
+* Firebase Messaging permission prompt 결과를 확인한 뒤 FCM token을 가져옵니다.
+* token이 존재하면 `NotificationsApi.registerDeviceToken()`이 `/api/v1/devices/fcm-token`으로 `token`, `platform: android`를 전송합니다.
+* Notification copy는 OS locale에 맞춰 Korean/English text를 제공하며, 권한 안내와 fallback notification 문구를 분리해 관리합니다.
+
+### 4.11 Frontend 실행과 테스트
 
 ```bash
 cd frontend
@@ -660,28 +757,15 @@ flutter test
 flutter run
 ```
 
-### 4.6 테스트
-
-Frontend validation:
+Google OAuth web client ID를 명시적으로 지정할 때는 다음 runtime define을 사용합니다.
 
 ```bash
-flutter analyze
-flutter test
+flutter run --dart-define=LITTLESIGNALS_GOOGLE_SERVER_CLIENT_ID=YOUR_WEB_CLIENT_ID
 ```
 
-Regression smoke tests는 다음 흐름을 검증합니다.
+사용자-facing branding은 `Luma`이며, Android package와 Google OAuth runtime define은 `com.littlesignals.app`, `LITTLESIGNALS_GOOGLE_SERVER_CLIENT_ID` 이름을 사용합니다.
 
-* auth landing 및 login navigation
-* anonymous login flow
-* bottom tab navigation
-* Home dashboard rendering
-* stress log create/edit
-* trigger management
-* cycle tracking 및 auto-save
-* sleep empty/populated state
-* notification copy localization
-* nickname/session cleanup
-* provider reset behavior
+Regression smoke tests는 auth navigation, anonymous auth, main tabs, Home dashboard, stress log create/edit, trigger management, cycle auto-save, sleep display states, notification copy, nickname/session cleanup, provider reset 흐름을 검증합니다. Android/Kotlin unit tests는 `SyntheticSampleSource`, `WindowUploader`, `WearMessageClient`, `WatchSourceController`의 capture layer behavior를 검증합니다.
 
 
 ## 5. 아키텍처 전체 흐름 (요약)

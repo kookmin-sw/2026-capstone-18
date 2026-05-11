@@ -1,125 +1,170 @@
-# Luma Flutter Frontend
+# Luma Frontend
 
 ## Overview
 
-Luma is a Flutter mobile app for visualizing women's stress logs, menstrual cycle context, and sleep data flows. The current frontend uses a provider-driven architecture wired to the staging API.
+`frontend/`는 Luma의 Flutter 기반 Android app입니다. 사용자-facing 화면에서 stress logging, cycle-aware insight, sleep UI, notification registration, wearable-oriented biosignal capture UI를 담당합니다.
 
-The app is structured to support future Galaxy Watch, Health Connect, or Samsung Health ingestion, but native watch data ingestion is not implemented yet.
+앱은 staging backend와 REST API로 통신하며, Provider 기반 상태 관리로 화면과 data/API/native layer를 연결합니다. Root README가 전체 프로젝트 showcase 문서라면, 이 문서는 frontend module을 실행하고 구조를 이해하고 검증하기 위한 engineering README입니다.
 
-## Current Implemented Features
+## Tech Stack
 
-- Auth landing flow
-- Anonymous login
-- Google Sign-In frontend flow with account picker, `idToken` retrieval, and backend request to `POST /api/v1/auth/google`
-- Home dashboard for stress, cycle, and recent activity context
-- Stress log create and edit flow
-- Trigger management, including default trigger merge behavior and duplicate validation
-- Cycle tracking with date selection and auto-save UX
-- Sleep page empty state and populated state UI
-- Insight calendar and cycle/stress insight UI
-- Profile nickname editing with raw nickname storage and Korean display polish
-- Notification permission request and FCM device token registration pipeline
-- Korean UI copy polish for MVP flows
-- Regression smoke tests for core navigation and user flows
-- Session cleanup and provider reset on auth state changes
-- Staging API integration
+| 영역 | 기술 |
+| :--- | :--- |
+| App framework | Flutter / Dart |
+| State management | Provider |
+| Backend communication | REST API client layer |
+| Push registration | Firebase Messaging / FCM |
+| Auth frontend flow | Google Sign-In frontend flow, anonymous auth |
+| Native bridge | MethodChannel / EventChannel |
+| Native integration | Android foreground service |
+| Wear boundary | Wear Data Layer |
+| Android package | `com.littlesignals.app` |
 
-## Architecture
+## Project Structure
 
-- Flutter mobile frontend
-- Provider-based state management
-- API client layer for staging backend integration
-- Provider-driven UI state for auth, home, stress events, cycle, sleep, triggers, insight, consent, and future settings preferences
-- Service contracts for future Watch/Sleep/Cycle integration
+```text
+frontend/
+├── lib/
+│   ├── core/       # app config, ApiClient, secure storage, theme, shared widgets, UI formatters
+│   ├── features/   # domain providers, models, API adapters, services
+│   └── screens/    # Home, Insight, My/Profile, Stress Log, Cycle, Sleep, Watch UI
+├── android/        # Android package, native capture service, Wear Data Layer boundary
+└── test/           # Flutter unit/widget/regression smoke tests
+```
 
-The frontend keeps UI and provider state separate from backend transport details. API adapters own request/response mapping, while screens consume provider state.
+`lib/core`는 공통 기반 계층입니다. API base URL, token storage, shared HTTP client, theme, reusable widgets, Korean UI text formatter를 둡니다.
 
-## Integration Status
+`lib/features`는 domain별 provider와 data adapter를 둡니다. UI는 provider state를 읽고, provider는 `features/*/data` API adapter 또는 native service를 호출합니다.
 
-### Implemented
+`lib/screens`는 실제 화면 composition을 담당합니다. 화면은 backend endpoint를 직접 다루지 않고 Provider state와 action을 사용합니다.
 
+`android`는 Flutter app의 Android runtime과 native capture layer를 포함합니다. `test`는 app flow, provider behavior, formatter, notification copy, native bridge controller 등을 검증합니다.
+
+## Implemented Features
+
+- Auth landing
 - Anonymous auth
 - Google Sign-In frontend request flow
-- Staging API connectivity
-- FCM device token registration pipeline
-- Stress events create/list/update/delete flow
-- Cycle create/history/current/update flow
-- Sleep log create/list/latest/update/delete provider flow
-- Session lifecycle cleanup across providers
+- Home dashboard
+- Stress log create/edit
+- Trigger/category management
+- Cycle current/history/create/update flow
+- My Cycle auto-save UX
+- Sleep log display states
+- Insight calendar / report UI
+- AI weekly report card/detail UI
+- Profile / nickname editing
+- Notification permission
+- FCM device token registration
+- Watch / biosignal capture UI
+- Raw biosignal consent toggle
+- Capture source picker
+- Capture status / summary screen
+- Korean UI copy polish
+- Regression smoke tests
 
-### Pending / Next Stage
+## Backend APIs Used
 
-- Backend Google OAuth audience/client alignment for staging `invalid_google_token` cases
-- Email/password auth endpoints
-- Real Galaxy Watch data ingestion
-- Health Connect or Samsung Health data source integration
-- Native Android bridge or MethodChannel integration
-- End-to-end push notification delivery verification
+Frontend에서 사용하는 주요 backend API는 다음과 같습니다.
 
-The frontend is integration-ready for watch-driven sleep and cycle data, but native ingestion is still pending.
+| 기능 | API |
+| :--- | :--- |
+| User profile | `/api/v1/me` |
+| Stress events | `/api/v1/events` |
+| Cycle current | `/api/v1/cycles/current` |
+| Cycle history | `/api/v1/cycles/history` |
+| Trigger/category | `/api/v1/categories` |
+| Consent | `/api/v1/consent` |
+| Sleep latest | `/api/v1/sleep-logs/latest` |
+| FCM device token | `/api/v1/devices/fcm-token` |
+| Weekly report | `/api/v1/reports/weekly` |
+| Biosignal batch metadata | `/api/v1/sync/biosignals/batch` |
+| Raw biosignal object upload | presigned S3 PUT upload flow |
 
-## Watch / Sleep / Cycle Contract
+API base URL은 `lib/core/config/api_config.dart`에서 관리합니다. Shared `ApiClient`는 request ID, JSON decode, auth header, token refresh, error mapping을 담당합니다.
 
-`WatchSleepService.getLatestSleepData()` is the frontend boundary for future sleep ingestion. The provider expects a `WatchSleepData` model with:
+## Native Capture Infrastructure
 
-- `fellAsleepAt`
-- `wokeUpAt`
-- `endedOn`
+Luma frontend에는 wearable-oriented biosignal capture infrastructure가 포함되어 있습니다. 이 범위는 raw biosignal capture/upload UX와 phone-side native plumbing을 설명합니다.
 
-`WatchCycleService.getLatestCycleData()` is the frontend boundary for future cycle ingestion. The provider expects a `WatchCycleData` model with:
+- Flutter `BiosignalCaptureService`
+  - `MethodChannel('littlesignals/capture')`
+  - `EventChannel('littlesignals/capture/status')`
+  - `start`, `stop`, `isWatchConnected`, `statusStream`
+- Flutter `BiosignalCaptureController`
+  - capture state, elapsed seconds, uploaded window count, error, watch connection state 노출
+- Android `BiosignalCaptureService`
+  - foreground service로 capture session 실행
+- Wear Data Layer messaging
+  - `WearMessageClient`가 reachable node/capability 확인과 `/biosignals/start`, `/biosignals/stop` 전송 담당
+- `WatchSampleReceiver`
+  - `/biosignals/samples`, `/biosignals/end` message 수신
+- `WatchSourceController`
+  - HR, PPG, EDA, accelerometer sample buffering
+- `SyntheticSampleSource`
+  - capture/upload plumbing 확인용 synthetic source
+- `WindowUploader`
+  - 1분 단위 window 생성
+  - `/api/v1/sync/biosignals/batch` 호출
+  - backend가 반환한 presigned S3 PUT URL로 raw payload 업로드
+- Capture summary UI
+  - elapsed time, uploaded window count, estimated data size 표시
 
-- `periodStart`
-- `periodEnd`
-- `estimatedCycleLength`
+간단한 흐름은 다음과 같습니다.
 
-Once a native data source is connected, these service contracts can provide watch or health-platform data to the existing provider/UI flow without redesigning the screens.
+```mermaid
+flowchart LR
+    UI["Flutter Watch UI"] --> Bridge["MethodChannel / EventChannel"]
+    Bridge --> Service["Android foreground service"]
+    Service --> Source{"Capture source"}
+    Source --> Wear["Wear Data Layer"]
+    Source --> Synthetic["SyntheticSampleSource"]
+    Wear --> Receiver["WatchSampleReceiver"]
+    Receiver --> Buffer["WatchSourceController"]
+    Synthetic --> Uploader["WindowUploader"]
+    Buffer --> Uploader
+    Uploader --> Batch["/api/v1/sync/biosignals/batch"]
+    Batch --> S3["Presigned S3 PUT"]
+```
 
-## Running the App
-
-Install dependencies:
+## Running
 
 ```bash
+cd frontend
 flutter pub get
-```
-
-Run static analysis:
-
-```bash
-flutter analyze
-```
-
-Run tests:
-
-```bash
-flutter test
-```
-
-Run the app:
-
-```bash
 flutter run
 ```
 
-Run with an explicit Google web client ID override:
+Google OAuth web client ID를 runtime에 지정할 때:
 
 ```bash
 flutter run --dart-define=LITTLESIGNALS_GOOGLE_SERVER_CLIENT_ID=YOUR_WEB_CLIENT_ID
 ```
 
-## Google Login Configuration
+## Testing
 
-The Google Sign-In frontend flow is wired for the current integration state:
+```bash
+flutter analyze
+flutter test
+```
 
-- Google account picker opens through the Flutter client.
-- The frontend requests a Google `idToken`.
-- The token is sent to `POST /api/v1/auth/google`.
-- An `invalid_google_token` response from staging indicates backend OAuth client/audience alignment needs to be checked.
+Regression smoke tests는 auth navigation, anonymous auth, main tabs, Home dashboard, stress log create/edit, trigger management, cycle auto-save, sleep display states, notification copy, nickname/session cleanup, provider reset 같은 주요 app flow를 검증합니다.
 
-For real Google login, confirm that Firebase and backend OAuth configuration use the same web client ID expected by the Flutter app as `serverClientId`.
+Android native unit tests는 Android project에서 실행할 수 있습니다.
 
-## Configuration / Secrets
+```bash
+cd android
+./gradlew testDebugUnitTest
+```
 
-Do not commit local secrets or generated service files:
+## Configuration Notes
+
+- 사용자-facing branding은 `Luma`입니다.
+- Android package는 현재 `com.littlesignals.app`입니다.
+- Google OAuth runtime env key는 현재 `LITTLESIGNALS_GOOGLE_SERVER_CLIENT_ID`입니다.
+- Android package 및 일부 runtime env key는 build/runtime compatibility를 위해 유지됩니다.
+
+다음 local secret 또는 generated file은 commit하지 않습니다.
 
 - `google-services.json`
 - `GoogleService-Info.plist`
@@ -129,31 +174,3 @@ Do not commit local secrets or generated service files:
 - `key.properties`
 - `*.keystore`
 - `*.jks`
-
-The base URL and websocket URL are configured in `lib/core/config/api_config.dart`.
-
-## Testing
-
-Use the standard Flutter checks:
-
-```bash
-flutter analyze
-flutter test
-```
-
-Regression smoke tests cover:
-
-- auth landing and login navigation
-- main tab navigation
-- cycle tracking and auto-save
-- sleep screens
-- trigger management
-- stress log creation/editing
-- notification copy
-- nickname and session cleanup behavior
-
-## Notes
-
-- Frontend naming, configuration, and documentation are standardized under the Luma project name.
-- Do not describe Galaxy Watch integration as complete until native data ingestion is connected and verified.
-- Current watch-related frontend architecture is contract-ready; actual native ingestion remains a next-stage integration task.
