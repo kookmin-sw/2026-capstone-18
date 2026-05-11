@@ -209,4 +209,14 @@ object DspPrimitives {
         val c2 = (5.0 * sx2y - 10.0 * sy) / det
         return { t -> c0 + c1 * t + c2 * t * t }
     }
+
+    fun ema(arr: DoubleArray, span: Int): DoubleArray {
+        require(arr.isNotEmpty()) { "empty input" }
+        val alpha = 2.0 / (span + 1.0)
+        val b = doubleArrayOf(alpha)
+        val a = doubleArrayOf(1.0, -(1.0 - alpha))
+        val zi = lfilterZi(b, a)
+        val ziScaled = DoubleArray(zi.size) { i -> zi[i] * arr[0] }
+        return lfilter(b, a, arr, ziScaled)
+    }
 }
