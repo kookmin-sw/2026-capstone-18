@@ -342,7 +342,7 @@ void main() {
     expect(find.text('Galaxy Watch와 동기화'), findsOneWidget);
 
     final initialStart = data.cycleProvider.currentCycle!.lastPeriodStart;
-    final updatedStart = initialStart.add(const Duration(days: 1));
+    final updatedStart = _differentVisibleCycleDate(initialStart);
 
     await tester.tap(find.text(koFullDate(initialStart)).first);
     await tester.pumpAndSettle();
@@ -388,7 +388,7 @@ void main() {
     _expectNoFlutterException(tester);
 
     final initialEnd = data.cycleProvider.currentCycle!.periodEndDate!;
-    final updatedEnd = initialEnd.add(const Duration(days: 1));
+    final updatedEnd = _differentVisibleCycleDate(initialEnd);
 
     await tester.tap(find.text(koFullDate(initialEnd)).first);
     await tester.pumpAndSettle();
@@ -426,7 +426,7 @@ void main() {
     _expectNoFlutterException(tester);
 
     final initialStart = data.cycleProvider.currentCycle!.lastPeriodStart;
-    final updatedStart = initialStart.add(const Duration(days: 1));
+    final updatedStart = _differentVisibleCycleDate(initialStart);
 
     await tester.tap(find.text(koFullDate(initialStart)).first);
     await tester.pumpAndSettle();
@@ -615,6 +615,11 @@ void main() {
       }
     },
   );
+}
+
+DateTime _differentVisibleCycleDate(DateTime date) {
+  final day = date.day == 1 ? 2 : date.day - 1;
+  return DateTime(date.year, date.month, day);
 }
 
 class _SmokeApp extends StatelessWidget {
