@@ -157,7 +157,7 @@ class SleepProvider extends ChangeNotifier {
       final data = await watchSleepService.getLatestSleepData();
 
       if (data == null) {
-        _errorMessage = 'Galaxy Watch 수면 동기화는 곧 사용할 수 있어요.';
+        _errorMessage = '수면 데이터를 동기화하지 못했어요. 다시 시도해 주세요.';
         notifyListeners();
         return false;
       }
@@ -168,7 +168,7 @@ class SleepProvider extends ChangeNotifier {
         endedOn: data.endedOn,
       );
     } catch (_) {
-      _errorMessage = 'Galaxy Watch 수면 동기화는 곧 사용할 수 있어요.';
+      _errorMessage = '수면 데이터를 동기화하지 못했어요. 다시 시도해 주세요.';
       notifyListeners();
       return false;
     }

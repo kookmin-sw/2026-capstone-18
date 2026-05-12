@@ -11,7 +11,6 @@ import '../../core/widgets/soft_primary_button.dart';
 import '../../features/sleep/models/sleep_log.dart';
 import '../../features/sleep/services/sleep_insight_service.dart';
 import '../../features/sleep/sleep_provider.dart';
-import 'watch_connect_screen.dart';
 
 class SleepDataScreen extends StatefulWidget {
   const SleepDataScreen({super.key});
@@ -23,6 +22,7 @@ class SleepDataScreen extends StatefulWidget {
 class _SleepDataScreenState extends State<SleepDataScreen> {
   late DateTime _rangeStart;
   late DateTime _rangeEnd;
+  bool _syncingSleep = false;
 
   @override
   void initState() {
@@ -45,14 +45,42 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
     );
   }
 
-  Future<void> _openWatchConnect() async {
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(builder: (_) => const WatchConnectScreen()),
-    );
+  Future<void> _syncSleepFromHealthData() async {
+    if (_syncingSleep) return;
 
-    if (!mounted) return;
-    await _loadSelectedRange();
+    final sleepProvider = context.read<SleepProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    setState(() {
+      _syncingSleep = true;
+    });
+
+    try {
+      final synced = await sleepProvider.syncSleepFromGalaxyWatch();
+      if (!mounted) return;
+
+      if (synced) {
+        await _loadSelectedRange();
+        if (!mounted) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text('건강 데이터에서 수면 기록을 불러왔어요.')),
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              sleepProvider.errorMessage ?? '수면 데이터를 동기화하지 못했어요. 다시 시도해 주세요.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _syncingSleep = false;
+        });
+      }
+    }
   }
 
   Future<DateTime?> _pickDate({
@@ -278,7 +306,8 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
                               _LatestSleepCard(sleepLog: latestInRange)
                             else
                               _LatestSleepEmptyCard(
-                                onConnect: _openWatchConnect,
+                                isSyncing: _syncingSleep,
+                                onSync: _syncSleepFromHealthData,
                               ),
                             if (records.isNotEmpty) ...[
                               const SizedBox(height: 12),
@@ -340,9 +369,10 @@ class _LatestSleepCard extends StatelessWidget {
 }
 
 class _LatestSleepEmptyCard extends StatelessWidget {
-  final Future<void> Function() onConnect;
+  final bool isSyncing;
+  final Future<void> Function() onSync;
 
-  const _LatestSleepEmptyCard({required this.onConnect});
+  const _LatestSleepEmptyCard({required this.isSyncing, required this.onSync});
 
   @override
   Widget build(BuildContext context) {
@@ -362,8 +392,9 @@ class _LatestSleepEmptyCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           SoftPrimaryButton(
-            text: 'Galaxy Watch 연결하기',
-            onTap: onConnect,
+            text: '건강 데이터에서 불러오기',
+            onTap: isSyncing ? null : onSync,
+            isLoading: isSyncing,
             height: 38,
             fullWidth: false,
           ),
