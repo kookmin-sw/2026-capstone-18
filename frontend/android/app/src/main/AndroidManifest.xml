@@ -50,14 +50,6 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/biosignals/" />
             </intent-filter>
         </service>
-        <activity
-            android:name="androidx.health.connect.client.PermissionController"
-            android:exported="true"
-            android:permission="android.permission.START_HEALTH_CONNECT_PERMISSION_ACTIVITY">
-            <intent-filter>
-                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
-            </intent-filter>
-        </activity>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -12,16 +12,21 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 private const val CHANNEL = "littlesignals/health"
 
 object HealthChannels {
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun register(context: Context, engine: FlutterEngine) {
+        scope.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val appContext = context.applicationContext
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -41,7 +46,7 @@ object HealthChannels {
         result: MethodChannel.Result,
         block: suspend () -> Map<String, Any?>?,
     ) {
-        GlobalScope.launch(Dispatchers.IO) {
+        scope.launch {
             runCatching { block() }
                 .onSuccess { data -> mainHandler.post { result.success(data) } }
                 .onFailure { e -> mainHandler.post { result.error("health_connect_error", e.message, null) } }
@@ -49,7 +54,9 @@ object HealthChannels {
     }
 
     private suspend fun fetchLatestSleep(context: Context): Map<String, Any?>? {
-        val client = healthClient(context) ?: return null
+        val client = healthClient(context, setOf(
+            "android.permission.health.READ_SLEEP"
+        )) ?: return null
         val now = Instant.now()
         val request = ReadRecordsRequest(
             SleepSessionRecord::class,
@@ -66,7 +73,9 @@ object HealthChannels {
     }
 
     private suspend fun fetchLatestCycle(context: Context): Map<String, Any?>? {
-        val client = healthClient(context) ?: return null
+        val client = healthClient(context, setOf(
+            "android.permission.health.READ_MENSTRUATION"
+        )) ?: return null
         val now = Instant.now()
         val request = ReadRecordsRequest(
             MenstruationPeriodRecord::class,
@@ -82,9 +91,12 @@ object HealthChannels {
         )
     }
 
-    private fun healthClient(context: Context): HealthConnectClient? {
+    private suspend fun healthClient(context: Context, requiredPermissions: Set<String>): HealthConnectClient? {
         val status = HealthConnectClient.getSdkStatus(context)
         if (status != HealthConnectClient.SDK_AVAILABLE) return null
-        return HealthConnectClient.getOrCreate(context)
+        val client = HealthConnectClient.getOrCreate(context)
+        val granted = client.permissionController.getGrantedPermissions()
+        if (!granted.containsAll(requiredPermissions)) return null
+        return client
     }
 }
