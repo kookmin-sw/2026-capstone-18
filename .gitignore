@@ -70,6 +70,7 @@ docker-compose.override.yml
 
 # Local-only planning docs
 docs/superpowers/
+docs/audit/
 
 # Local-only parity fixture (built from gitignored AI/data/raw/Galaxy_Test/)
 frontend/android/app/src/test/resources/galaxy_test.zip
