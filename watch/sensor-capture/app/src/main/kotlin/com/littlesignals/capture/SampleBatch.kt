@@ -43,3 +43,41 @@ class SampleBatch {
         val accel: List<AccelSample>,
     )
 }
+
+/**
+ * Serialize a [SampleBatch.Drain] to the JSON shape the phone's `WatchSourceController`
+ * parses. Schema is locked by the phone-side test
+ * `frontend/android/app/src/test/kotlin/com/littlesignals/app/capture/WatchSourceControllerTest.kt`
+ * — do not change keys without updating the phone side first.
+ */
+fun serializeBatchPayload(tStartMs: Long, drain: SampleBatch.Drain): String {
+    val root = org.json.JSONObject()
+    root.put("tStartMs", tStartMs)
+    val hrArr = org.json.JSONArray()
+    for (s in drain.hr) {
+        hrArr.put(org.json.JSONObject().put("t", s.timestampMs).put("v", s.value))
+    }
+    root.put("hr", hrArr)
+    val ppgArr = org.json.JSONArray()
+    for (s in drain.ppg) {
+        ppgArr.put(org.json.JSONObject().put("t", s.timestampMs).put("v", s.value))
+    }
+    root.put("ppg", ppgArr)
+    val edaArr = org.json.JSONArray()
+    for (s in drain.eda) {
+        edaArr.put(org.json.JSONObject().put("t", s.timestampMs).put("v", s.value))
+    }
+    root.put("eda", edaArr)
+    val accelArr = org.json.JSONArray()
+    for (s in drain.accel) {
+        accelArr.put(
+            org.json.JSONObject()
+                .put("t", s.timestampMs)
+                .put("x", s.x)
+                .put("y", s.y)
+                .put("z", s.z)
+        )
+    }
+    root.put("accel", accelArr)
+    return root.toString()
+}
