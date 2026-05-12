@@ -172,11 +172,13 @@ class BiosignalCaptureService : Service() {
                         windowRecordedAtMs = nowMs
                         windowsUploaded += 1
                         lastWindowStart = nowMs
+                        val snapshotUploaded = windowsUploaded
+                        val snapshotElapsed  = elapsedSec
                         scope.launch {
                             val result = uploader.upload(payload)
                             if (!result.success) {
-                                CaptureChannels.emit(state = "capturing", elapsedSec = elapsedSec,
-                                    windowsUploaded = windowsUploaded, error = "upload_warn_${result.errorCode}")
+                                CaptureChannels.emit(state = "capturing", elapsedSec = snapshotElapsed,
+                                    windowsUploaded = snapshotUploaded, error = "upload_warn_${result.errorCode}")
                             }
                         }
                     }
