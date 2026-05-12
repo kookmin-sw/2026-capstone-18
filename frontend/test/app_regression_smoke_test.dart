@@ -209,7 +209,7 @@ void main() {
       await tester.pumpAndSettle();
       _expectNoFlutterException(tester);
       expect(find.text('최근 생리 시작일'), findsWidgets);
-      expect(find.text('사이클 스트레스 패턴'), findsOneWidget);
+      expect(find.text('사이클 스트레스 패턴'), findsNothing);
 
       await tester.tap(find.text('동기화하기'));
       await tester.pumpAndSettle();

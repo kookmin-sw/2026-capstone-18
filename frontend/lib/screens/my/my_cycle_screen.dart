@@ -10,7 +10,6 @@ import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_title.dart';
 import '../../core/widgets/soft_primary_button.dart';
 import '../../features/cycles/cycle_provider.dart';
-import '../../features/cycles/services/cycle_insight_service.dart';
 import '../../features/home/home_provider.dart';
 import '../../features/insight/insight_provider.dart';
 
@@ -404,7 +403,6 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
   @override
   Widget build(BuildContext context) {
     final cycleProvider = context.watch<CycleProvider>();
-    final insightProvider = context.watch<InsightProvider>();
     final cycleLength = cycleProvider.calculatedCycleLength;
 
     final periodLength = periodLengthForCalculation;
@@ -412,14 +410,6 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
     final currentPhase = _currentPhase(cycleDay, periodLength);
     final daysUntilNextPeriod = _daysUntilNextPeriod(cycleDay, cycleLength);
     final progress = (cycleDay / cycleLength).clamp(0.0, 1.0);
-    final insightCycles = insightProvider.cycles.isEmpty
-        ? cycleProvider.cycleHistory
-        : insightProvider.cycles;
-    final stressInsight = CycleInsightService().buildStressInsight(
-      events: insightProvider.events,
-      cycles: insightCycles,
-      currentPhase: currentPhase,
-    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -489,10 +479,6 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
                         progress: progress,
                         color: _phaseColor(currentPhase),
                       ),
-
-                      const SizedBox(height: 12),
-
-                      _CycleStressInsightCard(insight: stressInsight),
 
                       if (_saving) ...[
                         const SizedBox(height: 12),
@@ -1263,35 +1249,6 @@ class _PhaseCard extends StatelessWidget {
               minHeight: 7,
               backgroundColor: color.withValues(alpha: 0.18),
               valueColor: AlwaysStoppedAnimation<Color>(color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CycleStressInsightCard extends StatelessWidget {
-  final String insight;
-
-  const _CycleStressInsightCard({required this.insight});
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.all(16),
-      borderRadius: 24,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionTitle(title: '사이클 스트레스 패턴'),
-          const SizedBox(height: 8),
-          Text(
-            insight,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF9888A0),
-              height: 1.5,
             ),
           ),
         ],
