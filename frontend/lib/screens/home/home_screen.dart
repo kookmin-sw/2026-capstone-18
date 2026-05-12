@@ -287,6 +287,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: GlassCard(
                           child: _MetricCardContent(
                             label: '수면',
+                            icon: Icons.nights_stay_rounded,
+                            iconColor: AppColors.phaseOvulation,
                             value: latestSleep == null
                                 ? '--'
                                 : '${latestSleep.durationHours.toStringAsFixed(1)}시간',
@@ -302,6 +304,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: GlassCard(
                         child: _MetricCardContent(
                           label: '남은 기록',
+                          icon: Icons.auto_awesome_rounded,
+                          iconColor: AppColors.primaryLight,
                           value: '$unloggedCount',
                           caption: '기록을 기다려요',
                         ),
@@ -325,6 +329,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: GlassCard(
                           child: _MetricCardContent(
                             label: '기록',
+                            icon: Icons.calendar_month_rounded,
+                            iconColor: AppColors.phaseFollicular,
                             value: '$todayLoggedCount',
                             caption: todayLoggedCount > 0
                                 ? '이번 주 $weekCount건'
@@ -341,6 +347,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: GlassCard(
                           child: _MetricCardContent(
                             label: '주기',
+                            icon: Icons.water_drop_outlined,
+                            iconColor: AppColors.phaseMenstrual,
                             value: cycleDay,
                             caption: hasCycle
                                 ? ''
@@ -358,117 +366,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 12),
 
                 if (hasCycle)
-                  GlassCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('주기 흐름', style: AppTextStyles.cardTitle),
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 4,
-                                child: Container(
-                                  height: 8,
-                                  color: const Color(0xBFFFDAD5),
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              Expanded(
-                                flex: 6,
-                                child: Container(
-                                  height: 8,
-                                  color: const Color(0xBFF2DCF3),
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              Expanded(
-                                flex: 3,
-                                child: Container(
-                                  height: 8,
-                                  color: const Color(0xBFDDEDF8),
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              Expanded(
-                                flex: 10,
-                                child: Container(
-                                  height: 8,
-                                  color: const Color(0xBF94D0BC),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '생리기',
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: Color(0xFFC0B0C0),
-                              ),
-                            ),
-                            Text(
-                              '난포기',
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: Color(0xFFC0B0C0),
-                              ),
-                            ),
-                            Text(
-                              '배란기',
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: Color(0xFFC0B0C0),
-                              ),
-                            ),
-                            Text(
-                              '황체기',
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: Color(0xFFC0B0C0),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        const Divider(color: Color(0x20000000), height: 1),
-                        const SizedBox(height: 10),
-                        Text(
-                          koPhase(cyclePhase),
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF9888A0),
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _phaseDescription(cyclePhase),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFFC0B0C0),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            daysLeft,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF9888A0),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                  _CycleProgressCard(
+                    cycleDay: home.currentCycle!.cycleDay,
+                    cycleLength: home.currentCycle!.cycleLength,
+                    periodLength: home.currentCycle!.periodLength,
+                    phase: cyclePhase,
+                    phaseDescription: _phaseDescription(cyclePhase),
+                    daysLeft: daysLeft,
                   )
                 else
                   GestureDetector(
@@ -547,12 +451,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _MetricCardContent extends StatelessWidget {
   final String label;
+  final IconData? icon;
+  final Color iconColor;
   final String value;
   final String caption;
   final Color captionColor;
 
   const _MetricCardContent({
     required this.label,
+    this.icon,
+    this.iconColor = AppColors.primaryLight,
     required this.value,
     required this.caption,
     this.captionColor = const Color(0xFFC0B0C0),
@@ -565,7 +473,25 @@ class _MetricCardContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: AppTextStyles.label),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: Text(label, style: AppTextStyles.label)),
+              if (icon != null)
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.55),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.72),
+                    ),
+                  ),
+                  child: Icon(icon, size: 13, color: AppColors.textB),
+                ),
+            ],
+          ),
           const Spacer(),
           Text(value, style: AppTextStyles.metricNumber.copyWith(fontSize: 22)),
           if (caption.isNotEmpty)
@@ -574,6 +500,266 @@ class _MetricCardContent extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CycleProgressCard extends StatelessWidget {
+  final int cycleDay;
+  final int cycleLength;
+  final int periodLength;
+  final String phase;
+  final String phaseDescription;
+  final String daysLeft;
+
+  const _CycleProgressCard({
+    required this.cycleDay,
+    required this.cycleLength,
+    required this.periodLength,
+    required this.phase,
+    required this.phaseDescription,
+    required this.daysLeft,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = _cyclePhaseSegments(
+      cycleLength: cycleLength,
+      periodLength: periodLength,
+    );
+    final safeCycleLength = cycleLength <= 0 ? 28 : cycleLength;
+    final safeCycleDay = cycleDay.clamp(1, safeCycleLength);
+    final markerRatio = safeCycleLength <= 1
+        ? 0.0
+        : ((safeCycleDay - 1) / (safeCycleLength - 1)).clamp(0.0, 1.0);
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('주기 흐름', style: AppTextStyles.cardTitle),
+          const SizedBox(height: 18),
+          _CyclePhaseBar(segments: segments, markerRatio: markerRatio),
+          const SizedBox(height: 12),
+          Row(
+            children: segments.map((segment) {
+              return Expanded(
+                flex: segment.duration,
+                child: Text(
+                  segment.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: AppColors.textL,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
+          const Divider(color: Color(0x20000000), height: 1),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: _phaseColor(phase).withValues(alpha: 0.6),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.water_drop_outlined,
+                  size: 17,
+                  color: AppColors.textB,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      koPhase(phase),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textB,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      phaseDescription,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        height: 1.35,
+                        color: AppColors.textM,
+                      ),
+                    ),
+                    if (daysLeft.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        daysLeft,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CyclePhaseBar extends StatelessWidget {
+  final List<_CyclePhaseSegment> segments;
+  final double markerRatio;
+
+  const _CyclePhaseBar({required this.segments, required this.markerRatio});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final markerLeft = (constraints.maxWidth * markerRatio).clamp(
+            0.0,
+            constraints.maxWidth,
+          );
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 13,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: Row(
+                    children: segments.map((segment) {
+                      return Expanded(
+                        flex: segment.duration,
+                        child: Container(height: 12, color: segment.color),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: (markerLeft - 6).clamp(0.0, constraints.maxWidth - 12),
+                top: 0,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.26),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 2,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.82),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CyclePhaseSegment {
+  final String label;
+  final int duration;
+  final Color color;
+
+  const _CyclePhaseSegment({
+    required this.label,
+    required this.duration,
+    required this.color,
+  });
+}
+
+List<_CyclePhaseSegment> _cyclePhaseSegments({
+  required int cycleLength,
+  required int periodLength,
+}) {
+  final safeCycleLength = cycleLength <= 0 ? 28 : cycleLength;
+  final menstrualLength = periodLength.clamp(1, safeCycleLength).toInt();
+  final follicularEnd = 13.clamp(menstrualLength, safeCycleLength).toInt();
+  final ovulationEnd = 16.clamp(follicularEnd, safeCycleLength).toInt();
+  final follicularLength = (follicularEnd - menstrualLength)
+      .clamp(1, safeCycleLength)
+      .toInt();
+  final ovulationLength = (ovulationEnd - follicularEnd)
+      .clamp(1, safeCycleLength)
+      .toInt();
+  final lutealLength = (safeCycleLength - ovulationEnd)
+      .clamp(1, safeCycleLength)
+      .toInt();
+
+  return [
+    _CyclePhaseSegment(
+      label: '생리기',
+      duration: menstrualLength,
+      color: AppColors.phaseMenstrual,
+    ),
+    _CyclePhaseSegment(
+      label: '난포기',
+      duration: follicularLength,
+      color: AppColors.phaseFollicular,
+    ),
+    _CyclePhaseSegment(
+      label: '배란기',
+      duration: ovulationLength,
+      color: AppColors.phaseOvulation,
+    ),
+    _CyclePhaseSegment(
+      label: '황체기',
+      duration: lutealLength,
+      color: AppColors.phaseLuteal,
+    ),
+  ];
+}
+
+Color _phaseColor(String phase) {
+  final normalized = phase.toLowerCase();
+  if (normalized.contains('period') || normalized.contains('menstrual')) {
+    return AppColors.phaseMenstrual;
+  }
+  if (normalized.contains('follicular')) return AppColors.phaseFollicular;
+  if (normalized.contains('ovulation')) return AppColors.phaseOvulation;
+  if (normalized.contains('luteal')) return AppColors.phaseLuteal;
+  return AppColors.triggerOther;
 }
 
 class _MorningTipCard extends StatefulWidget {
@@ -611,7 +797,11 @@ class _MorningTipCardState extends State<_MorningTipCard> {
                     ),
                     borderRadius: BorderRadius.circular(7),
                   ),
-                  child: const Icon(Icons.auto_awesome, size: 13, color: Colors.white),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    size: 13,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -634,8 +824,13 @@ class _MorningTipCardState extends State<_MorningTipCard> {
             Text(
               widget.tip.headline,
               maxLines: _expanded ? null : 1,
-              overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-              style: AppTextStyles.cardTitle.copyWith(fontSize: 15, height: 1.3),
+              overflow: _expanded
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
+              style: AppTextStyles.cardTitle.copyWith(
+                fontSize: 15,
+                height: 1.3,
+              ),
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 220),
@@ -647,7 +842,9 @@ class _MorningTipCardState extends State<_MorningTipCard> {
                         const SizedBox(height: 8),
                         Text(
                           widget.tip.body,
-                          style: AppTextStyles.body.copyWith(color: AppColors.textB),
+                          style: AppTextStyles.body.copyWith(
+                            color: AppColors.textB,
+                          ),
                         ),
                         if (widget.tip.contextLine != null &&
                             widget.tip.contextLine!.isNotEmpty) ...[
