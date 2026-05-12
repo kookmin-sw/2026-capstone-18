@@ -1,4 +1,4 @@
-import 'dart:math' as _math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -63,9 +63,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
     final token = await _tokenStorage.readAccessToken();
     if (!mounted) return;
     if (token == null || token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인이 필요해요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인이 필요해요.')));
       return;
     }
     await _controller.start(
@@ -104,14 +104,20 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      Text('상태: ${_controller.state}',
-                          style: Theme.of(context).textTheme.bodyLarge),
+                      Text(
+                        '상태: ${_controller.state}',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
                       const SizedBox(height: 8),
-                      Text('경과 $mm:$ss · 업로드된 윈도우 ${_controller.windowsUploaded}'),
+                      Text(
+                        '경과 $mm:$ss · 업로드된 윈도우 ${_controller.windowsUploaded}',
+                      ),
                       if (_controller.error != null) ...[
                         const SizedBox(height: 8),
-                        Text('오류: ${_controller.error}',
-                            style: const TextStyle(color: Colors.red)),
+                        Text(
+                          '오류: ${_controller.error}',
+                          style: const TextStyle(color: Colors.red),
+                        ),
                       ],
                     ],
                   ),
@@ -121,8 +127,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
               if (!isCapturing) ...[
                 Consumer<ConsentProvider>(
                   builder: (context, provider, _) {
-                    final granted = provider.consent?.rawBiosignalConsent == true
-                        && provider.consent?.consentRevokedAt == null;
+                    final granted =
+                        provider.consent?.rawBiosignalConsent == true &&
+                        provider.consent?.consentRevokedAt == null;
                     return GlassCard(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -135,7 +142,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                                 Expanded(
                                   child: Text(
                                     '원시 생체신호 데이터 업로드 동의',
-                                    style: Theme.of(context).textTheme.titleMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
                                   ),
                                 ),
                                 Switch(
@@ -190,7 +199,10 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                ElevatedButton(onPressed: _canStart() ? _onStart : null, child: const Text('캡처 시작')),
+                ElevatedButton(
+                  onPressed: _canStart() ? _onStart : null,
+                  child: const Text('캡처 시작'),
+                ),
               ] else ...[
                 _LiveCaptureView(
                   elapsedSec: _controller.elapsedSec,
@@ -201,7 +213,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                 if (_controller.latestDetection != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
-                    child: _DetectionCard(detection: _controller.latestDetection!),
+                    child: _DetectionCard(
+                      detection: _controller.latestDetection!,
+                    ),
                   ),
               ],
             ],
@@ -246,7 +260,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
 
   bool _canStart() {
     final consent = context.read<ConsentProvider>().consent;
-    final granted = consent?.rawBiosignalConsent == true && consent?.consentRevokedAt == null;
+    final granted =
+        consent?.rawBiosignalConsent == true &&
+        consent?.consentRevokedAt == null;
     if (!granted) return false;
     // Don't gate on watchConnected — connectedNodes is unreliable.
     return true;
@@ -309,7 +325,7 @@ class _LiveCaptureViewState extends State<_LiveCaptureView>
               children: [
                 AnimatedBuilder(
                   animation: _pulseController,
-                  builder: (_, __) => Row(
+                  builder: (context, child) => Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
@@ -386,7 +402,8 @@ class _LiveCaptureViewState extends State<_LiveCaptureView>
                     const SizedBox(width: 24),
                     _StatChip(
                       label: '데이터',
-                      value: '${(widget.windowsUploaded * 240 / 1024).toStringAsFixed(1)}',
+                      value: (widget.windowsUploaded * 240 / 1024)
+                          .toStringAsFixed(1),
                       sub: 'MB',
                     ),
                   ],
@@ -403,10 +420,7 @@ class _LiveCaptureViewState extends State<_LiveCaptureView>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '실시간 신호',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text('실시간 신호', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 _ChannelRow(
                   label: 'HR',
@@ -492,7 +506,11 @@ class _ProgressArcPainter extends CustomPainter {
 
 class _StatChip extends StatelessWidget {
   final String label, value, sub;
-  const _StatChip({required this.label, required this.value, required this.sub});
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.sub,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -515,10 +533,7 @@ class _StatChip extends StatelessWidget {
             color: Color(0xFF2D2433),
           ),
         ),
-        Text(
-          sub,
-          style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
-        ),
+        Text(sub, style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
       ],
     );
   }
@@ -558,7 +573,7 @@ class _ChannelRow extends StatelessWidget {
             height: 28,
             child: AnimatedBuilder(
               animation: controller,
-              builder: (_, __) => CustomPaint(
+              builder: (context, child) => CustomPaint(
                 size: Size.infinite,
                 painter: _WaveformPainter(
                   color: color,
@@ -591,11 +606,12 @@ class _WaveformPainter extends CustomPainter {
     for (int i = 0; i <= n; i++) {
       final x = (i / n) * size.width;
       final t = (i / n) * 6.2832 * 2 + phase;
-      final y = mid + (mid * 0.7) * (
-        0.5 * (1 - 1) * 0 + // placeholder so formula is readable
-        0.6 * math_sin(t) +
-        0.3 * math_sin(t * 2.3)
-      );
+      final y =
+          mid +
+          (mid * 0.7) *
+              (0.5 * (1 - 1) * 0 + // placeholder so formula is readable
+                  0.6 * mathSin(t) +
+                  0.3 * mathSin(t * 2.3));
       if (i == 0) {
         path.moveTo(x, y);
       } else {
@@ -609,7 +625,7 @@ class _WaveformPainter extends CustomPainter {
   bool shouldRepaint(_WaveformPainter old) => old.phase != phase;
 }
 
-double math_sin(double x) => _math.sin(x);
+double mathSin(double x) => math.sin(x);
 
 class _DetectionCard extends StatelessWidget {
   final StressDetection detection;
@@ -623,7 +639,9 @@ class _DetectionCard extends StatelessWidget {
     final agoLabel = agoMin > 0 ? '$agoMin분 $agoSec초 전' : '$agoSec초 전';
     final probLabel = (detection.probStress * 100).toStringAsFixed(1);
     final stateLabel = detection.inStressEvent ? '스트레스 감지' : '정상';
-    final color = detection.inStressEvent ? Colors.orange.shade700 : Colors.green.shade700;
+    final color = detection.inStressEvent
+        ? Colors.orange.shade700
+        : Colors.green.shade700;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -638,7 +656,10 @@ class _DetectionCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '$stateLabel · 신뢰도 $probLabel%',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: color, fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 4),
           Text(agoLabel, style: Theme.of(context).textTheme.bodySmall),
