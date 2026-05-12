@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime
 
 import pytest
@@ -85,8 +86,6 @@ def test_response_rating_rejects_invalid_value() -> None:
     Before the fix, rating: str accepts any string; the Pydantic model passes
     "amazing" through silently. After the fix, rating: SleepRating raises.
     """
-    import uuid
-
     from app.schemas.sleep_logs import SleepLogResponse
 
     valid_data = {

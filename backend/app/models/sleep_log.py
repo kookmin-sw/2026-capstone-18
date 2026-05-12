@@ -31,7 +31,7 @@ class SleepLog(Base):
     __table_args__ = (
         CheckConstraint(
             "rating IN ('very_poor', 'poor', 'okay', 'good', 'great')",
-            name="ck_sleep_logs_rating",
+            name="ck_sleep_logs_rating_enum",
         ),
     )
 
