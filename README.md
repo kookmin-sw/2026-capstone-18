@@ -156,7 +156,7 @@
 | 로컬 도구 | Terraform 1.7+, AWS CLI v2 | 인프라 프로비저닝 | Backend 배포 | — |
 | 로컬 도구 | Flutter SDK (stable), Android Studio Iguana 이상, Android SDK 34+ | Phone 앱 빌드 | Frontend | — |
 | 로컬 도구 | Android Studio + Wear OS 에뮬레이터/실기기, `adb` | Watch 캡처 도구 빌드 | Watch | — |
-| 하드웨어 | **Galaxy Watch 8** (개발자 모드, 80% 이상 충전) | 4채널 원시 센서 캡처, 온디바이스 추론 | Watch | — |
+| 하드웨어 | **Galaxy Watch 8** (개발자 모드, 80% 이상 충전) | 4채널 원시 센서 캡처 + Wear Data Layer로 폰 실시간 스트리밍 | Watch | — |
 | 하드웨어 | Android 폰 (Galaxy Z Flip 5 등) | Flutter 앱 실기기 테스트 | Frontend | — |
 | SDK | Samsung Health Sensor SDK 1.4.1 (`samsung-health-sensor-api-1.4.1.aar`) | Watch 센서 채널 접근 | Watch | 저장소에 포함 |
 
@@ -168,12 +168,14 @@
 
 WESAD 및 StressPredict 데이터셋을 통합 활용하여 연속적인 생체신호(PPG, EDA, ACC)로부터 스트레스 상태를 탐지하는 시계열 분류(TSC) 파이프라인입니다. 본 시스템의 목적은 일상생활 중 발생하는 스트레스 이벤트를 감지하고, 이후 사용자 상태를 확인하는 **사후 체크업** 알림을 온디바이스 환경에서 제공하는 것입니다.
 
-![Stress ML demo pipeline — 9 stages from watch capture through server-side Mamba inference to per-chunk JSON output](docs/images/ml-demo.png)
+![Stress ML demo pipeline — 9-stage 검증 다이어그램 (오프라인 zip 입력 → ONNX → per-chunk JSON 출력)](docs/images/ml-demo.png)
+
+> ℹ️ 위 다이어그램은 *오프라인 검증 경로*(서버에 zip을 업로드해 모델 출력 회귀를 확인하는 데모 도구)를 보여줍니다. 현재 실제 운영 경로는 §1과 §5의 다이어그램을 따르며 워치 → 폰 스트리밍 + 폰 온디바이스 추론으로 동작합니다.
 
 ### 1. 시스템 아키텍처 (On-Device Inference)
 데이터의 수집부터 추론, 알림 트리거까지의 과정은 개인정보보호(PIPA)를 엄격히 준수하도록 설계되었습니다.
 * **Galaxy Watch (Sensor Node):** PPG, EDA, HRV, Accelerometer 센서 데이터를 25Hz로 캡처하여 60초 단위로 스마트폰에 실시간 스트리밍합니다. (워치 내부에서는 ML 추론이 발생하지 않습니다.)
-* **Smartphone App (Inference & Decision Engine):** 스마트폰 애플리케이션 내에서 Flutter ONNX Runtime을 통해 Mamba 모델이 온디바이스로 실행됩니다. 60초 윈도우 버퍼링과 사후 체크업 상태 머신 평가를 수행하여 호흡 가이드 및 알림을 로컬에서 트리거합니다.
+* **Smartphone App (Inference & Decision Engine):** 스마트폰의 Android-native 레이어(Kotlin + `onnxruntime-android` 1.18.0)에서 Mamba 모델이 온디바이스로 실행됩니다. 60초 슬라이딩 윈도(300s 버퍼) 단위로 추론을 수행하고, 모션 게이트·쿨다운·사후 체크업 상태 머신을 거쳐 호흡 가이드 및 알림을 트리거합니다. 결과는 Flutter UI에 platform channel(`littlesignals/capture/detections`)로 전달되어 카드 형태로 표시되며, 동시에 백엔드 `POST /api/v1/events`로 기록됩니다.
 * **Backend Server (Privacy Logging):** 최종 스트레스 이벤트 로그와 메타데이터만 서버로 전송되며, 원시 생체신호는 사용자 기기 외부로 절대 유출되지 않습니다.
 
 ---
@@ -774,16 +776,23 @@ Regression smoke tests는 auth navigation, anonymous auth, main tabs, Home dashb
 flowchart TD
     subgraph Watch["Galaxy Watch 8 — Wear OS, Kotlin"]
         SDK["Samsung Health Sensor SDK 1.4.1<br/>PPG_GREEN · HEART_RATE_CONTINUOUS<br/>EDA_CONTINUOUS · ACCELEROMETER_CONTINUOUS"]
-        Pre["Signal Preprocessor<br/>60s 슬라이딩 윈도 · 5분 EMA 베이스라인 · 활동 게이트"]
-        Inf["Mamba 추론<br/>ONNX Runtime Mobile · 9-channel 2-class (Baseline/Stress)"]
-        Dec["Decision Engine<br/>손목 알림 + 호흡 가이드"]
-        SDK --> Pre --> Inf --> Dec
+        StreamRec["StreamingRecorder × 4<br/>(채널별 DataPoint 라우팅)"]
+        Consumer["PhoneSenderConsumer<br/>1Hz 배치 + /biosignals/samples"]
+        SDK --> StreamRec --> Consumer
     end
 
-    subgraph Phone["Phone — Flutter"]
+    subgraph Phone["Phone — Android-native Kotlin + Flutter UI"]
+        Receiver["WatchSampleReceiver<br/>/biosignals/samples · /biosignals/end"]
+        Buffer["StreamingPreprocessor<br/>300s 슬라이딩 윈도 · 25Hz 재샘플링<br/>Butterworth + SavGol"]
+        Mamba["StressPipeline (Mamba 추론)<br/>onnxruntime-android · 9-channel 2-class<br/>60s 케이던스"]
+        Decision["Decision Engine<br/>모션 게이트 · 쿨다운 · 사후 체크업"]
+        FlutterUI["Flutter UI<br/>최신 감지 카드 · 호흡 가이드"]
         REST["REST · /api/v1/*"]
         WSS["WSS · /ws/realtime"]
         FCMc["FCM consumer"]
+        Receiver --> Buffer --> Mamba --> Decision
+        Decision --> FlutterUI
+        Decision --> REST
     end
 
     subgraph AWS["AWS Seoul (ap-northeast-2)"]
@@ -802,7 +811,7 @@ flowchart TD
 
     Firebase[("Firebase Cloud Messaging")]
 
-    Dec -- "Android Wearable Data Layer" --> Phone
+    Consumer -- "Wear Data Layer" --> Receiver
     REST --> ALB
     WSS --> ALB
     ECS -- push --> Firebase
