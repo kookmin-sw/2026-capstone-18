@@ -76,7 +76,6 @@ async def create_event(
         log_chips=payload.log_chips,
         log_text=payload.log_text,
         notified=payload.notified,
-        user_response=payload.user_response,
     )
     db.add(event)
     await db.flush()
@@ -227,8 +226,6 @@ async def patch_event(
         row.log_chips = payload.log_chips
     if payload.log_text is not None:
         row.log_text = payload.log_text
-    if payload.user_response is not None:
-        row.user_response = payload.user_response
     if payload.user_stress_level is not None:
         row.user_stress_level = payload.user_stress_level
     if payload.mood_chips is not None:

@@ -30,12 +30,9 @@ def test_decode_cursor_rejects_garbage() -> None:
         decode_cursor("not-a-real-cursor")
 
 
-def test_create_validates_user_response_enum() -> None:
-    with pytest.raises(ValueError):
-        StressEventCreate(
-            detected_at=datetime(2026, 5, 6, 12, 0, tzinfo=UTC),
-            user_response="explode",
-        )
+def test_create_schema_has_no_user_response_field() -> None:
+    """user_response has been fully removed from the create schema."""
+    assert "user_response" not in StressEventCreate.model_fields
 
 
 def test_create_accepts_minimal_payload() -> None:

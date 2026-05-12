@@ -56,4 +56,3 @@ async def test_stress_event_default_logged_false(db_session: AsyncSession) -> No
     assert event.logged is False
     assert event.notified is False
     assert event.log_chips is None
-    assert event.user_response is None
