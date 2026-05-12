@@ -52,7 +52,7 @@ frontend/
 - My Cycle auto-save UX
 - Sleep log display states
 - Insight calendar / report UI
-- AI weekly report card/detail UI
+- AI selected-period report card/detail UI
 - Profile / nickname editing
 - Notification permission
 - FCM device token registration
@@ -77,7 +77,7 @@ Frontend에서 사용하는 주요 backend API는 다음과 같습니다.
 | Consent | `/api/v1/consent` |
 | Sleep latest | `/api/v1/sleep-logs/latest` |
 | FCM device token | `/api/v1/devices/fcm-token` |
-| Weekly report | `/api/v1/reports/weekly` |
+| AI selected-period report | `/api/v1/reports/range` |
 | Biosignal batch metadata | `/api/v1/sync/biosignals/batch` |
 | Raw biosignal object upload | presigned S3 PUT upload flow |
 

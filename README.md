@@ -558,7 +558,7 @@ unzip -p ${SESSION}.zip ppg_green.csv | wc -l   # 10분 ≈ 15,000 행
 
 ### 4.1 Frontend 개요
 
-`frontend/`는 Luma의 Flutter 기반 Android 모바일 애플리케이션입니다. 사용자가 직접 만나는 presentation layer로서 스트레스 기록, 생리 주기 맥락 기반 인사이트, 수면 데이터 화면, 주간 리포트, 알림 등록, 원시 생체신호 캡처 UX를 담당합니다.
+`frontend/`는 Luma의 Flutter 기반 Android 모바일 애플리케이션입니다. 사용자가 직접 만나는 presentation layer로서 스트레스 기록, 생리 주기 맥락 기반 인사이트, 수면 데이터 화면, 선택 기간 AI 리포트, 알림 등록, 원시 생체신호 캡처 UX를 담당합니다.
 
 앱은 staging FastAPI backend와 REST API로 통신하며, 화면 상태는 Provider 기반으로 관리됩니다. 사용자는 Auth 화면에서 진입한 뒤 Home dashboard를 중심으로 스트레스 기록, My Cycle, Sleep Data, Insight, Profile, Watch/Biosignal Capture 화면을 오갑니다. UI copy는 한국어 사용 맥락에 맞춰 부드럽고 부담이 적은 tone을 유지합니다.
 
@@ -573,7 +573,7 @@ Frontend는 사용자의 기록 부담을 낮추고, 민감한 건강 맥락을 
    스트레스 기록은 생리 주기 정보와 함께 해석됩니다. Home의 cycle card, My Cycle auto-save, Insight calendar, report UI는 사용자가 주기 단계와 스트레스 패턴을 함께 볼 수 있도록 구성되어 있습니다.
 
 3. **Staging backend 기반 실사용 flow**
-   Auth, profile, events, cycles, categories, consent, sleep logs, weekly reports, device token registration, biosignal sync metadata가 staging API client layer를 통해 호출됩니다.
+   Auth, profile, events, cycles, categories, consent, sleep logs, selected-period AI reports, device token registration, biosignal sync metadata가 staging API client layer를 통해 호출됩니다.
 
 4. **Biosignal capture/upload UX**
    Watch/Biosignal 화면은 raw biosignal consent, capture source 선택, duration 선택, live status, upload window count, summary screen을 제공합니다. Flutter UI는 Android native capture layer와 MethodChannel/EventChannel로 연결됩니다.
@@ -612,7 +612,7 @@ Frontend는 사용자의 기록 부담을 낮추고, 민감한 건강 맥락을 
 * My Cycle auto-save UX
 * Sleep log display states
 * Insight calendar / report UI
-* AI weekly report card/detail UI
+* AI selected-period report card/detail UI
 * Profile / nickname editing
 * Notification permission handling
 * FCM device token registration
@@ -631,7 +631,7 @@ Frontend는 shared core layer, feature layer, screen layer, native capture layer
 * `lib/core/`는 app-wide foundation입니다. API base URL, shared `ApiClient`, secure token storage, theme, spacing, shared widgets, Korean UI formatter를 포함합니다.
 * `lib/features/`는 domain별 provider, model, service, API adapter를 포함합니다. Auth, Events, Cycles, Sleep, Triggers, Insight, Consent, Notifications, Privacy, Biosignals가 이 계층에 있습니다.
 * `lib/screens/`는 실제 화면 composition을 담당합니다. Home, Insight, My/Profile, Stress Log, My Cycle, Sleep Data, Watch/Biosignal Capture 화면이 Provider state를 소비합니다.
-* Provider는 화면 상태와 사용자 action을 조율합니다. 예를 들어 `EventsProvider`는 stress event create/edit flow를 관리하고, `CycleProvider`는 cycle save/update와 My Cycle auto-save를 담당하며, `InsightProvider`는 event/cycle data와 weekly report를 조합합니다.
+* Provider는 화면 상태와 사용자 action을 조율합니다. 예를 들어 `EventsProvider`는 stress event create/edit flow를 관리하고, `CycleProvider`는 cycle save/update와 My Cycle auto-save를 담당하며, `InsightProvider`는 event/cycle data와 selected-period report를 조합합니다.
 * `features/*/data` API layer는 backend endpoint와 JSON mapping을 캡슐화합니다. UI는 HTTP path나 backend response shape를 직접 다루지 않고 provider를 통해 domain state를 읽습니다.
 * Native capture layer는 `features/biosignals/`의 Flutter bridge와 `android/app/src/main/kotlin/com/littlesignals/app/capture/`의 Android service/controller/uploader로 구성됩니다. Flutter는 capture command와 status stream을 다루고, Android는 foreground capture session, Wear Data Layer messaging, sample buffering, upload window 생성, presigned S3 PUT upload를 처리합니다.
 
@@ -667,7 +667,7 @@ flowchart TD
 
     I --> I1["Insight calendar"]
     I --> I2["Cycle x stress report"]
-    I --> I3["AI weekly report card/detail"]
+    I --> I3["AI selected-period report card/detail"]
 
     K --> K1["Raw biosignal consent"]
     K1 --> K2["Source picker"]
@@ -718,7 +718,7 @@ Frontend는 staging backend와 다음 API 흐름을 사용합니다.
 | Consent | `GET /api/v1/consent`, `PATCH /api/v1/consent` |
 | Sleep logs | `GET /api/v1/sleep-logs/latest`, `GET /api/v1/sleep-logs`, `POST /api/v1/sleep-logs`, `PATCH /api/v1/sleep-logs/{id}`, `DELETE /api/v1/sleep-logs/{id}` |
 | Device token | `POST /api/v1/devices/fcm-token` |
-| Weekly report | `GET /api/v1/reports/weekly` |
+| AI selected-period report | `GET /api/v1/reports/range?frm={YYYY-MM-DD}&to={YYYY-MM-DD}` |
 | Raw biosignal sync | `POST /api/v1/sync/biosignals/batch`, presigned S3 `PUT` upload flow |
 
 Stress, cycle, sleep, trigger, profile, consent, report data는 feature별 API adapter에서 domain model로 변환된 뒤 Provider를 통해 화면에 전달됩니다. Raw biosignal upload는 Android native `WindowUploader`가 batch metadata를 backend에 등록하고, backend가 반환한 presigned S3 PUT URL로 채널별 payload를 업로드하는 구조입니다.
