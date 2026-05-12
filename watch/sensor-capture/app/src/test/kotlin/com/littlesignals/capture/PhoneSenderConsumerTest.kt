@@ -1,12 +1,11 @@
 package com.littlesignals.capture
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,15 +25,16 @@ class PhoneSenderConsumerTest {
         val sender = FakeSender()
         val consumer = PhoneSenderConsumer(
             sender = sender,
-            scope = TestScope(testScheduler),
+            scope = backgroundScope,
             flushIntervalMs = 1_000,
-            nowMs = { currentTime + 1_700_000_000_000L },
+            nowMs = { testScheduler.currentTime + 1_700_000_000_000L },
         )
         consumer.start()
 
         consumer.onPpg(ScalarSample(1_700_000_000_005L, 0.1))
         consumer.onPpg(ScalarSample(1_700_000_000_045L, 0.2))
         advanceTimeBy(1_001)
+        runCurrent()
 
         assertEquals(1, sender.sent.size)
         assertEquals("/biosignals/samples", sender.sent[0].path)
@@ -46,12 +46,13 @@ class PhoneSenderConsumerTest {
         val sender = FakeSender()
         val consumer = PhoneSenderConsumer(
             sender = sender,
-            scope = TestScope(testScheduler),
+            scope = backgroundScope,
             flushIntervalMs = 1_000,
-            nowMs = { currentTime + 1_700_000_000_000L },
+            nowMs = { testScheduler.currentTime + 1_700_000_000_000L },
         )
         consumer.start()
         advanceTimeBy(3_001)
+        runCurrent()
         assertEquals(0, sender.sent.size)
     }
 
@@ -59,9 +60,9 @@ class PhoneSenderConsumerTest {
         val sender = FakeSender()
         val consumer = PhoneSenderConsumer(
             sender = sender,
-            scope = TestScope(testScheduler),
+            scope = backgroundScope,
             flushIntervalMs = 10_000,
-            nowMs = { currentTime + 1_700_000_000_000L },
+            nowMs = { testScheduler.currentTime + 1_700_000_000_000L },
         )
         consumer.start()
         consumer.onEda(ScalarSample(1_700_000_000_500L, 5.5))
@@ -80,9 +81,9 @@ class PhoneSenderConsumerTest {
         val sender = FakeSender()
         val consumer = PhoneSenderConsumer(
             sender = sender,
-            scope = TestScope(testScheduler),
+            scope = backgroundScope,
             flushIntervalMs = 10_000,
-            nowMs = { currentTime + 1_700_000_000_000L },
+            nowMs = { testScheduler.currentTime + 1_700_000_000_000L },
         )
         consumer.start()
         consumer.stop(reason = "user_stop", error = null)
@@ -94,9 +95,9 @@ class PhoneSenderConsumerTest {
         val sender = FakeSender()
         val consumer = PhoneSenderConsumer(
             sender = sender,
-            scope = TestScope(testScheduler),
+            scope = backgroundScope,
             flushIntervalMs = 10_000,
-            nowMs = { currentTime + 1_700_000_000_000L },
+            nowMs = { testScheduler.currentTime + 1_700_000_000_000L },
         )
         consumer.start()
         consumer.stop(reason = "sdk_error", error = "tracker_unavailable")
