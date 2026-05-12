@@ -13,12 +13,12 @@ void main() {
     );
 
     expect(
-      service.buildInsight(latestLog: latest, history: [latest]),
-      '수면 데이터가 조금 더 쌓이면 패턴을 알려드릴게요.',
+      service.buildInsight(records: [latest]),
+      '기록이 더 쌓이면 선택한 기간의 수면 패턴을 보여드릴게요.',
     );
   });
 
-  test('compares latest sleep against recent average', () {
+  test('compares latest in selected range against selected range average', () {
     final latest = _sleepLog(
       id: 'sleep-3',
       fellAsleepAt: DateTime(2026, 5, 8, 23),
@@ -39,8 +39,8 @@ void main() {
     ];
 
     expect(
-      service.buildInsight(latestLog: latest, history: history),
-      '최근 수면 시간이 평균보다 60분 짧아요.',
+      service.buildInsight(records: history),
+      '선택 기간의 최근 수면 시간이 같은 기간 평균보다 60분 짧아요.',
     );
   });
 }

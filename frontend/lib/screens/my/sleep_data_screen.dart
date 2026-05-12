@@ -55,29 +55,150 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
     await _loadSelectedRange();
   }
 
-  Future<void> _selectRangeDate({required bool isStart}) async {
-    final current = isStart ? _rangeStart : _rangeEnd;
-    final selected = await showDatePicker(
+  Future<DateTime?> _pickDate({
+    required DateTime initialDate,
+    required String title,
+  }) async {
+    final today = _dateOnly(DateTime.now());
+    final firstDate = DateTime(2020);
+    var selectedDate = _dateOnly(initialDate);
+    var visibleMonth = DateTime(selectedDate.year, selectedDate.month);
+
+    if (selectedDate.isBefore(firstDate)) {
+      selectedDate = firstDate;
+      visibleMonth = DateTime(selectedDate.year, selectedDate.month);
+    } else if (selectedDate.isAfter(today)) {
+      selectedDate = today;
+      visibleMonth = DateTime(selectedDate.year, selectedDate.month);
+    }
+
+    return showDialog<DateTime>(
       context: context,
-      initialDate: current,
-      firstDate: DateTime(2020),
-      lastDate: DateUtils.dateOnly(
-        DateTime.now().add(const Duration(days: 365)),
-      ),
-      helpText: isStart ? '시작 날짜 선택' : '종료 날짜 선택',
-      cancelText: '취소',
-      confirmText: '선택',
+      barrierColor: Colors.black.withValues(alpha: 0.32),
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+          backgroundColor: const Color(0xFFFFF9FB),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF201C28),
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Color(0xFF9888A0),
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    _SleepCalendar(
+                      selectedDate: selectedDate,
+                      visibleMonth: visibleMonth,
+                      firstDate: firstDate,
+                      lastDate: today,
+                      onMonthChanged: (month) {
+                        setDialogState(() {
+                          visibleMonth = month;
+                        });
+                      },
+                      onDateChanged: (date) {
+                        setDialogState(() {
+                          selectedDate = _dateOnly(date);
+                          visibleMonth = DateTime(date.year, date.month);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F0F4),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        _formatDate(selectedDate),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFFB87888),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFFF0E1E8)),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('취소'),
+                        ),
+                        const SizedBox(width: 6),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFB87888),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(context, selectedDate),
+                          child: const Text('확인'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickRangeBoundary({required bool isStart}) async {
+    final picked = await _pickDate(
+      initialDate: isStart ? _rangeStart : _rangeEnd,
+      title: isStart ? '시작 날짜' : '종료 날짜',
     );
 
-    if (selected == null || !mounted) return;
+    if (picked == null || !mounted) return;
 
     setState(() {
-      final date = DateUtils.dateOnly(selected);
+      final selectedDate = _dateOnly(picked);
       if (isStart) {
-        _rangeStart = date;
+        _rangeStart = selectedDate;
         if (_rangeStart.isAfter(_rangeEnd)) _rangeEnd = _rangeStart;
       } else {
-        _rangeEnd = date;
+        _rangeEnd = selectedDate;
         if (_rangeEnd.isBefore(_rangeStart)) _rangeStart = _rangeEnd;
       }
     });
@@ -121,8 +242,9 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
                             start: _rangeStart,
                             end: _rangeEnd,
                             onSelectStart: () =>
-                                _selectRangeDate(isStart: true),
-                            onSelectEnd: () => _selectRangeDate(isStart: false),
+                                _pickRangeBoundary(isStart: true),
+                            onSelectEnd: () =>
+                                _pickRangeBoundary(isStart: false),
                           ),
                           const SizedBox(height: 16),
 
@@ -501,7 +623,8 @@ class _SleepRangeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassCard(
+    return GlassCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -510,7 +633,7 @@ class _SleepRangeSelector extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _RangeDateButton(
+                child: _RangeDateField(
                   label: '시작',
                   date: start,
                   onTap: onSelectStart,
@@ -518,7 +641,7 @@ class _SleepRangeSelector extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _RangeDateButton(
+                child: _RangeDateField(
                   label: '종료',
                   date: end,
                   onTap: onSelectEnd,
@@ -532,12 +655,12 @@ class _SleepRangeSelector extends StatelessWidget {
   }
 }
 
-class _RangeDateButton extends StatelessWidget {
+class _RangeDateField extends StatelessWidget {
   final String label;
   final DateTime date;
   final VoidCallback onTap;
 
-  const _RangeDateButton({
+  const _RangeDateField({
     required this.label,
     required this.date,
     required this.onTap,
@@ -546,7 +669,7 @@ class _RangeDateButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFF8F0F4),
+      color: AppColors.primaryLight.withValues(alpha: 0.2),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -564,7 +687,7 @@ class _RangeDateButton extends StatelessWidget {
                       label,
                       style: const TextStyle(
                         fontSize: 9,
-                        color: Color(0xFFC0B0C0),
+                        color: AppColors.textL,
                       ),
                     ),
                     Text(
@@ -573,7 +696,7 @@ class _RangeDateButton extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF201C28),
+                        color: AppColors.textH,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -581,11 +704,498 @@ class _RangeDateButton extends StatelessWidget {
                 ),
               ),
               const Icon(
-                Icons.keyboard_arrow_down,
+                Icons.calendar_month_outlined,
                 size: 18,
-                color: Color(0xFFB87888),
+                color: AppColors.primary,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SleepCalendar extends StatefulWidget {
+  final DateTime selectedDate;
+  final DateTime visibleMonth;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final ValueChanged<DateTime> onDateChanged;
+  final ValueChanged<DateTime> onMonthChanged;
+
+  const _SleepCalendar({
+    required this.selectedDate,
+    required this.visibleMonth,
+    required this.firstDate,
+    required this.lastDate,
+    required this.onDateChanged,
+    required this.onMonthChanged,
+  });
+
+  @override
+  State<_SleepCalendar> createState() => _SleepCalendarState();
+}
+
+class _SleepCalendarState extends State<_SleepCalendar> {
+  _CalendarPanel _panel = _CalendarPanel.days;
+
+  static const List<String> _monthNames = [
+    '1월',
+    '2월',
+    '3월',
+    '4월',
+    '5월',
+    '6월',
+    '7월',
+    '8월',
+    '9월',
+    '10월',
+    '11월',
+    '12월',
+  ];
+
+  static const List<String> _weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+
+  @override
+  Widget build(BuildContext context) {
+    final month = DateTime(widget.visibleMonth.year, widget.visibleMonth.month);
+    final previousMonth = DateTime(month.year, month.month - 1);
+    final nextMonth = DateTime(month.year, month.month + 1);
+
+    final canGoBack = !previousMonth.isBefore(
+      DateTime(widget.firstDate.year, widget.firstDate.month),
+    );
+    final canGoForward = !nextMonth.isAfter(
+      DateTime(widget.lastDate.year, widget.lastDate.month),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Row(
+            children: [
+              _MonthButton(
+                icon: Icons.chevron_left,
+                enabled: _panel == _CalendarPanel.days && canGoBack,
+                onTap: () => widget.onMonthChanged(previousMonth),
+              ),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _PickerChip(
+                      label: _monthNames[month.month - 1],
+                      selected: _panel == _CalendarPanel.months,
+                      onTap: () => _togglePanel(_CalendarPanel.months),
+                    ),
+                    const SizedBox(width: 8),
+                    _PickerChip(
+                      label: '${month.year}',
+                      selected: _panel == _CalendarPanel.years,
+                      onTap: () => _togglePanel(_CalendarPanel.years),
+                    ),
+                  ],
+                ),
+              ),
+              _MonthButton(
+                icon: Icons.chevron_right,
+                enabled: _panel == _CalendarPanel.days && canGoForward,
+                onTap: () => widget.onMonthChanged(nextMonth),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: switch (_panel) {
+            _CalendarPanel.months => _MonthGrid(
+              key: const ValueKey('months'),
+              selectedMonth: month.month,
+              minMonth: month.year == widget.firstDate.year
+                  ? widget.firstDate.month
+                  : 1,
+              maxMonth: month.year == widget.lastDate.year
+                  ? widget.lastDate.month
+                  : 12,
+              monthNames: _monthNames,
+              onMonthSelected: (selectedMonth) {
+                widget.onMonthChanged(DateTime(month.year, selectedMonth));
+                setState(() {
+                  _panel = _CalendarPanel.days;
+                });
+              },
+            ),
+            _CalendarPanel.years => _YearGrid(
+              key: const ValueKey('years'),
+              selectedYear: month.year,
+              firstYear: widget.firstDate.year,
+              lastYear: widget.lastDate.year,
+              onYearSelected: (year) {
+                widget.onMonthChanged(_monthForYear(month, year));
+                setState(() {
+                  _panel = _CalendarPanel.days;
+                });
+              },
+            ),
+            _CalendarPanel.days => Column(
+              key: const ValueKey('days'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: _weekDays.map((day) {
+                    return Expanded(
+                      child: Center(
+                        child: Text(
+                          day,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFC0B0C0),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+                GridView.count(
+                  crossAxisCount: 7,
+                  mainAxisSpacing: 6,
+                  crossAxisSpacing: 6,
+                  childAspectRatio: 1,
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  children: _buildDayTiles(month),
+                ),
+              ],
+            ),
+          },
+        ),
+      ],
+    );
+  }
+
+  void _togglePanel(_CalendarPanel panel) {
+    setState(() {
+      _panel = _panel == panel ? _CalendarPanel.days : panel;
+    });
+  }
+
+  List<Widget> _buildDayTiles(DateTime month) {
+    final firstDayOfMonth = DateTime(month.year, month.month);
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final leadingEmptyDays = firstDayOfMonth.weekday % 7;
+    final totalCells = ((leadingEmptyDays + daysInMonth + 6) ~/ 7) * 7;
+
+    return List.generate(totalCells, (index) {
+      final dayNumber = index - leadingEmptyDays + 1;
+
+      if (dayNumber < 1 || dayNumber > daysInMonth) {
+        return const SizedBox.shrink();
+      }
+
+      final date = DateTime(month.year, month.month, dayNumber);
+      final isDisabled =
+          date.isBefore(_dateOnly(widget.firstDate)) ||
+          date.isAfter(_dateOnly(widget.lastDate));
+      final isSelected = _isSameDay(date, widget.selectedDate);
+      final isToday = _isSameDay(date, DateTime.now());
+
+      return _DayTile(
+        key: ValueKey(
+          'sleep-calendar-day-${date.year}-${date.month}-${date.day}',
+        ),
+        day: dayNumber,
+        isSelected: isSelected,
+        isToday: isToday,
+        isDisabled: isDisabled,
+        onTap: isDisabled ? null : () => widget.onDateChanged(date),
+      );
+    });
+  }
+
+  DateTime _monthForYear(DateTime month, int year) {
+    final changedMonth = DateTime(year, month.month);
+    final firstMonth = DateTime(widget.firstDate.year, widget.firstDate.month);
+    final lastMonth = DateTime(widget.lastDate.year, widget.lastDate.month);
+
+    if (changedMonth.isBefore(firstMonth)) return firstMonth;
+    if (changedMonth.isAfter(lastMonth)) return lastMonth;
+
+    return changedMonth;
+  }
+
+  bool _isSameDay(DateTime first, DateTime second) {
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
+  }
+}
+
+enum _CalendarPanel { days, months, years }
+
+class _PickerChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PickerChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFB87888) : const Color(0xFFF8F0F4),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? const Color(0xFFB87888) : const Color(0xFFF0E1E8),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: selected ? Colors.white : const Color(0xFF201C28),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 3),
+            Icon(
+              selected ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              size: 16,
+              color: selected ? Colors.white : const Color(0xFFB87888),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthGrid extends StatelessWidget {
+  final int selectedMonth;
+  final int minMonth;
+  final int maxMonth;
+  final List<String> monthNames;
+  final ValueChanged<int> onMonthSelected;
+
+  const _MonthGrid({
+    super.key,
+    required this.selectedMonth,
+    required this.minMonth,
+    required this.maxMonth,
+    required this.monthNames,
+    required this.onMonthSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 210,
+      child: GridView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        itemCount: 12,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 2.25,
+        ),
+        itemBuilder: (context, index) {
+          final month = index + 1;
+          final isSelected = month == selectedMonth;
+          final isDisabled = month < minMonth || month > maxMonth;
+
+          return _PickerGridTile(
+            label: monthNames[index].substring(0, 3),
+            selected: isSelected,
+            disabled: isDisabled,
+            onTap: isDisabled ? null : () => onMonthSelected(month),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _YearGrid extends StatelessWidget {
+  final int selectedYear;
+  final int firstYear;
+  final int lastYear;
+  final ValueChanged<int> onYearSelected;
+
+  const _YearGrid({
+    super.key,
+    required this.selectedYear,
+    required this.firstYear,
+    required this.lastYear,
+    required this.onYearSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final years = List<int>.generate(
+      lastYear - firstYear + 1,
+      (index) => firstYear + index,
+    );
+
+    return SizedBox(
+      height: 242,
+      child: GridView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        itemCount: years.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 2.25,
+        ),
+        itemBuilder: (context, index) {
+          final year = years[index];
+          final isSelected = year == selectedYear;
+
+          return _PickerGridTile(
+            label: '$year',
+            selected: isSelected,
+            onTap: () => onYearSelected(year),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PickerGridTile extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool disabled;
+  final VoidCallback? onTap;
+
+  const _PickerGridTile({
+    required this.label,
+    required this.selected,
+    this.disabled = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFB87888) : const Color(0xFFF8F0F4),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? const Color(0xFFB87888) : const Color(0xFFF0E1E8),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: disabled
+                  ? const Color(0xFFD8CCD3)
+                  : selected
+                  ? Colors.white
+                  : const Color(0xFF201C28),
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _MonthButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      visualDensity: VisualDensity.compact,
+      onPressed: enabled ? onTap : null,
+      icon: Icon(
+        icon,
+        size: 22,
+        color: enabled ? const Color(0xFFB87888) : const Color(0xFFE2D5DC),
+      ),
+    );
+  }
+}
+
+class _DayTile extends StatelessWidget {
+  final int day;
+  final bool isSelected;
+  final bool isToday;
+  final bool isDisabled;
+  final VoidCallback? onTap;
+
+  const _DayTile({
+    super.key,
+    required this.day,
+    required this.isSelected,
+    required this.isToday,
+    required this.isDisabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDisabled
+        ? const Color(0xFFD8CCD3)
+        : isSelected
+        ? Colors.white
+        : const Color(0xFF201C28);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFB87888) : Colors.transparent,
+          shape: BoxShape.circle,
+          border: isToday && !isSelected
+              ? Border.all(color: const Color(0xFFB87888), width: 1)
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            '$day',
+            style: TextStyle(
+              fontSize: 13,
+              color: textColor,
+              fontWeight: isSelected || isToday
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+            ),
           ),
         ),
       ),
@@ -637,6 +1247,10 @@ String _formatDate(DateTime date) {
 
 String _formatTime(DateTime date) {
   return koTime(date);
+}
+
+DateTime _dateOnly(DateTime date) {
+  return DateTime(date.year, date.month, date.day);
 }
 
 String _rangeTitle(DateTime start, DateTime end) {
