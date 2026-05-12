@@ -187,10 +187,35 @@ class _EventItem extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(
-                            Icons.edit_outlined,
-                            size: 18,
-                            color: Color(0xFFC09AAB),
+                          IconButton(
+                            tooltip: '기록 수정',
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            padding: EdgeInsets.zero,
+                            onPressed: () => _openEditor(context),
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              size: 18,
+                              color: Color(0xFFC09AAB),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '기록 삭제',
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            padding: EdgeInsets.zero,
+                            onPressed: () => _confirmDelete(context),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                              color: Color(0xFFC09AAB),
+                            ),
                           ),
                         ],
                       ),
@@ -236,6 +261,38 @@ class _EventItem extends StatelessWidget {
     );
     if (!context.mounted) return;
     await context.read<EventsProvider>().loadToday();
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.background,
+        title: const Text('기록을 삭제할까요?'),
+        content: const Text('삭제한 스트레스 기록은 다시 복구할 수 없어요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final deleted = await context.read<EventsProvider>().deleteEvent(event.id);
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(deleted ? '기록을 삭제했어요.' : '기록을 삭제하지 못했어요. 다시 시도해 주세요.'),
+      ),
+    );
   }
 
   String _timeLabel(DateTime dateTime) {

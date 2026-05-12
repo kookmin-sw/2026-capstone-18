@@ -231,6 +231,26 @@ class EventsProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> deleteEvent(String id) async {
+    if (id.trim().isEmpty) {
+      _errorMessage = '기록을 삭제하지 못했어요. 다시 시도해 주세요.';
+      notifyListeners();
+      return false;
+    }
+
+    try {
+      await eventsApi.deleteEvent(id);
+      _events = _events.where((event) => event.id != id).toList();
+      _errorMessage = null;
+      notifyListeners();
+      return true;
+    } catch (_) {
+      _errorMessage = '기록을 삭제하지 못했어요. 다시 시도해 주세요.';
+      notifyListeners();
+      return false;
+    }
+  }
+
   void addUnloggedDetection({required DateTime detectedAt}) {
     final event = StressEvent(
       id: 'detected-${detectedAt.millisecondsSinceEpoch}',

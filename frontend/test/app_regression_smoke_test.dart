@@ -259,6 +259,46 @@ void main() {
     },
   );
 
+  testWidgets('stress records page item can be deleted after confirmation', (
+    tester,
+  ) async {
+    final data = _SmokeData(authStatus: AuthStatus.authenticated);
+    await data.load();
+
+    await tester.pumpWidget(
+      _SmokeApp(data: data, child: const EventsLogScreen()),
+    );
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(find.text('스트레스 기록'), findsOneWidget);
+    expect(find.text('회의 준비가 예상보다 길어졌어요.'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('기록 삭제').first);
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+    expect(find.text('기록을 삭제할까요?'), findsOneWidget);
+    expect(find.text('삭제한 스트레스 기록은 다시 복구할 수 없어요.'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, '취소'));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+    expect(find.text('회의 준비가 예상보다 길어졌어요.'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('기록 삭제').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '삭제'));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(find.text('기록을 삭제했어요.'), findsOneWidget);
+    expect(find.text('회의 준비가 예상보다 길어졌어요.'), findsNothing);
+    expect(
+      data.eventsProvider.todayEvents.where((event) => event.id == 'event-1'),
+      isEmpty,
+    );
+  });
+
   testWidgets('password screen smoke test', (tester) async {
     final data = _SmokeData(authStatus: AuthStatus.authenticated);
     await data.load();
@@ -1000,6 +1040,11 @@ class _FakeEventsApi extends EventsApi {
       events.insert(0, updated);
     }
     return updated;
+  }
+
+  @override
+  Future<void> deleteEvent(String id) async {
+    events.removeWhere((event) => event.id == id);
   }
 }
 
