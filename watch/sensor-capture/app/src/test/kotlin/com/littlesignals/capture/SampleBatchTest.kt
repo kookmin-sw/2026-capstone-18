@@ -61,4 +61,49 @@ class SampleBatchTest {
         val drain2 = batch.drain()
         assertEquals(0, drain2.ppg.size)
     }
+
+    @Test fun `addHr drops oldest sample when channel is at MAX_SAMPLES_PER_CHANNEL`() {
+        val batch = SampleBatch()
+        // Fill to exactly the cap
+        for (i in 0 until MAX_SAMPLES_PER_CHANNEL) {
+            batch.addHr(ScalarSample(i.toLong(), i.toDouble()))
+        }
+        // Adding one more must drop the oldest (timestampMs=0) and keep the new one
+        batch.addHr(ScalarSample(MAX_SAMPLES_PER_CHANNEL.toLong(), 999.0))
+        val drain = batch.drain()
+        assertEquals(MAX_SAMPLES_PER_CHANNEL, drain.hr.size)
+        // Oldest was dropped — first remaining sample has timestampMs=1
+        assertEquals(1L, drain.hr.first().timestampMs)
+        // Newest is present
+        assertEquals(999.0, drain.hr.last().value, 1e-12)
+    }
+
+    @Test fun `restore prepends old samples and respects cap`() {
+        val batch = SampleBatch()
+        // Put 10 new PPG samples in the batch
+        for (i in 100 until 110) {
+            batch.addPpg(ScalarSample(i.toLong(), i.toDouble()))
+        }
+        // Build a drain of 5 old samples (timestamps 0..4)
+        val oldDrain = SampleBatch.Drain(
+            hr = emptyList(),
+            ppg = listOf(
+                ScalarSample(0L, 0.0),
+                ScalarSample(1L, 1.0),
+                ScalarSample(2L, 2.0),
+                ScalarSample(3L, 3.0),
+                ScalarSample(4L, 4.0),
+            ),
+            eda = emptyList(),
+            accel = emptyList(),
+        )
+        batch.restore(oldDrain)
+        val drain = batch.drain()
+        // Should have 15 PPG: 5 old + 10 new, all in timestamp order
+        assertEquals(15, drain.ppg.size)
+        assertEquals(0L, drain.ppg.first().timestampMs)
+        assertEquals(109L, drain.ppg.last().timestampMs)
+        // Other channels unaffected
+        assertTrue(drain.hr.isEmpty())
+    }
 }

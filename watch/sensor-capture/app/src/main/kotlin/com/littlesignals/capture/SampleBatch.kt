@@ -7,33 +7,87 @@ data class ScalarSample(val timestampMs: Long, val value: Double)
 data class AccelSample(val timestampMs: Long, val x: Double, val y: Double, val z: Double)
 
 /**
+ * Maximum number of samples held per channel before the oldest is evicted.
+ *
+ * At PPG 25 Hz this caps ~20 s of buffered data. If the phone is unreachable
+ * for longer, older samples are dropped to keep memory bounded. Matches the
+ * buffer-size that `restore()` respects when re-queuing a failed send.
+ */
+const val MAX_SAMPLES_PER_CHANNEL = 500
+
+/**
  * Thread-safe accumulator for one second of samples across four channels.
  * One instance per phone-initiated capture session — owned by [PhoneSenderConsumer].
  *
  * Producers are the four StreamingRecorders (each on its own SDK callback thread).
- * Consumer is the consumer's 1 Hz flush coroutine.
+ * Consumer is the 1 Hz flush coroutine in [PhoneSenderConsumer].
+ *
+ * Each channel is bounded at [MAX_SAMPLES_PER_CHANNEL] samples. When full,
+ * the oldest sample is evicted on each new add to keep memory bounded during
+ * prolonged phone-unreachability periods.
  */
 class SampleBatch {
-    private val hr = mutableListOf<ScalarSample>()
-    private val ppg = mutableListOf<ScalarSample>()
-    private val eda = mutableListOf<ScalarSample>()
-    private val accel = mutableListOf<AccelSample>()
+    private val hr = ArrayDeque<ScalarSample>()
+    private val ppg = ArrayDeque<ScalarSample>()
+    private val eda = ArrayDeque<ScalarSample>()
+    private val accel = ArrayDeque<AccelSample>()
 
-    @Synchronized fun addHr(s: ScalarSample) { hr.add(s) }
-    @Synchronized fun addPpg(s: ScalarSample) { ppg.add(s) }
-    @Synchronized fun addEda(s: ScalarSample) { eda.add(s) }
-    @Synchronized fun addAccel(s: AccelSample) { accel.add(s) }
+    @Synchronized fun addHr(s: ScalarSample) {
+        if (hr.size >= MAX_SAMPLES_PER_CHANNEL) hr.removeFirst()
+        hr.addLast(s)
+    }
 
-    @Synchronized fun isEmpty(): Boolean = hr.isEmpty() && ppg.isEmpty() && eda.isEmpty() && accel.isEmpty()
+    @Synchronized fun addPpg(s: ScalarSample) {
+        if (ppg.size >= MAX_SAMPLES_PER_CHANNEL) ppg.removeFirst()
+        ppg.addLast(s)
+    }
+
+    @Synchronized fun addEda(s: ScalarSample) {
+        if (eda.size >= MAX_SAMPLES_PER_CHANNEL) eda.removeFirst()
+        eda.addLast(s)
+    }
+
+    @Synchronized fun addAccel(s: AccelSample) {
+        if (accel.size >= MAX_SAMPLES_PER_CHANNEL) accel.removeFirst()
+        accel.addLast(s)
+    }
+
+    @Synchronized fun isEmpty(): Boolean =
+        hr.isEmpty() && ppg.isEmpty() && eda.isEmpty() && accel.isEmpty()
 
     /**
-     * Atomically take a snapshot of all buffered samples and clear them.
-     * Returns a [Drain] whose lists are detached copies — safe to serialize.
+     * Atomically take a snapshot of all buffered samples and clear the deques.
+     * Returns a [Drain] whose lists are detached copies — safe to serialize off-thread.
      */
     @Synchronized fun drain(): Drain {
         val out = Drain(hr.toList(), ppg.toList(), eda.toList(), accel.toList())
         hr.clear(); ppg.clear(); eda.clear(); accel.clear()
         return out
+    }
+
+    /**
+     * Re-queue samples from a failed send drain back into the batch.
+     *
+     * Old samples (from [drain]) are prepended before new samples so timestamps
+     * remain chronological. If the combined size exceeds [MAX_SAMPLES_PER_CHANNEL]
+     * per channel, the oldest samples are dropped.
+     *
+     * Called by [PhoneSenderConsumer.flushIfNonEmpty] when [PhoneSender.send] returns false.
+     */
+    @Synchronized fun restore(drain: Drain) {
+        fun <T> mergeChannel(old: List<T>, current: ArrayDeque<T>): ArrayDeque<T> {
+            val combined = old + current.toList()
+            val trimmed = combined.takeLast(MAX_SAMPLES_PER_CHANNEL)
+            return ArrayDeque<T>(trimmed.size).also { dq -> trimmed.forEach { dq.addLast(it) } }
+        }
+        val newHr = mergeChannel(drain.hr, hr)
+        val newPpg = mergeChannel(drain.ppg, ppg)
+        val newEda = mergeChannel(drain.eda, eda)
+        val newAccel = mergeChannel(drain.accel, accel)
+        hr.clear(); hr.addAll(newHr)
+        ppg.clear(); ppg.addAll(newPpg)
+        eda.clear(); eda.addAll(newEda)
+        accel.clear(); accel.addAll(newAccel)
     }
 
     data class Drain(
