@@ -3,21 +3,29 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'biosignal_capture_service.dart';
+import 'stress_detection.dart';
 
 class BiosignalCaptureController extends ChangeNotifier {
   final BiosignalCaptureService _service;
-  StreamSubscription<CaptureStatus>? _sub;
+  StreamSubscription<CaptureStatus>? _statusSub;
+  StreamSubscription<StressDetection>? _detectionSub;
 
   String _state = 'idle';
   int _elapsedSec = 0;
   int _windowsUploaded = 0;
   String? _error;
   bool _watchConnected = false;
-  bool get watchConnected => _watchConnected;
+  StressDetection? _latestDetection;
 
-  BiosignalCaptureController({BiosignalCaptureService? service})
-      : _service = service ?? BiosignalCaptureService() {
-    _sub = _service.statusStream().listen(_onStatus);
+  bool get watchConnected => _watchConnected;
+  StressDetection? get latestDetection => _latestDetection;
+
+  BiosignalCaptureController({
+    BiosignalCaptureService? service,
+    Stream<StressDetection>? detectionStream,
+  }) : _service = service ?? BiosignalCaptureService() {
+    _statusSub = _service.statusStream().listen(_onStatus);
+    _detectionSub = (detectionStream ?? stressDetectionStream()).listen(_onDetection);
   }
 
   String get state => _state;
@@ -27,6 +35,7 @@ class BiosignalCaptureController extends ChangeNotifier {
 
   Future<void> start({required String accessToken, Duration? duration, String source = 'watch'}) async {
     _error = null;
+    _latestDetection = null;
     notifyListeners();
     final secs = duration?.inSeconds;
     await _service.start(accessToken: accessToken, durationSec: secs, source: source);
@@ -52,9 +61,15 @@ class BiosignalCaptureController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _onDetection(StressDetection d) {
+    _latestDetection = d;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
-    _sub?.cancel();
+    _statusSub?.cancel();
+    _detectionSub?.cancel();
     super.dispose();
   }
 }

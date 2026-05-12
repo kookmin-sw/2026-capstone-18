@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_signals/features/biosignals/biosignal_capture_controller.dart';
 import 'package:little_signals/features/biosignals/biosignal_capture_service.dart';
+import 'package:little_signals/features/biosignals/stress_detection.dart';
 
 class _FakeService extends BiosignalCaptureService {
   final StreamController<CaptureStatus> ctrl = StreamController.broadcast();
@@ -32,10 +33,19 @@ class _FakeService extends BiosignalCaptureService {
   }
 }
 
+BiosignalCaptureController _makeController(_FakeService fake) {
+  final detectionCtrl = StreamController<StressDetection>.broadcast();
+  addTearDown(detectionCtrl.close);
+  return BiosignalCaptureController(
+    service: fake,
+    detectionStream: detectionCtrl.stream,
+  );
+}
+
 void main() {
   test('controller forwards events from service stream', () async {
     final fake = _FakeService();
-    final controller = BiosignalCaptureController(service: fake);
+    final controller = _makeController(fake);
     final updates = <String>[];
     controller.addListener(() => updates.add(controller.state));
 
@@ -53,7 +63,7 @@ void main() {
 
   test('start invokes service.start with token + duration', () async {
     final fake = _FakeService();
-    final controller = BiosignalCaptureController(service: fake);
+    final controller = _makeController(fake);
     await controller.start(accessToken: 'tok', duration: const Duration(minutes: 10));
     expect(fake.startCalled, isTrue);
     expect(fake.lastToken, 'tok');
@@ -62,7 +72,7 @@ void main() {
 
   test('stop invokes service.stop', () async {
     final fake = _FakeService();
-    final controller = BiosignalCaptureController(service: fake);
+    final controller = _makeController(fake);
     await controller.stop();
     expect(fake.stopCalled, isTrue);
   });
