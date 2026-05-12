@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../features/biosignals/biosignal_capture_controller.dart';
+import '../../features/biosignals/stress_detection.dart';
 import '../../features/consent/consent_provider.dart';
 import 'capture_summary_screen.dart';
 
@@ -197,6 +198,11 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                   selectedDuration: _selectedDuration,
                   onStop: _onStop,
                 ),
+                if (_controller.latestDetection != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: _DetectionCard(detection: _controller.latestDetection!),
+                  ),
               ],
             ],
           ),
@@ -604,3 +610,40 @@ class _WaveformPainter extends CustomPainter {
 }
 
 double math_sin(double x) => _math.sin(x);
+
+class _DetectionCard extends StatelessWidget {
+  final StressDetection detection;
+  const _DetectionCard({required this.detection});
+
+  @override
+  Widget build(BuildContext context) {
+    final ago = DateTime.now().toUtc().difference(detection.detectedAt);
+    final agoMin = ago.inMinutes;
+    final agoSec = ago.inSeconds % 60;
+    final agoLabel = agoMin > 0 ? '$agoMin분 $agoSec초 전' : '$agoSec초 전';
+    final probLabel = (detection.probStress * 100).toStringAsFixed(1);
+    final stateLabel = detection.inStressEvent ? '스트레스 감지' : '정상';
+    final color = detection.inStressEvent ? Colors.orange.shade700 : Colors.green.shade700;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('최신 감지', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Text(
+            '$stateLabel · 신뢰도 $probLabel%',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: color, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          Text(agoLabel, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
