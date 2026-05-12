@@ -71,7 +71,7 @@ What this service does *not* do: ML inference (lives on the watch), heavy media 
                 │  Galaxy Watch 8 (Wear OS, Kotlin)  │
                 │  ▸ Samsung Health Sensor SDK       │
                 │  ▸ On-device Mamba inference       │
-                │  ▸ Decision engine + breath UI     │
+                │  ▸ Detection decision + event UI   │
                 └──────────────┬─────────────────────┘
                                │ Wearable Data Layer (BT)
                                ▼
