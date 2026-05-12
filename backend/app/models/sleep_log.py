@@ -6,7 +6,17 @@ import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Computed, Date, DateTime, ForeignKey, Integer, String, Text, text
+from sqlalchemy import (
+    CheckConstraint,
+    Computed,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,6 +28,12 @@ if TYPE_CHECKING:
 
 class SleepLog(Base):
     __tablename__ = "sleep_logs"
+    __table_args__ = (
+        CheckConstraint(
+            "rating IN ('very_poor', 'poor', 'okay', 'good', 'great')",
+            name="ck_sleep_logs_rating",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
