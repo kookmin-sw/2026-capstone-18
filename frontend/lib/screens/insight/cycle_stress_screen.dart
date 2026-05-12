@@ -201,7 +201,9 @@ class _PhaseDistributionCard extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              koPhase(distribution.highestDistributionPhase),
+                              _cyclePhaseLabel(
+                                distribution.highestDistributionPhase,
+                              ),
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -258,7 +260,7 @@ class _PhaseDistributionLegend extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  koPhaseShort(item.phase),
+                  _cyclePhaseLabel(item.phase),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -293,7 +295,6 @@ class _PhaseAveragesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final maxPhaseIntensityScore = intensities.fold<double>(
       0,
       (max, phase) => phase.phaseAverageStressScore > max
@@ -406,7 +407,7 @@ class _PhaseAverageBar extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            koPhaseShort(phase),
+            _cyclePhaseLabel(phase),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -771,8 +772,7 @@ _PhaseDistribution _phaseDistribution({
   required List<StressEvent> events,
   required List<Cycle> cycles,
 }) {
-  // Donut metric: stress-log count distribution by cycle phase.
-  // ratio = phaseStressLogCount / totalStressLogCount * 100.
+
   final counts = {for (final phase in _phases) phase: 0};
   for (final event in events) {
     if (!event.isLoggedWithScore) continue;
@@ -797,8 +797,7 @@ _PhaseDistribution _phaseDistribution({
 }
 
 List<_PhaseIntensityItem> _phaseIntensities(List<PhaseAverage> averages) {
-  // Bar metric: average stress_score by cycle phase.
-  // This is an intensity score, not a log-count distribution ratio.
+
   final byPhase = {
     for (final item in averages)
       InsightAnalyticsService.normalizePhase(item.phase): item,
@@ -839,18 +838,18 @@ String _cycleStressInsightMessage({
   final highestDistributionRatio = distribution.highestDistributionRatio;
 
   if (highestDistributionRatio < 40) {
-    return '스트레스 기록은 주기 전반에 비교적 고르게 분포했고, 평균 강도는 ${koPhase(highestIntensityPhase)}에서 가장 높게 나타났어요.';
+    return '스트레스 기록은 주기 전반에 비교적 고르게 분포했고, 평균 강도는 ${_cyclePhaseLabel(highestIntensityPhase)}에서 가장 높게 나타났어요.';
   }
 
   if (highestDistributionPhase == highestIntensityPhase) {
-    return '스트레스 기록의 분포와 평균 강도 모두 ${koPhase(highestDistributionPhase)}에서 가장 높게 나타났어요.';
+    return '스트레스 기록의 분포와 평균 강도 모두 ${_cyclePhaseLabel(highestDistributionPhase)}에서 가장 높게 나타났어요.';
   }
 
   if (highestDistributionRatio >= 50) {
-    return '스트레스 기록은 ${koPhase(highestDistributionPhase)}에 가장 많이 분포했고, 평균 강도는 ${koPhase(highestIntensityPhase)}에서 가장 높게 나타났어요.';
+    return '스트레스 기록은 ${_cyclePhaseLabel(highestDistributionPhase)}에 가장 많이 분포했고, 평균 강도는 ${_cyclePhaseLabel(highestIntensityPhase)}에서 가장 높게 나타났어요.';
   }
 
-  return '스트레스 기록은 ${koPhase(highestDistributionPhase)}에 다소 많이 분포했고, 평균 강도는 ${koPhase(highestIntensityPhase)}에서 가장 높게 나타났어요.';
+  return '스트레스 기록은 ${_cyclePhaseLabel(highestDistributionPhase)}에 다소 많이 분포했고, 평균 강도는 ${_cyclePhaseLabel(highestIntensityPhase)}에서 가장 높게 나타났어요.';
 }
 
 String _phaseForEvent(StressEvent event, List<Cycle> cycles) {
@@ -909,5 +908,15 @@ Color _phaseColor(String phase) {
     'ovulation' => AppColors.phaseOvulation,
     'luteal' => AppColors.phaseLuteal,
     _ => AppColors.triggerOther,
+  };
+}
+
+String _cyclePhaseLabel(String phase) {
+  return switch (InsightAnalyticsService.normalizePhase(phase)) {
+    'menstrual' => '생리기',
+    'follicular' => '난포기',
+    'ovulation' => '배란기',
+    'luteal' => '황체기',
+    _ => phase,
   };
 }
