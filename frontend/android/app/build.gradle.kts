@@ -25,7 +25,7 @@ android {
         applicationId = "com.littlesignals.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 26 // Health Connect requires API 26+
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -48,6 +48,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.android.gms:play-services-wearable:18.2.0")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.18.0")
+    implementation("androidx.health.connect:connect-client:1.1.0-rc01")
     testImplementation("com.microsoft.onnxruntime:onnxruntime:1.18.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
