@@ -9,7 +9,6 @@ import '../events/data/events_api.dart';
 import '../events/models/stress_event.dart';
 import 'data/ai_insights_api.dart';
 import 'data/range_report.dart';
-import 'data/weekly_report.dart';
 import 'services/insight_analytics_service.dart';
 
 class InsightProvider extends ChangeNotifier {
@@ -24,8 +23,6 @@ class InsightProvider extends ChangeNotifier {
   List<Cycle> _cycles = [];
   DateTime? _selectedStartMonth;
   DateTime? _selectedEndMonth;
-  WeeklyReport? _weeklyReport;
-
   RangeReport? _rangeReport;
   bool _rangeReportLoading = false;
   final Map<String, RangeReport> _rangeCache = {};
@@ -39,7 +36,6 @@ class InsightProvider extends ChangeNotifier {
 
   bool get loading => _loading;
   String? get errorMessage => _errorMessage;
-  WeeklyReport? get weeklyReport => _weeklyReport;
   RangeReport? get rangeReport => _rangeReport;
   bool get rangeReportLoading => _rangeReportLoading;
   List<StressEvent> get events => List.unmodifiable(_events);
@@ -166,17 +162,6 @@ class InsightProvider extends ChangeNotifier {
     return analyticsService.cycleDayForEvent(event, _cycles);
   }
 
-  Future<void> loadWeeklyReport() async {
-    try {
-      _weeklyReport = await aiInsightsApi.getLatestWeeklyReport();
-      notifyListeners();
-    } catch (_) {
-      // Swallow — report card will simply not render.
-      _weeklyReport = null;
-      notifyListeners();
-    }
-  }
-
   Future<void> loadRangeReport() async {
     final frm = selectedRange.start;
     final to = selectedRange.endExclusive.subtract(const Duration(days: 1));
@@ -217,7 +202,6 @@ class InsightProvider extends ChangeNotifier {
     _cycles = [];
     _selectedStartMonth = null;
     _selectedEndMonth = null;
-    _weeklyReport = null;
     _rangeReport = null;
     _rangeReportLoading = false;
     _rangeCache.clear();
