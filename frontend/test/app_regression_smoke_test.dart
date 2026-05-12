@@ -160,7 +160,8 @@ void main() {
       await tester.tap(find.text('사이클 × 스트레스'));
       await tester.pumpAndSettle();
       _expectNoFlutterException(tester);
-      expect(find.text('요인 분포'), findsOneWidget);
+      expect(find.text('주기 단계별 스트레스 분포'), findsOneWidget);
+      expect(find.text('주기 단계별 평균 강도'), findsOneWidget);
       await _systemBack(tester);
 
       await tester.tap(find.text('나의 리포트'));
