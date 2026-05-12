@@ -161,10 +161,24 @@ class BiosignalCaptureService : Service() {
                     }
 
                     if (nowMs - lastWindowStart >= 60_000L) {
-                        // Per-minute window counter preserved for Flutter status stream semantics.
-                        // Raw S3 upload paused for Phase 2 — per-second drain consumed the samples first.
+                        val payload = WindowPayload(
+                            recordedAtMs = windowRecordedAtMs,
+                            hr    = windowHr.toList(),
+                            ppg   = windowPpg.toList(),
+                            eda   = windowEda.toList(),
+                            accel = windowAccel.toList(),
+                        )
+                        windowHr.clear(); windowPpg.clear(); windowEda.clear(); windowAccel.clear()
+                        windowRecordedAtMs = nowMs
                         windowsUploaded += 1
                         lastWindowStart = nowMs
+                        scope.launch {
+                            val result = uploader.upload(payload)
+                            if (!result.success) {
+                                CaptureChannels.emit(state = "capturing", elapsedSec = elapsedSec,
+                                    windowsUploaded = windowsUploaded, error = "upload_warn_${result.errorCode}")
+                            }
+                        }
                     }
 
                     if (durationSec > 0 && elapsedSec >= durationSec) {
