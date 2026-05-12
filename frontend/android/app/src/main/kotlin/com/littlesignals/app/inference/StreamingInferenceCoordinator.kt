@@ -22,16 +22,46 @@ class StreamingInferenceCoordinator(
 
     fun tick(currentMs: Long) {
         if (sessionStartMs == 0L) sessionStartMs = currentMs
-        if (pipeline.isCalibrated) return  // chunk inference lands in Task 5
+        val sessionElapsedSec = ((currentMs - sessionStartMs) / 1000L).toInt()
 
-        // Try to calibrate as soon as we have a 300s window (which contains the
-        // first 180s as baseline). Matches Phase 1 PipelineRunner behavior.
+        if (!pipeline.isCalibrated) {
+            val snap = preprocessor.snapshot25Hz() ?: return
+            val baselineSteps = 180 * 25
+            pipeline.calibrate(
+                snap.ppgSmooth.copyOfRange(0, baselineSteps),
+                snap.eda.copyOfRange(0, baselineSteps),
+                snap.accMag.copyOfRange(0, baselineSteps),
+            )
+            // Fall through to also run inference on this tick — calibration finished
+            // means snap is a full 300s window, which is exactly what processBuffer wants.
+            runInference(snap, sessionElapsedSec, currentMs)
+            lastInferenceTickSec = sessionElapsedSec
+            return
+        }
+
+        // Throttle to one inference per tickIntervalSec.
+        if (sessionElapsedSec - lastInferenceTickSec < tickIntervalSec) return
         val snap = preprocessor.snapshot25Hz() ?: return
-        val baselineSteps = 180 * 25
-        pipeline.calibrate(
-            snap.ppgSmooth.copyOfRange(0, baselineSteps),
-            snap.eda.copyOfRange(0, baselineSteps),
-            snap.accMag.copyOfRange(0, baselineSteps),
+        runInference(snap, sessionElapsedSec, currentMs)
+        lastInferenceTickSec = sessionElapsedSec
+    }
+
+    private fun runInference(snap: SyncedSignals, sessionElapsedSec: Int, currentMs: Long) {
+        val (notify, prob) = pipeline.processBuffer(
+            snap.ppgSmooth,
+            snap.eda,
+            snap.accMag,
+            currentTimeSec = sessionElapsedSec,
+        )
+        listener.onDetection(
+            DetectionResult(
+                sessionElapsedSec = sessionElapsedSec,
+                detectedAtMs = currentMs,
+                probStress = prob,
+                state = if (pipeline.isInStressEvent) "STRESS_EVENT" else "Baseline",
+                inStressEvent = pipeline.isInStressEvent,
+                shouldNotify = notify,
+            )
         )
     }
 }

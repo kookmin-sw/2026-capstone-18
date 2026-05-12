@@ -52,4 +52,35 @@ class StreamingInferenceCoordinatorTest {
         coord.tick(currentMs = t0 + 300_000L)
         assertTrue("must calibrate now that snapshot is full", coord.isCalibrated())
     }
+
+    @Test fun `coordinator emits exactly one detection per tickIntervalSec after calibration`() {
+        val pre = StreamingPreprocessor()
+        val engine = ConstEngine(0.42)
+        val detections = mutableListOf<DetectionResult>()
+        val coord = StreamingInferenceCoordinator(pre, engine, tickIntervalSec = 60, listener = { detections += it })
+        val t0 = 1_700_000_000_000L
+        fill300Seconds(pre, t0)
+        coord.tick(currentMs = t0 + 300_000L)  // calibrates + first inference
+        coord.tick(currentMs = t0 + 320_000L)  // only 20s after — no new inference yet
+        coord.tick(currentMs = t0 + 361_000L)  // 61s after first inference — second inference
+
+        assertEquals("expected 2 detections", 2, detections.size)
+        assertEquals(0.42, detections[0].probStress, 1e-12)
+        assertEquals(t0 + 300_000L, detections[0].detectedAtMs)
+        assertEquals(t0 + 361_000L, detections[1].detectedAtMs)
+    }
+
+    @Test fun `coordinator surfaces shouldNotify from StressPipeline decision`() {
+        val pre = StreamingPreprocessor()
+        // High probability + zero motion (calibrated against still data) → notify
+        val engine = ConstEngine(0.95)
+        val detections = mutableListOf<DetectionResult>()
+        val coord = StreamingInferenceCoordinator(pre, engine, listener = { detections += it })
+        val t0 = 1_700_000_000_000L
+        fill300Seconds(pre, t0)
+        coord.tick(currentMs = t0 + 300_000L)
+        assertNotNull(detections.firstOrNull())
+        assertTrue("first high-prob detection should notify", detections.first().shouldNotify)
+        assertTrue("state should be STRESS_EVENT", detections.first().inStressEvent)
+    }
 }
