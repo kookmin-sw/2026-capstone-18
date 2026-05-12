@@ -4,8 +4,6 @@ import '../models/stress_event.dart';
 
 class EventsApi {
   final ApiClient _apiClient;
-  static const _legacyBackendUserResponse = 'breathe';
-
   const EventsApi({required ApiClient apiClient}) : _apiClient = apiClient;
 
   Future<List<StressEvent>> listEvents({
@@ -51,7 +49,7 @@ class EventsApi {
   }
 
   Future<StressEvent> createEvent(StressEvent event) async {
-    final body = _withBackendCompatibility(event.toCreateJson());
+    final body = event.toCreateJson();
 
     final response = await _apiClient.post('/api/v1/events', body: body);
     return StressEvent.fromJson(_map(response));
@@ -63,7 +61,7 @@ class EventsApi {
   ) async {
     final response = await _apiClient.patch(
       '/api/v1/events/$id',
-      body: _withBackendCompatibility(changes),
+      body: changes,
     );
     return StressEvent.fromJson(_map(response));
   }
@@ -85,8 +83,4 @@ class EventsApi {
     throw const ApiException(message: '스트레스 기록 응답을 확인하지 못했어요.');
   }
 
-  Map<String, dynamic> _withBackendCompatibility(Map<String, dynamic> body) {
-    // Legacy backend contract: event writes still require this field.
-    return {...body, 'user_response': _legacyBackendUserResponse};
-  }
 }
