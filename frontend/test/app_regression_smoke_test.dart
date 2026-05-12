@@ -26,6 +26,7 @@ import 'package:little_signals/features/events/models/stress_event.dart';
 import 'package:little_signals/features/home/home_provider.dart';
 import 'package:little_signals/features/insight/data/ai_insights_api.dart';
 import 'package:little_signals/features/insight/data/morning_tip.dart';
+import 'package:little_signals/features/insight/data/range_report.dart';
 import 'package:little_signals/features/insight/insight_provider.dart';
 import 'package:little_signals/features/privacy/data/privacy_api.dart';
 import 'package:little_signals/features/settings/data/settings_api.dart';
@@ -1210,6 +1211,12 @@ class _FakeAiInsightsApi extends AiInsightsApi {
 
   @override
   Future<MorningTip?> getMorningTip() async => null;
+
+  @override
+  Future<RangeReport?> getRangeReport({
+    required DateTime frm,
+    required DateTime to,
+  }) async => null;
 }
 
 class _FakePrivacyApi extends PrivacyApi {

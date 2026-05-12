@@ -15,7 +15,7 @@ import 'package:little_signals/features/insight/insight_provider.dart';
 void main() {
   // A fixed event so the provider has at least one month of data and can build
   // a valid selectedRange without crashing.
-  final _baseEvent = StressEvent(
+  final baseEvent = StressEvent(
     id: 'e1',
     detectedAt: DateTime(2026, 4, 1),
     logged: true,
@@ -24,7 +24,7 @@ void main() {
     note: null,
   );
 
-  final _stubReport = RangeReport(
+  final stubReport = RangeReport(
     periodStart: DateTime(2026, 4, 1),
     periodEnd: DateTime(2026, 4, 30),
     headline: 'Test headline',
@@ -34,60 +34,87 @@ void main() {
   );
 
   /// Builds a provider whose range is April 2026 (single month).
-  InsightProvider _buildProvider({
+  InsightProvider buildProvider({
     required _FakeAiInsightsApi aiApi,
     bool throwOnList = false,
   }) {
     return InsightProvider(
-      eventsApi: _FakeEventsApi([_baseEvent], throwOnList: throwOnList),
+      eventsApi: _FakeEventsApi([baseEvent], throwOnList: throwOnList),
       cyclesApi: _FakeCyclesApi(),
       aiInsightsApi: aiApi,
     );
   }
 
   group('range report caching', () {
-    test('cache hit — getRangeReport called only once for same range', () async {
-      final aiApi = _FakeAiInsightsApi(report: _stubReport);
-      final provider = _buildProvider(aiApi: aiApi);
+    test(
+      'cache hit — getRangeReport called only once for same range',
+      () async {
+        final aiApi = _FakeAiInsightsApi(report: stubReport);
+        final provider = buildProvider(aiApi: aiApi);
 
-      // Populate events so selectedRange is valid.
-      await provider.refresh();
+        // Populate events so selectedRange is valid.
+        await provider.refresh();
 
-      await provider.loadRangeReport();
-      await provider.loadRangeReport();
+        await provider.loadRangeReport();
+        await provider.loadRangeReport();
 
-      expect(aiApi.getRangeReportCallCount, equals(1));
-      expect(provider.rangeReport, isNotNull);
-      expect(provider.rangeReportLoading, isFalse);
-    });
+        expect(aiApi.getRangeReportCallCount, equals(1));
+        expect(provider.rangeReport, isNotNull);
+        expect(provider.rangeReportLoading, isFalse);
+        expect(provider.rangeReportStatus, RangeReportStatus.ready);
+        expect(provider.rangeReportMessage, isNull);
+      },
+    );
 
-    test('refresh clears cache — second loadRangeReport hits API again',
-        () async {
-      final aiApi = _FakeAiInsightsApi(report: _stubReport);
-      final provider = _buildProvider(aiApi: aiApi);
+    test(
+      'refresh clears cache — second loadRangeReport hits API again',
+      () async {
+        final aiApi = _FakeAiInsightsApi(report: stubReport);
+        final provider = buildProvider(aiApi: aiApi);
 
-      await provider.refresh();
-      await provider.loadRangeReport();
-      expect(aiApi.getRangeReportCallCount, equals(1));
+        await provider.refresh();
+        await provider.loadRangeReport();
+        expect(aiApi.getRangeReportCallCount, equals(1));
 
-      // refresh() should clear the cache.
-      await provider.refresh();
-      await provider.loadRangeReport();
+        // refresh() should clear the cache.
+        await provider.refresh();
+        await provider.loadRangeReport();
 
-      expect(aiApi.getRangeReportCallCount, equals(2));
-    });
+        expect(aiApi.getRangeReportCallCount, equals(2));
+      },
+    );
 
-    test('error handling — rangeReport is null and loading is false on throw',
-        () async {
-      final aiApi = _FakeAiInsightsApi(report: _stubReport, throwOnGet: true);
-      final provider = _buildProvider(aiApi: aiApi);
+    test(
+      'error handling — rangeReport is null and loading is false on throw',
+      () async {
+        final aiApi = _FakeAiInsightsApi(report: stubReport, throwOnGet: true);
+        final provider = buildProvider(aiApi: aiApi);
 
-      await provider.refresh();
-      await provider.loadRangeReport();
+        await provider.refresh();
+        await provider.loadRangeReport();
 
-      expect(provider.rangeReport, isNull);
-      expect(provider.rangeReportLoading, isFalse);
-    });
+        expect(provider.rangeReport, isNull);
+        expect(provider.rangeReportLoading, isFalse);
+        expect(provider.rangeReportStatus, RangeReportStatus.error);
+        expect(provider.rangeReportMessage, contains('불러오지 못했어요'));
+      },
+    );
+
+    test(
+      'empty handling — null report keeps a visible empty message',
+      () async {
+        final aiApi = _FakeAiInsightsApi(report: null);
+        final provider = buildProvider(aiApi: aiApi);
+
+        await provider.refresh();
+        await provider.loadRangeReport();
+
+        expect(provider.rangeReport, isNull);
+        expect(provider.rangeReportLoading, isFalse);
+        expect(provider.rangeReportStatus, RangeReportStatus.empty);
+        expect(provider.rangeReportMessage, contains('조금 더 쌓이면'));
+      },
+    );
   });
 }
 
@@ -100,7 +127,7 @@ class _FakeEventsApi extends EventsApi {
   final bool throwOnList;
 
   _FakeEventsApi(this._events, {this.throwOnList = false})
-      : super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
+    : super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
 
   @override
   Future<List<StressEvent>> listEvents({
@@ -119,20 +146,20 @@ class _FakeEventsApi extends EventsApi {
 
 class _FakeCyclesApi extends CyclesApi {
   _FakeCyclesApi()
-      : super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
+    : super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
 
   @override
   Future<List<Cycle>> listCycles() async => const [];
 }
 
 class _FakeAiInsightsApi extends AiInsightsApi {
-  final RangeReport _report;
+  final RangeReport? _report;
   final bool throwOnGet;
   int getRangeReportCallCount = 0;
 
-  _FakeAiInsightsApi({required RangeReport report, this.throwOnGet = false})
-      : _report = report,
-        super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
+  _FakeAiInsightsApi({required RangeReport? report, this.throwOnGet = false})
+    : _report = report,
+      super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
 
   @override
   Future<MorningTip?> getMorningTip() async => null;

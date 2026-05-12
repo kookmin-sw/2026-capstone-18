@@ -65,53 +65,74 @@ class _MyReportScreenState extends State<MyReportScreen> {
                         const SizedBox(height: 20),
                         _RangeSelector(provider: provider),
                         const SizedBox(height: 12),
-                        Builder(builder: (context) {
-                          final p = context.watch<InsightProvider>();
-                          final rangeReport = p.rangeReport;
-                          if (p.rangeReportLoading && rangeReport == null) {
-                            return const Padding(
-                              padding: EdgeInsets.only(bottom: 12),
-                              child: _AiReportSkeleton(),
-                            );
-                          }
-                          if (rangeReport == null) return const SizedBox.shrink();
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: GestureDetector(
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) =>
-                                      RangeReportScreen(report: rangeReport),
+                        Builder(
+                          builder: (context) {
+                            final p = context.watch<InsightProvider>();
+                            final rangeReport = p.rangeReport;
+                            if (p.rangeReportLoading && rangeReport == null) {
+                              return const Padding(
+                                padding: EdgeInsets.only(bottom: 12),
+                                child: _AiReportSkeleton(),
+                              );
+                            }
+                            if (rangeReport == null) {
+                              if (p.rangeReportStatus ==
+                                      RangeReportStatus.empty ||
+                                  p.rangeReportStatus ==
+                                      RangeReportStatus.error) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _AiReportStateCard(
+                                    message:
+                                        p.rangeReportMessage ??
+                                        'AI 리포트는 기록이 조금 더 쌓이면 보여드릴게요.',
+                                    isError:
+                                        p.rangeReportStatus ==
+                                        RangeReportStatus.error,
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: GestureDetector(
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        RangeReportScreen(report: rangeReport),
+                                  ),
                                 ),
-                              ),
-                              child: _GlassCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      rangeReport.headline,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        color: Color(0xFF201C28),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    if (rangeReport.takeaways.isNotEmpty) ...[
-                                      const SizedBox(height: 6),
+                                child: _GlassCard(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
                                       Text(
-                                        '· ${rangeReport.takeaways.first.title}: ${rangeReport.takeaways.first.body}',
+                                        rangeReport.headline,
                                         style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF615A6A),
+                                          fontSize: 16,
+                                          color: Color(0xFF201C28),
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
+                                      if (rangeReport.takeaways.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          '· ${rangeReport.takeaways.first.title}: ${rangeReport.takeaways.first.body}',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF615A6A),
+                                          ),
+                                        ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        }),
+                            );
+                          },
+                        ),
                         if (provider.errorMessage != null)
                           _InfoCard(
                             text: provider.errorMessage!,
@@ -614,7 +635,7 @@ class _AiReportSkeletonState extends State<_AiReportSkeleton>
     return _GlassCard(
       child: AnimatedBuilder(
         animation: _anim,
-        builder: (_, __) {
+        builder: (context, child) {
           final shimmer = LinearGradient(
             begin: Alignment(-1.5 + _anim.value * 3, 0),
             end: Alignment(-0.5 + _anim.value * 3, 0),
@@ -672,6 +693,49 @@ class _AiReportSkeletonState extends State<_AiReportSkeleton>
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _AiReportStateCard extends StatelessWidget {
+  final String message;
+  final bool isError;
+
+  const _AiReportStateCard({required this.message, required this.isError});
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: (isError ? AppColors.primary : AppColors.triggerSocial)
+                  .withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              isError
+                  ? Icons.error_outline_rounded
+                  : Icons.auto_awesome_outlined,
+              size: 15,
+              color: isError ? AppColors.primary : AppColors.triggerSocial,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTextStyles.caption.copyWith(
+                color: isError ? AppColors.primary : AppColors.textM,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -11,6 +11,8 @@ import 'data/ai_insights_api.dart';
 import 'data/range_report.dart';
 import 'services/insight_analytics_service.dart';
 
+enum RangeReportStatus { idle, loading, ready, empty, error }
+
 class InsightProvider extends ChangeNotifier {
   final EventsApi eventsApi;
   final CyclesApi cyclesApi;
@@ -25,6 +27,8 @@ class InsightProvider extends ChangeNotifier {
   DateTime? _selectedEndMonth;
   RangeReport? _rangeReport;
   bool _rangeReportLoading = false;
+  RangeReportStatus _rangeReportStatus = RangeReportStatus.idle;
+  String? _rangeReportMessage;
   final Map<String, RangeReport> _rangeCache = {};
 
   InsightProvider({
@@ -38,6 +42,8 @@ class InsightProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   RangeReport? get rangeReport => _rangeReport;
   bool get rangeReportLoading => _rangeReportLoading;
+  RangeReportStatus get rangeReportStatus => _rangeReportStatus;
+  String? get rangeReportMessage => _rangeReportMessage;
   List<StressEvent> get events => List.unmodifiable(_events);
   List<Cycle> get cycles => List.unmodifiable(_cycles);
   List<DateTime> get availableMonths {
@@ -170,20 +176,35 @@ class InsightProvider extends ChangeNotifier {
     final cached = _rangeCache[key];
     if (cached != null) {
       _rangeReport = cached;
+      _rangeReportStatus = RangeReportStatus.ready;
+      _rangeReportMessage = null;
       notifyListeners();
       return;
     }
 
     _rangeReportLoading = true;
+    _rangeReportStatus = RangeReportStatus.loading;
+    _rangeReportMessage = null;
     notifyListeners();
     try {
       final fetched = await aiInsightsApi.getRangeReport(frm: frm, to: to);
       if (fetched != null) {
         _rangeCache[key] = fetched;
+        _rangeReportStatus = RangeReportStatus.ready;
+        _rangeReportMessage = null;
+      } else {
+        _rangeReportStatus = RangeReportStatus.empty;
+        _rangeReportMessage = 'AI 리포트는 기록이 조금 더 쌓이면 보여드릴게요.';
       }
       _rangeReport = fetched;
+    } on ApiException {
+      _rangeReport = null;
+      _rangeReportStatus = RangeReportStatus.error;
+      _rangeReportMessage = 'AI 리포트를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
     } catch (_) {
       _rangeReport = null;
+      _rangeReportStatus = RangeReportStatus.error;
+      _rangeReportMessage = 'AI 리포트를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
     } finally {
       _rangeReportLoading = false;
       notifyListeners();
@@ -204,6 +225,8 @@ class InsightProvider extends ChangeNotifier {
     _selectedEndMonth = null;
     _rangeReport = null;
     _rangeReportLoading = false;
+    _rangeReportStatus = RangeReportStatus.idle;
+    _rangeReportMessage = null;
     _rangeCache.clear();
     notifyListeners();
   }
