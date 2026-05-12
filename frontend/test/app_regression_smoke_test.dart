@@ -649,6 +649,59 @@ void main() {
     },
   );
 
+  testWidgets('insight calendar month navigation stays within data bounds', (
+    tester,
+  ) async {
+    final data = _SmokeData(authStatus: AuthStatus.authenticated);
+    final now = DateTime.now();
+    final currentMonth = DateTime(now.year, now.month);
+    final earliestMonth = DateTime(now.year, now.month - 2);
+    final maxFutureMonth = DateTime(now.year, now.month + 2);
+    final blockedFutureMonth = DateTime(now.year, now.month + 3);
+    final blockedPastMonth = DateTime(now.year, now.month - 3);
+
+    data.eventsApi.events.add(
+      StressEvent(
+        id: 'event-oldest',
+        detectedAt: earliestMonth.add(const Duration(days: 3)),
+        stressScore: 47,
+        trigger: 'Work',
+        cyclePhase: 'follicular',
+        logged: true,
+        note: null,
+      ),
+    );
+    await data.load();
+
+    await tester.pumpWidget(
+      _SmokeApp(data: data, child: const InsightScreen()),
+    );
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    final previousArrow = find.byIcon(Icons.chevron_left);
+    final nextArrow = find.byIcon(Icons.chevron_right).first;
+
+    await tester.tap(previousArrow);
+    await tester.pumpAndSettle();
+    await tester.tap(previousArrow);
+    await tester.pumpAndSettle();
+    await tester.tap(previousArrow);
+    await tester.pumpAndSettle();
+
+    expect(find.text(koMonthLabel(earliestMonth)), findsOneWidget);
+    expect(find.text(koMonthLabel(blockedPastMonth)), findsNothing);
+
+    for (var i = 0; i < 6; i += 1) {
+      await tester.tap(nextArrow);
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text(koMonthLabel(maxFutureMonth)), findsOneWidget);
+    expect(find.text(koMonthLabel(blockedFutureMonth)), findsNothing);
+    expect(find.text(koMonthLabel(currentMonth)), findsNothing);
+  });
+
   test(
     'visible Korean copy scan has no known English fallback strings',
     () async {

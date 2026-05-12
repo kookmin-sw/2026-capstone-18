@@ -52,6 +52,41 @@ class PhaseAverage {
   String get percent => '${averageStress.round()}%';
 }
 
+class PhaseDistributionItem {
+  final String phase;
+  final int phaseLogCount;
+  final double phaseDistributionRatio;
+
+  const PhaseDistributionItem({
+    required this.phase,
+    required this.phaseLogCount,
+    required this.phaseDistributionRatio,
+  });
+}
+
+class PhaseDistribution {
+  final List<PhaseDistributionItem> items;
+  final int totalLogs;
+
+  const PhaseDistribution({required this.items, required this.totalLogs});
+
+  PhaseDistributionItem get highestDistributionItem {
+    return items.reduce((best, current) {
+      if (current.phaseLogCount > best.phaseLogCount) return current;
+      if (current.phaseLogCount == best.phaseLogCount &&
+          current.phaseDistributionRatio > best.phaseDistributionRatio) {
+        return current;
+      }
+      return best;
+    });
+  }
+
+  String get highestDistributionPhase => highestDistributionItem.phase;
+
+  double get highestDistributionRatio =>
+      highestDistributionItem.phaseDistributionRatio;
+}
+
 class MonthlyStressByPhase {
   final DateTime month;
   final Map<String, double> averageByPhase;
@@ -98,6 +133,7 @@ class InsightReportViewModel {
   final InsightDateRange range;
   final List<StressEvent> events;
   final List<PhaseAverage> phaseAverages;
+  final PhaseDistribution phaseDistribution;
   final List<MonthlyStressByPhase> monthlyStressByPhase;
   final List<String> triggers;
   final List<TriggerPhaseCell> triggerByCyclePhaseMatrix;
@@ -112,6 +148,7 @@ class InsightReportViewModel {
     required this.range,
     required this.events,
     required this.phaseAverages,
+    required this.phaseDistribution,
     required this.monthlyStressByPhase,
     required this.triggers,
     required this.triggerByCyclePhaseMatrix,
@@ -158,6 +195,7 @@ class InsightAnalyticsService {
   }) {
     final rangeEvents = _eventsInRange(events, range)
       ..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
+    final phaseDistribution = _phaseDistribution(rangeEvents, cycles);
     final phaseAverages = phases.map((phase) {
       final phaseEvents = rangeEvents
           .where((event) => phaseForEvent(event, cycles) == phase)
@@ -183,6 +221,7 @@ class InsightAnalyticsService {
       range: range,
       events: rangeEvents,
       phaseAverages: phaseAverages,
+      phaseDistribution: phaseDistribution,
       monthlyStressByPhase: _monthlyStress(rangeEvents, cycles, range),
       triggers: triggers,
       triggerByCyclePhaseMatrix: _matrix(rangeEvents, cycles, triggers),
@@ -257,6 +296,26 @@ class InsightAnalyticsService {
         )
         .toList()
       ..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
+  }
+
+  String? phaseForDate(DateTime date, List<Cycle> cycles) {
+    final cycle = _cycleForDate(date, cycles);
+    if (cycle == null) return null;
+
+    final start = DateTime(
+      cycle.lastPeriodStart.year,
+      cycle.lastPeriodStart.month,
+      cycle.lastPeriodStart.day,
+    );
+    final eventDate = DateTime(date.year, date.month, date.day);
+    final cycleLength = cycle.cycleLength <= 0 ? 28 : cycle.cycleLength;
+    final periodLength = (cycle.periodLength <= 0 ? 5 : cycle.periodLength)
+        .clamp(1, cycleLength)
+        .toInt();
+    final diff = eventDate.difference(start).inDays;
+    final cycleDay = (diff % cycleLength) + 1;
+
+    return _phaseForDay(cycleDay, periodLength);
   }
 
   String phaseForEvent(StressEvent event, List<Cycle> cycles) {
@@ -355,6 +414,32 @@ class InsightAnalyticsService {
         .where((event) => event.isLoggedWithScore)
         .where((event) => range.contains(event.detectedAt))
         .toList();
+  }
+
+  PhaseDistribution _phaseDistribution(
+    List<StressEvent> events,
+    List<Cycle> cycles,
+  ) {
+    final counts = {for (final phase in phases) phase: 0};
+    for (final event in events) {
+      final phase = phaseForEvent(event, cycles);
+      counts[phase] = (counts[phase] ?? 0) + 1;
+    }
+
+    final total = counts.values.fold<int>(0, (sum, count) => sum + count);
+    return PhaseDistribution(
+      totalLogs: total,
+      items: [
+        for (final phase in phases)
+          PhaseDistributionItem(
+            phase: phase,
+            phaseLogCount: counts[phase] ?? 0,
+            phaseDistributionRatio: total == 0
+                ? 0
+                : ((counts[phase] ?? 0) / total) * 100,
+          ),
+      ],
+    );
   }
 
   List<MonthlyStressByPhase> _monthlyStress(

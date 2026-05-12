@@ -8,8 +8,6 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/korean_ui_text.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
-import '../../features/cycles/models/cycle.dart';
-import '../../features/events/models/stress_event.dart';
 import '../../features/insight/insight_provider.dart';
 import '../../features/insight/services/insight_analytics_service.dart';
 
@@ -47,11 +45,11 @@ class _CycleStressScreenState extends State<CycleStressScreen> {
       cycles: provider.cycles,
       range: range,
     );
-    final activePhase = _phaseForDate(DateTime.now(), provider.cycles);
-    final distribution = _phaseDistribution(
-      events: report.events,
-      cycles: provider.cycles,
+    final activePhase = provider.analyticsService.phaseForDate(
+      DateTime.now(),
+      provider.cycles,
     );
+    final distribution = report.phaseDistribution;
     final phaseIntensities = _phaseIntensities(report.phaseAverages);
     final insightText = _cycleStressInsightMessage(
       distribution: distribution,
@@ -168,7 +166,7 @@ class _CycleStressScreenState extends State<CycleStressScreen> {
 }
 
 class _PhaseDistributionCard extends StatelessWidget {
-  final _PhaseDistribution distribution;
+  final PhaseDistribution distribution;
 
   const _PhaseDistributionCard({required this.distribution});
 
@@ -236,7 +234,7 @@ class _PhaseDistributionCard extends StatelessWidget {
 }
 
 class _PhaseDistributionLegend extends StatelessWidget {
-  final _PhaseDistribution distribution;
+  final PhaseDistribution distribution;
 
   const _PhaseDistributionLegend(this.distribution);
 
@@ -684,41 +682,6 @@ class _GlassCard extends StatelessWidget {
   }
 }
 
-class _PhaseDistributionItem {
-  final String phase;
-  final int phaseLogCount;
-  final double phaseDistributionRatio;
-
-  const _PhaseDistributionItem({
-    required this.phase,
-    required this.phaseLogCount,
-    required this.phaseDistributionRatio,
-  });
-}
-
-class _PhaseDistribution {
-  final List<_PhaseDistributionItem> items;
-  final int totalLogs;
-
-  const _PhaseDistribution({required this.items, required this.totalLogs});
-
-  _PhaseDistributionItem get highestDistributionItem {
-    return items.reduce((best, current) {
-      if (current.phaseLogCount > best.phaseLogCount) return current;
-      if (current.phaseLogCount == best.phaseLogCount &&
-          current.phaseDistributionRatio > best.phaseDistributionRatio) {
-        return current;
-      }
-      return best;
-    });
-  }
-
-  String get highestDistributionPhase => highestDistributionItem.phase;
-
-  double get highestDistributionRatio =>
-      highestDistributionItem.phaseDistributionRatio;
-}
-
 class _PhaseIntensityItem {
   final String phase;
   final int phaseLogCount;
@@ -732,7 +695,7 @@ class _PhaseIntensityItem {
 }
 
 class _PhaseDonutPainter extends CustomPainter {
-  final List<_PhaseDistributionItem> items;
+  final List<PhaseDistributionItem> items;
 
   const _PhaseDonutPainter(this.items);
 
@@ -768,36 +731,7 @@ class _PhaseDonutPainter extends CustomPainter {
 
 const _phases = ['menstrual', 'follicular', 'ovulation', 'luteal'];
 
-_PhaseDistribution _phaseDistribution({
-  required List<StressEvent> events,
-  required List<Cycle> cycles,
-}) {
-
-  final counts = {for (final phase in _phases) phase: 0};
-  for (final event in events) {
-    if (!event.isLoggedWithScore) continue;
-    final phase = _phaseForEvent(event, cycles);
-    counts[phase] = (counts[phase] ?? 0) + 1;
-  }
-
-  final total = counts.values.fold<int>(0, (sum, count) => sum + count);
-  return _PhaseDistribution(
-    totalLogs: total,
-    items: [
-      for (final phase in _phases)
-        _PhaseDistributionItem(
-          phase: phase,
-          phaseLogCount: counts[phase] ?? 0,
-          phaseDistributionRatio: total == 0
-              ? 0
-              : ((counts[phase] ?? 0) / total) * 100,
-        ),
-    ],
-  );
-}
-
 List<_PhaseIntensityItem> _phaseIntensities(List<PhaseAverage> averages) {
-
   final byPhase = {
     for (final item in averages)
       InsightAnalyticsService.normalizePhase(item.phase): item,
@@ -814,7 +748,7 @@ List<_PhaseIntensityItem> _phaseIntensities(List<PhaseAverage> averages) {
 }
 
 String _cycleStressInsightMessage({
-  required _PhaseDistribution distribution,
+  required PhaseDistribution distribution,
   required List<_PhaseIntensityItem> intensities,
 }) {
   if (distribution.totalLogs < 3) {
@@ -850,55 +784,6 @@ String _cycleStressInsightMessage({
   }
 
   return '스트레스 기록은 ${_cyclePhaseLabel(highestDistributionPhase)}에 다소 많이 분포했고, 평균 강도는 ${_cyclePhaseLabel(highestIntensityPhase)}에서 가장 높게 나타났어요.';
-}
-
-String _phaseForEvent(StressEvent event, List<Cycle> cycles) {
-  final byCycle = _phaseForDate(event.detectedAt, cycles);
-  if (byCycle != null) return byCycle;
-
-  final normalized = InsightAnalyticsService.normalizePhase(event.cyclePhase);
-  if (_phases.contains(normalized)) return normalized;
-  return 'luteal';
-}
-
-String? _phaseForDate(DateTime date, List<Cycle> cycles) {
-  final cycle = _cycleForDate(date, cycles);
-  if (cycle == null) return null;
-
-  final start = DateTime(
-    cycle.lastPeriodStart.year,
-    cycle.lastPeriodStart.month,
-    cycle.lastPeriodStart.day,
-  );
-  final day = DateTime(date.year, date.month, date.day);
-  final cycleLength = cycle.cycleLength <= 0 ? 28 : cycle.cycleLength;
-  final periodLength = (cycle.periodLength <= 0 ? 5 : cycle.periodLength)
-      .clamp(1, cycleLength)
-      .toInt();
-  final diff = day.difference(start).inDays;
-  final cycleDay = (diff % cycleLength) + 1;
-
-  if (cycleDay <= periodLength) return 'menstrual';
-  if (cycleDay <= 13) return 'follicular';
-  if (cycleDay <= 16) return 'ovulation';
-  return 'luteal';
-}
-
-Cycle? _cycleForDate(DateTime date, List<Cycle> cycles) {
-  if (cycles.isEmpty) return null;
-
-  final day = DateTime(date.year, date.month, date.day);
-  final sortedCycles = [...cycles]
-    ..sort((a, b) => b.lastPeriodStart.compareTo(a.lastPeriodStart));
-  for (final cycle in sortedCycles) {
-    final start = DateTime(
-      cycle.lastPeriodStart.year,
-      cycle.lastPeriodStart.month,
-      cycle.lastPeriodStart.day,
-    );
-    if (!day.isBefore(start)) return cycle;
-  }
-  return null;
 }
 
 Color _phaseColor(String phase) {

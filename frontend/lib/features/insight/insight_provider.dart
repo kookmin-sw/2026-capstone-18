@@ -99,6 +99,7 @@ class InsightProvider extends ChangeNotifier {
     try {
       final results = await Future.wait<dynamic>([
         eventsApi.listEvents(logged: true, limit: 200),
+        cyclesApi.currentCycle(),
         cyclesApi.listCycles(),
       ]);
       _events =
@@ -106,7 +107,10 @@ class InsightProvider extends ChangeNotifier {
               .where((event) => event.isLoggedWithScore)
               .toList()
             ..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
-      _cycles = results[1] as List<Cycle>;
+      _cycles = _mergeCycles(
+        currentCycle: results[1] as Cycle?,
+        history: results[2] as List<Cycle>,
+      );
       _rangeCache.clear();
       _ensureSelectedRange();
     } on ApiException catch (error) {
@@ -251,6 +255,28 @@ class InsightProvider extends ChangeNotifier {
     return availableMonths.any(
       (item) => item.year == month.year && item.month == month.month,
     );
+  }
+
+  List<Cycle> _mergeCycles({
+    required Cycle? currentCycle,
+    required List<Cycle> history,
+  }) {
+    final byKey = <String, Cycle>{};
+    for (final cycle in history) {
+      byKey[_cycleKey(cycle)] = cycle;
+    }
+    if (currentCycle != null) {
+      byKey[_cycleKey(currentCycle)] = currentCycle;
+    }
+
+    return byKey.values.toList()
+      ..sort((a, b) => b.lastPeriodStart.compareTo(a.lastPeriodStart));
+  }
+
+  String _cycleKey(Cycle cycle) {
+    if (cycle.id.isNotEmpty) return cycle.id;
+    final start = cycle.lastPeriodStart;
+    return '${start.year}-${start.month}-${start.day}';
   }
 
   int _monthDistance(DateTime start, DateTime end) {

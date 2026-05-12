@@ -66,6 +66,24 @@ class _InsightScreenState extends State<InsightScreen> {
     final topTrigger = report.triggerRanking.isEmpty
         ? null
         : report.triggerRanking.first;
+    final earliestMonth = _earliestCalendarMonth(insight);
+    final latestMonth = _latestCalendarMonth();
+    final focusedMonth = _clampMonth(
+      _focusedMonth,
+      min: earliestMonth,
+      max: latestMonth,
+    );
+    if (!_isSameMonth(focusedMonth, _focusedMonth)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _focusedMonth = focusedMonth;
+          _selectedDay = null;
+        });
+      });
+    }
+    final canGoPrevious = _isAfterMonth(focusedMonth, earliestMonth);
+    final canGoNext = _isBeforeMonth(focusedMonth, latestMonth);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -86,95 +104,97 @@ class _InsightScreenState extends State<InsightScreen> {
                       const Text('인사이트', style: AppTextStyles.screenTitle),
                       const SizedBox(height: 20),
 
-                      _GlassCard(
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                GestureDetector(
-                                  onTap: () => setState(() {
-                                    _focusedMonth = DateTime(
-                                      _focusedMonth.year,
-                                      _focusedMonth.month - 1,
-                                    );
-                                  }),
-                                  child: const Icon(
-                                    Icons.chevron_left,
-                                    color: Color(0xFF9888A0),
+                      GestureDetector(
+                        onHorizontalDragEnd: (details) => _handleCalendarSwipe(
+                          details,
+                          minMonth: earliestMonth,
+                          maxMonth: latestMonth,
+                        ),
+                        child: _GlassCard(
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  _CalendarArrow(
+                                    icon: Icons.chevron_left,
+                                    enabled: canGoPrevious,
+                                    onTap: () => _moveFocusedMonth(
+                                      -1,
+                                      minMonth: earliestMonth,
+                                      maxMonth: latestMonth,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  koMonthLabel(_focusedMonth),
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF201C28),
+                                  Text(
+                                    koMonthLabel(focusedMonth),
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF201C28),
+                                    ),
                                   ),
-                                ),
-                                GestureDetector(
-                                  onTap: () => setState(() {
-                                    _focusedMonth = DateTime(
-                                      _focusedMonth.year,
-                                      _focusedMonth.month + 1,
-                                    );
-                                  }),
-                                  child: const Icon(
-                                    Icons.chevron_right,
-                                    color: Color(0xFF9888A0),
+                                  _CalendarArrow(
+                                    icon: Icons.chevron_right,
+                                    enabled: canGoNext,
+                                    onTap: () => _moveFocusedMonth(
+                                      1,
+                                      minMonth: earliestMonth,
+                                      maxMonth: latestMonth,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
 
-                            Row(
-                              children: ['월', '화', '수', '목', '금', '토', '일']
-                                  .map(
-                                    (d) => Expanded(
-                                      child: Center(
-                                        child: Text(
-                                          d,
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Color(0xFFC0B0C0),
+                              Row(
+                                children: ['월', '화', '수', '목', '금', '토', '일']
+                                    .map(
+                                      (d) => Expanded(
+                                        child: Center(
+                                          child: Text(
+                                            d,
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Color(0xFFC0B0C0),
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                            const SizedBox(height: 8),
+                                    )
+                                    .toList(),
+                              ),
+                              const SizedBox(height: 8),
 
-                            _buildCalendarGrid(insight),
-                            const SizedBox(height: 12),
+                              _buildCalendarGrid(insight, focusedMonth),
+                              const SizedBox(height: 12),
 
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 6,
-                              children: [
-                                _LegendItem(
-                                  color: const Color(0xFFFFDAD5),
-                                  label: '생리기',
-                                ),
-                                _LegendItem(
-                                  color: const Color(0xFFF2DCF3),
-                                  label: '난포기',
-                                ),
-                                _LegendItem(
-                                  color: const Color(0xFFDDEDF8),
-                                  label: '배란기',
-                                ),
-                                _LegendItem(
-                                  color: const Color(
-                                    0xFF94D0BC,
-                                  ).withValues(alpha: 0.5),
-                                  label: '황체기',
-                                ),
-                              ],
-                            ),
-                          ],
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 6,
+                                children: [
+                                  _LegendItem(
+                                    color: const Color(0xFFFFDAD5),
+                                    label: '생리기',
+                                  ),
+                                  _LegendItem(
+                                    color: const Color(0xFFF2DCF3),
+                                    label: '난포기',
+                                  ),
+                                  _LegendItem(
+                                    color: const Color(0xFFDDEDF8),
+                                    label: '배란기',
+                                  ),
+                                  _LegendItem(
+                                    color: const Color(
+                                      0xFF94D0BC,
+                                    ).withValues(alpha: 0.5),
+                                    label: '황체기',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -292,11 +312,11 @@ class _InsightScreenState extends State<InsightScreen> {
     );
   }
 
-  Widget _buildCalendarGrid(InsightProvider insight) {
-    final firstDay = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
+  Widget _buildCalendarGrid(InsightProvider insight, DateTime focusedMonth) {
+    final firstDay = DateTime(focusedMonth.year, focusedMonth.month, 1);
     final daysInMonth = DateTime(
-      _focusedMonth.year,
-      _focusedMonth.month + 1,
+      focusedMonth.year,
+      focusedMonth.month + 1,
       0,
     ).day;
 
@@ -310,7 +330,7 @@ class _InsightScreenState extends State<InsightScreen> {
 
     for (int day = 1; day <= daysInMonth; day++) {
       final isSelected = _selectedDay == day;
-      final date = DateTime(_focusedMonth.year, _focusedMonth.month, day);
+      final date = DateTime(focusedMonth.year, focusedMonth.month, day);
       final dayEvents = insight.eventsForDay(date);
       final hasLoggedEvents = dayEvents.isNotEmpty;
       final phaseColor = _getPhaseColor(day);
@@ -324,8 +344,8 @@ class _InsightScreenState extends State<InsightScreen> {
               MaterialPageRoute(
                 builder: (_) => DayEventsScreen(
                   day: day,
-                  month: _focusedMonth.month,
-                  year: _focusedMonth.year,
+                  month: focusedMonth.month,
+                  year: focusedMonth.year,
                 ),
               ),
             );
@@ -377,6 +397,91 @@ class _InsightScreenState extends State<InsightScreen> {
       children: cells,
     );
   }
+
+  DateTime _earliestCalendarMonth(InsightProvider insight) {
+    final currentMonth = _currentMonth();
+    final recordMonths = <DateTime>[
+      for (final event in insight.events)
+        DateTime(event.detectedAt.year, event.detectedAt.month),
+      for (final cycle in insight.cycles)
+        DateTime(cycle.lastPeriodStart.year, cycle.lastPeriodStart.month),
+      for (final cycle in insight.cycles)
+        if (cycle.periodEndDate != null)
+          DateTime(cycle.periodEndDate!.year, cycle.periodEndDate!.month),
+    ];
+
+    if (recordMonths.isEmpty) return currentMonth;
+    recordMonths.sort();
+    final earliest = recordMonths.first;
+    return earliest.isAfter(currentMonth) ? currentMonth : earliest;
+  }
+
+  DateTime _latestCalendarMonth() {
+    final currentMonth = _currentMonth();
+    return DateTime(currentMonth.year, currentMonth.month + 2);
+  }
+
+  DateTime _currentMonth() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month);
+  }
+
+  DateTime _clampMonth(
+    DateTime month, {
+    required DateTime min,
+    required DateTime max,
+  }) {
+    final normalized = DateTime(month.year, month.month);
+    if (_isBeforeMonth(normalized, min)) return min;
+    if (_isAfterMonth(normalized, max)) return max;
+    return normalized;
+  }
+
+  void _moveFocusedMonth(
+    int delta, {
+    required DateTime minMonth,
+    required DateTime maxMonth,
+  }) {
+    final next = _clampMonth(
+      DateTime(_focusedMonth.year, _focusedMonth.month + delta),
+      min: minMonth,
+      max: maxMonth,
+    );
+    if (_isSameMonth(next, _focusedMonth)) return;
+
+    setState(() {
+      _focusedMonth = next;
+      _selectedDay = null;
+    });
+  }
+
+  void _handleCalendarSwipe(
+    DragEndDetails details, {
+    required DateTime minMonth,
+    required DateTime maxMonth,
+  }) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < 120) return;
+    _moveFocusedMonth(
+      velocity < 0 ? 1 : -1,
+      minMonth: minMonth,
+      maxMonth: maxMonth,
+    );
+  }
+
+  bool _isBeforeMonth(DateTime first, DateTime second) {
+    return first.year < second.year ||
+        (first.year == second.year && first.month < second.month);
+  }
+
+  bool _isAfterMonth(DateTime first, DateTime second) {
+    return first.year > second.year ||
+        (first.year == second.year && first.month > second.month);
+  }
+
+  bool _isSameMonth(DateTime first, DateTime second) {
+    return first.year == second.year && first.month == second.month;
+  }
 }
 
 Color _phaseColor(String phase) {
@@ -396,6 +501,29 @@ class _GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(padding: const EdgeInsets.all(16), child: child);
+  }
+}
+
+class _CalendarArrow extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _CalendarArrow({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.28,
+        child: Icon(icon, color: const Color(0xFF9888A0)),
+      ),
+    );
   }
 }
 

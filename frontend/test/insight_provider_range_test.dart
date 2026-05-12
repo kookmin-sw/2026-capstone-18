@@ -149,6 +149,9 @@ class _FakeCyclesApi extends CyclesApi {
     : super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
 
   @override
+  Future<Cycle?> currentCycle() async => null;
+
+  @override
   Future<List<Cycle>> listCycles() async => const [];
 }
 
