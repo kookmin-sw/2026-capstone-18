@@ -10,8 +10,8 @@ import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_title.dart';
 import '../../features/insight/insight_provider.dart';
 import '../../features/insight/services/insight_analytics_service.dart';
+import 'range_report_screen.dart';
 import 'report_detail_screen.dart';
-import 'weekly_report_screen.dart';
 
 class MyReportScreen extends StatefulWidget {
   const MyReportScreen({super.key});
@@ -32,7 +32,7 @@ class _MyReportScreenState extends State<MyReportScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<InsightProvider>().loadWeeklyReport();
+      context.read<InsightProvider>().loadRangeReport();
     });
   }
 
@@ -66,43 +66,53 @@ class _MyReportScreenState extends State<MyReportScreen> {
                         _RangeSelector(provider: provider),
                         const SizedBox(height: 12),
                         Builder(builder: (context) {
-                          final weeklyReport =
-                              context.watch<InsightProvider>().weeklyReport;
-                          if (weeklyReport == null) return const SizedBox.shrink();
+                          final p = context.watch<InsightProvider>();
+                          final rangeReport = p.rangeReport;
+                          if (p.rangeReportLoading && rangeReport == null) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _GlassCard(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'AI 리포트 생성 중…',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF615A6A),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          if (rangeReport == null) return const SizedBox.shrink();
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: GestureDetector(
                               onTap: () => Navigator.of(context).push(
                                 MaterialPageRoute<void>(
                                   builder: (_) =>
-                                      WeeklyReportScreen(report: weeklyReport),
+                                      RangeReportScreen(report: rangeReport),
                                 ),
                               ),
                               child: _GlassCard(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
-                                      '이번 주 리포트',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF9888A0),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
                                     Text(
-                                      weeklyReport.headline,
+                                      rangeReport.headline,
                                       style: const TextStyle(
                                         fontSize: 16,
                                         color: Color(0xFF201C28),
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                    if (weeklyReport.takeaways.isNotEmpty) ...[
+                                    if (rangeReport.takeaways.isNotEmpty) ...[
                                       const SizedBox(height: 6),
                                       Text(
-                                        '· ${weeklyReport.takeaways.first.title}: ${weeklyReport.takeaways.first.body}',
+                                        '· ${rangeReport.takeaways.first.title}: ${rangeReport.takeaways.first.body}',
                                         style: const TextStyle(
                                           fontSize: 13,
                                           color: Color(0xFF615A6A),

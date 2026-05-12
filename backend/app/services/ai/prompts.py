@@ -137,3 +137,51 @@ def weekly_report_prompt(
         "위 데이터를 바탕으로 이 주의 리포트를 JSON으로 출력하세요."
     )
     return system, user
+
+
+def range_report_prompt(
+    *,
+    display_name: str,
+    period_start: date,
+    period_end: date,
+    n_events: int,
+    events_summary_lines: list[str],
+    n_sleep: int,
+    avg_sleep_min: int,
+    avg_rating: str,
+    sleep_lines: list[str],
+    current_phase: str,
+    phase_changes: str,
+    top_pattern_lines: list[str],
+) -> tuple[str, str]:
+    n_days = (period_end - period_start).days + 1
+    system = (
+        f"당신은 사용자의 {n_days}일간 스트레스/수면/생리 데이터를 종합해 "
+        "한국어 리포트를 작성하는 어시스턴트입니다. "
+        "답변은 반드시 다음 JSON 스키마에 맞춰 출력하세요. JSON 외 다른 텍스트는 출력하지 마세요. "
+        "의학적 진단을 피하고, 관찰된 패턴과 행동 제안을 부드러운 어조로 전달합니다.\n\n"
+        "스키마:\n"
+        "{\n"
+        '  "headline": "한 줄 요약, 25자 이내",\n'
+        '  "body_md": "마크다운 본문 3-4 문단",\n'
+        '  "takeaways": [\n'
+        '    {"title": "10자 이내 제목", "body": "1-2 문장 요약"}\n'
+        "  ]\n"
+        "}\n"
+        "takeaways는 최대 5개입니다."
+    )
+    events_block = "\n".join(f"- {x}" for x in events_summary_lines) or "- (이벤트 없음)"
+    sleep_block = "\n".join(f"- {x}" for x in sleep_lines) or "- (수면 기록 없음)"
+    patterns_block = "\n".join(f"- {x}" for x in top_pattern_lines) or "- (해당 없음)"
+    user = (
+        f"사용자: {display_name}\n"
+        f"기간 ({period_start.isoformat()} ~ {period_end.isoformat()}, {n_days}일):\n\n"
+        f"스트레스 이벤트 ({n_events}건):\n{events_block}\n\n"
+        f"수면 ({n_sleep}건):\n"
+        f"- 평균 {avg_sleep_min}분, 평균 평점 {avg_rating}\n"
+        f"{sleep_block}\n\n"
+        f"사이클: 현재 단계 {_phase_label(current_phase)}, 기간 중 단계 변화: {phase_changes}\n\n"
+        f"기존 발견된 통계 패턴:\n{patterns_block}\n\n"
+        "위 데이터를 바탕으로 이 기간의 리포트를 JSON으로 출력하세요."
+    )
+    return system, user

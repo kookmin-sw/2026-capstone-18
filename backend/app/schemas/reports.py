@@ -53,3 +53,12 @@ class WeeklyReportResponse(BaseModel):
     body_md: str
     takeaways: list[Takeaway]
     generated_at: datetime
+
+
+class RangeReportResponse(BaseModel):
+    period_start: date
+    period_end: date
+    headline: str
+    body_md: str
+    takeaways: list[Takeaway]
+    generated_at: datetime

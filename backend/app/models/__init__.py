@@ -4,6 +4,7 @@ from app.models.audit_log import AuditLog
 from app.models.cycle import Cycle
 from app.models.fcm_token import FcmToken
 from app.models.pattern_tip import PatternTip
+from app.models.range_report import RangeReport
 from app.models.raw_biosignal_upload import RawBiosignalUpload
 from app.models.sleep_log import SleepLog
 from app.models.stress_event import StressEvent
@@ -19,6 +20,7 @@ __all__ = [
     "Cycle",
     "FcmToken",
     "PatternTip",
+    "RangeReport",
     "RawBiosignalUpload",
     "SleepLog",
     "StressEvent",
