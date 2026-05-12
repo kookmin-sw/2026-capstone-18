@@ -28,6 +28,7 @@ void main() {
     expect(result, isNotNull);
     expect(result!.fellAsleepAt.millisecondsSinceEpoch, equals(1700000000000));
     expect(result.wokeUpAt.millisecondsSinceEpoch, equals(1700028800000));
+    expect(result.endedOn.millisecondsSinceEpoch, equals(1700028800000));
     expect(result.source, equals('Galaxy Watch'));
   });
 
