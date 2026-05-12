@@ -72,7 +72,6 @@ class StressEvent(Base):
     log_chips: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     log_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     notified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    user_response: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

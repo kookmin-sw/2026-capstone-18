@@ -249,7 +249,7 @@ Single Postgres 15 logical database with enabled.
 | :--- | :--- | :--- |
 | `users` | Account record. Anonymous-first; `supabase_user_id` is `NULL` until upgrade. | `id`, `supabase_user_id`, `anon_id`, `role`, `consent_raw_biosignals`, `deleted_at` |
 | `user_settings` | Per-user preferences (1:1). | `user_id` (PK FK), notification + quiet-hours fields, `language` |
-| `stress_events` | Detected stress events. Composite PK `(id, detected_at)`. | `id`, `user_id`, `detected_at`, `model_confidence`, `cycle_phase`, `log_chips`, `user_response` |
+| `stress_events` | Detected stress events. Composite PK `(id, detected_at)`. | `id`, `user_id`, `detected_at`, `model_confidence`, `cycle_phase`, `log_chips` |
 | `cycles` | Period start/end, derived phase. | `id`, `user_id`, `period_start_date`, `period_end_date`, `auto_detected` |
 | `raw_biosignal_uploads` | Pointer to opt-in encrypted blobs in S3. Composite PK `(id, recorded_at)`. | `id`, `user_id`, `s3_object_key`, `signal_type`, `recorded_at`, `expires_at` |
 | `sync_blobs` | Pointer to opt-in encrypted full-app backups in S3. | `id`, `user_id`, `s3_object_key`, `uploaded_at` |

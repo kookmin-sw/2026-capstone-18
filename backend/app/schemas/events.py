@@ -14,9 +14,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-USER_RESPONSE_VALUES = ("breathe", "log", "skip", "ignore")
-CYCLE_PHASE_VALUES = ("menstrual", "follicular", "ovulation", "luteal")
-
 
 class StressEventCreate(BaseModel):
     """POST body — client supplies the watch's detection event."""
@@ -32,7 +29,6 @@ class StressEventCreate(BaseModel):
     log_chips: list[str] | None = None
     log_text: str | None = Field(default=None, max_length=2000)
     notified: bool = False
-    user_response: Literal["breathe", "log", "skip", "ignore"] | None = None
 
 
 class StressEventUpdate(BaseModel):
@@ -44,7 +40,6 @@ class StressEventUpdate(BaseModel):
     category_id: uuid.UUID | None = None
     log_chips: list[str] | None = None
     log_text: str | None = Field(default=None, max_length=2000)
-    user_response: Literal["breathe", "log", "skip", "ignore"] | None = None
 
     def is_empty(self) -> bool:
         # An explicitly-set field (even None) counts as a real edit.
@@ -87,7 +82,6 @@ class StressEventResponse(BaseModel):
     log_chips: list[str] | None
     log_text: str | None
     notified: bool
-    user_response: str | None
     created_at: datetime
 
 
