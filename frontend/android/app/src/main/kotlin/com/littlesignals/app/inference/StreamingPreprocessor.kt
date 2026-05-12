@@ -51,7 +51,44 @@ class StreamingPreprocessor(
         val tEnd = minOf(ppg.last().ts, eda.last().ts, accel.last().ts)
         val tStart = tEnd - bufferSec * 1000L
         if (ppg.first().ts > tStart || eda.first().ts > tStart || accel.first().ts > tStart) return null
-        // Concrete snapshot construction lives in Task 3.
-        TODO("snapshot25Hz implementation lands in Task 3")
+
+        val nSamples = bufferSec * targetHz  // 7500
+        val targetTimes = DoubleArray(nSamples) { i -> i.toDouble() / targetHz }
+
+        val ppgInWindow = ppg.dropWhile { it.ts < tStart }
+        val edaInWindow = eda.dropWhile { it.ts < tStart }
+        val accelInWindow = accel.dropWhile { it.ts < tStart }
+
+        val ppgTimes = LongArray(ppgInWindow.size) { ppgInWindow[it].ts }
+        val ppgValues = DoubleArray(ppgInWindow.size) { ppgInWindow[it].v }
+        val edaTimes = LongArray(edaInWindow.size) { edaInWindow[it].ts }
+        val edaValues = DoubleArray(edaInWindow.size) { edaInWindow[it].v }
+        val accelTimes = LongArray(accelInWindow.size) { accelInWindow[it].ts }
+        val accelX = DoubleArray(accelInWindow.size) { accelInWindow[it].x }
+        val accelY = DoubleArray(accelInWindow.size) { accelInWindow[it].y }
+        val accelZ = DoubleArray(accelInWindow.size) { accelInWindow[it].z }
+
+        if (ppgTimes.size < 2 || edaTimes.isEmpty() || accelTimes.size < 2) return null
+
+        fun rebase(times: LongArray): DoubleArray =
+            DoubleArray(times.size) { i -> (times[i] - tStart) / 1000.0 }
+
+        val ppgRaw = DspPrimitives.linearInterp(rebase(ppgTimes), ppgValues, targetTimes)
+        val edaRaw = DspPrimitives.previousInterp(rebase(edaTimes), edaValues, targetTimes)
+        val accX = DspPrimitives.linearInterp(rebase(accelTimes), accelX, targetTimes)
+        val accY = DspPrimitives.linearInterp(rebase(accelTimes), accelY, targetTimes)
+        val accZ = DspPrimitives.linearInterp(rebase(accelTimes), accelZ, targetTimes)
+
+        val ppgSmooth = DspPrimitives.savgolWindow5Poly2(
+            DspPrimitives.butterworthBandpassFiltFilt(ppgRaw)
+        )
+        val accMag = DoubleArray(nSamples) { i -> kotlin.math.sqrt(accX[i] * accX[i] + accY[i] * accY[i] + accZ[i] * accZ[i]) }
+
+        return SyncedSignals(
+            ppgSmooth = ppgSmooth,
+            eda = edaRaw,
+            accMag = accMag,
+            durationSeconds = bufferSec.toDouble(),
+        )
     }
 }

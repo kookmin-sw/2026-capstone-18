@@ -41,4 +41,30 @@ class StreamingPreprocessorTest {
         pre.appendBatch(ppg, eda = emptyList(), accel = emptyList())
         assertNull(pre.snapshot25Hz())
     }
+
+    @Test fun `snapshot25Hz produces 7500-sample SyncedSignals from a 300s synthetic stream`() {
+        val pre = StreamingPreprocessor()
+        val t0 = 1_700_000_000_000L
+        // Generate ~305 s of synthetic samples at ~25 Hz each.
+        val ppg = mutableListOf<ScalarSample>()
+        val eda = mutableListOf<ScalarSample>()
+        val accel = mutableListOf<VectorSample>()
+        var t = t0
+        while (t <= t0 + 305_000L) {
+            ppg += ScalarSample(t, kotlin.math.sin(t.toDouble() / 1000.0))
+            eda += ScalarSample(t, 5.0)
+            accel += VectorSample(t, listOf(0.0, 0.0, 9.8))
+            t += 40L  // 25 Hz
+        }
+        pre.appendBatch(ppg, eda, accel)
+        val snap = pre.snapshot25Hz()
+        assertTrue("snapshot must be non-null when buffer is full", snap != null)
+        assertEquals(7500, snap!!.ppgSmooth.size)
+        assertEquals(7500, snap.eda.size)
+        assertEquals(7500, snap.accMag.size)
+        assertEquals(300.0, snap.durationSeconds, 0.5)
+        for (v in snap.ppgSmooth) assertTrue("ppg finite", v.isFinite())
+        for (v in snap.eda) assertTrue("eda finite", v.isFinite())
+        for (v in snap.accMag) assertTrue("accMag positive + finite", v >= 0.0 && v.isFinite())
+    }
 }
