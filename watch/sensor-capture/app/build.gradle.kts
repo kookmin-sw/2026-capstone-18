@@ -64,4 +64,12 @@ dependencies {
 
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // Wear Data Layer — phone↔watch messaging (path /biosignals/*)
+    implementation("com.google.android.gms:play-services-wearable:18.2.0")
+
+    // JVM unit-test infra (watch app had none before Phase 3)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.json:json:20240303")
 }
