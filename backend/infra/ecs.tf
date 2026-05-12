@@ -126,7 +126,7 @@ resource "aws_ecs_task_definition" "backend" {
       command = [
         "sh",
         "-c",
-        "export DATABASE_URL=\"postgresql+asyncpg://${var.db_username}:$${DB_PASSWORD}@${aws_db_instance.postgres.address}:5432/${var.db_name}\" && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+        "export DATABASE_URL=\"postgresql+asyncpg://${var.db_username}:$${DB_PASSWORD}@${aws_db_instance.postgres.address}:5432/${var.db_name}?ssl=require\" && uvicorn app.main:app --host 0.0.0.0 --port 8000"
       ]
       portMappings = [
         {

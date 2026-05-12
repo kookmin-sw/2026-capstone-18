@@ -69,22 +69,9 @@ class _MyReportScreenState extends State<MyReportScreen> {
                           final p = context.watch<InsightProvider>();
                           final rangeReport = p.rangeReport;
                           if (p.rangeReportLoading && rangeReport == null) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _GlassCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'AI 리포트 생성 중…',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Color(0xFF615A6A),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            return const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: _AiReportSkeleton(),
                             );
                           }
                           if (rangeReport == null) return const SizedBox.shrink();
@@ -591,6 +578,102 @@ class _GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(padding: const EdgeInsets.all(16), child: child);
+  }
+}
+
+class _AiReportSkeleton extends StatefulWidget {
+  const _AiReportSkeleton();
+
+  @override
+  State<_AiReportSkeleton> createState() => _AiReportSkeletonState();
+}
+
+class _AiReportSkeletonState extends State<_AiReportSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: AnimatedBuilder(
+        animation: _anim,
+        builder: (_, __) {
+          final shimmer = LinearGradient(
+            begin: Alignment(-1.5 + _anim.value * 3, 0),
+            end: Alignment(-0.5 + _anim.value * 3, 0),
+            colors: const [
+              Color(0xFFE8DFF0),
+              Color(0xFFF5EFF9),
+              Color(0xFFE8DFF0),
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // headline placeholder
+              Container(
+                height: 16,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: shimmer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // takeaway placeholder — shorter
+              Container(
+                height: 12,
+                width: 220,
+                decoration: BoxDecoration(
+                  gradient: shimmer,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFB87888).withValues(alpha: 0.35),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'AI 리포트 생성 중…',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFFB09AB8),
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 
