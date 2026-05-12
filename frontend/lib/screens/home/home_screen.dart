@@ -153,11 +153,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   _ErrorBanner(message: home.errorMessage!),
                 ],
 
-                if (home.morningTip != null) ...[
-                  const SizedBox(height: 20),
-                  _MorningTipCard(tip: home.morningTip!),
-                ],
-
                 const SizedBox(height: 20),
 
                 GlassCard(
@@ -222,6 +217,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+
+                if (home.morningTip != null) ...[
+                  const SizedBox(height: 12),
+                  _MorningTipCard(tip: home.morningTip!),
+                ],
 
                 if (hasPendingLog) ...[
                   const SizedBox(height: 12),
@@ -576,76 +576,107 @@ class _MetricCardContent extends StatelessWidget {
   }
 }
 
-class _MorningTipCard extends StatelessWidget {
+class _MorningTipCard extends StatefulWidget {
   final MorningTip tip;
 
   const _MorningTipCard({required this.tip});
 
   @override
+  State<_MorningTipCard> createState() => _MorningTipCardState();
+}
+
+class _MorningTipCardState extends State<_MorningTipCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      blur: 4,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF3C4CE), Color(0xFFB7A6D8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: GlassCard(
+        blur: 4,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF3C4CE), Color(0xFFB7A6D8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(7),
                   ),
-                  borderRadius: BorderRadius.circular(8),
+                  child: const Icon(Icons.auto_awesome, size: 13, color: Colors.white),
                 ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  size: 16,
-                  color: Colors.white,
+                const SizedBox(width: 8),
+                Text(
+                  '오늘의 신호',
+                  style: AppTextStyles.label.copyWith(color: AppColors.textM),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '오늘의 신호',
-                style: AppTextStyles.label.copyWith(color: AppColors.textM),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            tip.headline,
-            style: AppTextStyles.cardTitle.copyWith(fontSize: 17, height: 1.35),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            tip.body,
-            style: AppTextStyles.body.copyWith(color: AppColors.textB),
-          ),
-          if (tip.contextLine != null && tip.contextLine!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.md),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 6,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                tip.contextLine!,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textM,
-                  fontSize: 12,
+                const Spacer(),
+                AnimatedRotation(
+                  turns: _expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: Color(0xFFC0B0C0),
+                  ),
                 ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.tip.headline,
+              maxLines: _expanded ? null : 1,
+              overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+              style: AppTextStyles.cardTitle.copyWith(fontSize: 15, height: 1.3),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              child: _expanded
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.tip.body,
+                          style: AppTextStyles.body.copyWith(color: AppColors.textB),
+                        ),
+                        if (widget.tip.contextLine != null &&
+                            widget.tip.contextLine!.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              widget.tip.contextLine!,
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textM,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 2),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
