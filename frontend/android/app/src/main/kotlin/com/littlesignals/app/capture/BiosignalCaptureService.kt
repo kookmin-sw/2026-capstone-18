@@ -87,61 +87,78 @@ class BiosignalCaptureService : Service() {
             val syntheticSource = if (source == "synthetic") SyntheticSampleSource() else null
             val watchSource = if (source == "watch") WatchSourceController.instance else null
             val client = OkHttpClient()
-            val uploader = WindowUploader(client, backendBase, accessToken)
+            val eventsClient = EventsClient(client, backendBase, accessToken)
+
+            // Phase 2: streaming inference path.
+            val onnxPath = com.littlesignals.app.inference.ModelAssets.extractFromContext(applicationContext).absolutePath
+            val engine = com.littlesignals.app.inference.OnnxInferenceEngine.create(onnxPath)
+            val preprocessor = com.littlesignals.app.inference.StreamingPreprocessor()
+            val coordinator = com.littlesignals.app.inference.StreamingInferenceCoordinator(
+                preprocessor,
+                engine,
+                listener = com.littlesignals.app.inference.DetectionListener { detection ->
+                    CaptureChannels.emitDetection(
+                        sessionElapsedSec = detection.sessionElapsedSec,
+                        detectedAtMs = detection.detectedAtMs,
+                        probStress = detection.probStress,
+                        state = detection.state,
+                        inStressEvent = detection.inStressEvent,
+                        shouldNotify = detection.shouldNotify,
+                    )
+                    if (detection.shouldNotify) {
+                        scope.launch { eventsClient.postStressEvent(detection.detectedAtMs, detection.probStress) }
+                    }
+                },
+            )
+
             val startedAtMs = System.currentTimeMillis()
             var windowsUploaded = 0
             var lastWindowStart = startedAtMs
 
             CaptureChannels.emit(state = "capturing", elapsedSec = 0, windowsUploaded = 0)
 
-            while (true) {
-                delay(1_000)
-                val nowMs = System.currentTimeMillis()
-                val elapsedSec = ((nowMs - startedAtMs) / 1000L).toInt()
+            try {
+                while (true) {
+                    delay(1_000)
+                    val nowMs = System.currentTimeMillis()
+                    val elapsedSec = ((nowMs - startedAtMs) / 1000L).toInt()
 
-                syntheticSource?.advanceTo(toMs = nowMs, fromMs = lastWindowStart + (windowsUploaded * 60_000L))
+                    syntheticSource?.advanceTo(toMs = nowMs, fromMs = lastWindowStart + (windowsUploaded * 60_000L))
 
-                updateNotification(elapsedSec)
-                CaptureChannels.emit(state = "capturing", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
+                    updateNotification(elapsedSec)
+                    CaptureChannels.emit(state = "capturing", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
 
-                if (watchSource != null) {
-                    val sinceLast = nowMs - watchSource.lastSampleAtMs
-                    if (watchSource.lastSampleAtMs > 0 && sinceLast > 5_000) {
-                        CaptureChannels.emit(state = "error", error = "watch_disconnected")
-                        wear.send("/biosignals/stop", "{}")
-                        stopForegroundCompat(); stopSelf(); return@launch
+                    // Drain samples every second so streaming inference can keep up.
+                    val drainedPpg = syntheticSource?.drainPpg() ?: watchSource?.drainPpg() ?: emptyList()
+                    val drainedEda = syntheticSource?.drainEda() ?: watchSource?.drainEda() ?: emptyList()
+                    val drainedAccel = syntheticSource?.drainAccel() ?: watchSource?.drainAccel() ?: emptyList()
+                    preprocessor.appendBatch(drainedPpg, drainedEda, drainedAccel)
+                    coordinator.tick(currentMs = nowMs)
+
+                    if (watchSource != null) {
+                        val sinceLast = nowMs - watchSource.lastSampleAtMs
+                        if (watchSource.lastSampleAtMs > 0 && sinceLast > 5_000) {
+                            CaptureChannels.emit(state = "error", error = "watch_disconnected")
+                            wear.send("/biosignals/stop", "{}")
+                            stopForegroundCompat(); stopSelf(); return@launch
+                        }
                     }
-                }
 
-                if (nowMs - lastWindowStart >= 60_000L) {
-                    val window = WindowPayload(
-                        recordedAtMs = lastWindowStart,
-                        hr = syntheticSource?.drainHr() ?: watchSource!!.drainHr(),
-                        ppg = syntheticSource?.drainPpg() ?: watchSource!!.drainPpg(),
-                        eda = syntheticSource?.drainEda() ?: watchSource!!.drainEda(),
-                        accel = syntheticSource?.drainAccel() ?: watchSource!!.drainAccel(),
-                    )
-                    val result = uploader.upload(window)
-                    if (result.success) {
-                        windowsUploaded++
-                    } else if (result.errorCode == "auth_expired" || result.errorCode == "consent_required") {
-                        CaptureChannels.emit(state = "error", error = result.errorCode)
+                    if (nowMs - lastWindowStart >= 60_000L) {
+                        // Per-minute window counter preserved for Flutter status stream semantics.
+                        // Raw S3 upload paused for Phase 2 — per-second drain consumed the samples first.
+                        windowsUploaded += 1
+                        lastWindowStart = nowMs
+                    }
+
+                    if (durationSec > 0 && elapsedSec >= durationSec) {
+                        CaptureChannels.emit(state = "done", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
                         if (source == "watch") wear.send("/biosignals/stop", "{}")
                         stopForegroundCompat(); stopSelf(); return@launch
-                    } else {
-                        CaptureChannels.emit(
-                            state = "capturing", elapsedSec = elapsedSec,
-                            windowsUploaded = windowsUploaded, error = result.errorCode,
-                        )
                     }
-                    lastWindowStart = nowMs
                 }
-
-                if (durationSec > 0 && elapsedSec >= durationSec) {
-                    CaptureChannels.emit(state = "done", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
-                    if (source == "watch") wear.send("/biosignals/stop", "{}")
-                    stopForegroundCompat(); stopSelf(); return@launch
-                }
+            } finally {
+                engine.close()
             }
         }
     }
