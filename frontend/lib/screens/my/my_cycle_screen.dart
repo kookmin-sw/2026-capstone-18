@@ -386,13 +386,14 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
     };
   }
 
-  Color _phaseColor(int cycleDay, int periodLength) {
-    final effectivePeriodLength = periodEnd == null ? 7 : periodLength;
-
-    if (cycleDay <= effectivePeriodLength) return const Color(0xFFB87888);
-    if (cycleDay <= 13) return const Color(0xFF94D0BC);
-    if (cycleDay <= 16) return const Color(0xFFE1A75F);
-    return const Color(0xFF9C8FD7);
+  Color _phaseColor(String phase) {
+    return switch (phase) {
+      'menstrual' => AppColors.phaseMenstrual,
+      'follicular' => AppColors.phaseFollicular,
+      'ovulation' => AppColors.phaseOvulation,
+      'luteal' => AppColors.phaseLuteal,
+      _ => AppColors.triggerOther,
+    };
   }
 
   int _daysUntilNextPeriod(int cycleDay, int cycleLength) {
@@ -486,7 +487,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
                         cycleDay: cycleDay,
                         daysUntilNextPeriod: daysUntilNextPeriod,
                         progress: progress,
-                        color: _phaseColor(cycleDay, periodLength),
+                        color: _phaseColor(currentPhase),
                       ),
 
                       const SizedBox(height: 12),
@@ -1260,7 +1261,7 @@ class _PhaseCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 7,
-              backgroundColor: const Color(0xFFF2DCF3),
+              backgroundColor: color.withValues(alpha: 0.18),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
