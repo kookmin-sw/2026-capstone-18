@@ -111,7 +111,14 @@ class BiosignalCaptureService : Service() {
                 },
             )
 
+            val uploader = WindowUploader(client, backendBase, accessToken)
+            val windowHr    = mutableListOf<ScalarSample>()
+            val windowPpg   = mutableListOf<ScalarSample>()
+            val windowEda   = mutableListOf<ScalarSample>()
+            val windowAccel = mutableListOf<VectorSample>()
+
             val startedAtMs = System.currentTimeMillis()
+            var windowRecordedAtMs = startedAtMs
             var windowsUploaded = 0
             var lastWindowStart = startedAtMs
 
@@ -129,11 +136,20 @@ class BiosignalCaptureService : Service() {
                     CaptureChannels.emit(state = "capturing", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
 
                     // Drain samples every second so streaming inference can keep up.
-                    val drainedPpg = syntheticSource?.drainPpg() ?: watchSource?.drainPpg() ?: emptyList()
-                    val drainedEda = syntheticSource?.drainEda() ?: watchSource?.drainEda() ?: emptyList()
+                    val drainedHr    = syntheticSource?.drainHr()    ?: watchSource?.drainHr()    ?: emptyList()
+                    val drainedPpg   = syntheticSource?.drainPpg()   ?: watchSource?.drainPpg()   ?: emptyList()
+                    val drainedEda   = syntheticSource?.drainEda()   ?: watchSource?.drainEda()   ?: emptyList()
                     val drainedAccel = syntheticSource?.drainAccel() ?: watchSource?.drainAccel() ?: emptyList()
+
+                    // Inference path — unchanged
                     preprocessor.appendBatch(drainedPpg, drainedEda, drainedAccel)
                     coordinator.tick(currentMs = nowMs)
+
+                    // Window accumulation for S3 upload
+                    windowHr.addAll(drainedHr)
+                    windowPpg.addAll(drainedPpg)
+                    windowEda.addAll(drainedEda)
+                    windowAccel.addAll(drainedAccel)
 
                     if (watchSource != null) {
                         val sinceLast = nowMs - watchSource.lastSampleAtMs
