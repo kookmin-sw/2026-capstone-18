@@ -2,6 +2,7 @@ import '../../../core/errors/api_exception.dart';
 import '../../../core/network/api_client.dart';
 import 'morning_tip.dart';
 import 'pattern_tip.dart';
+import 'range_report.dart';
 import 'weekly_report.dart';
 
 class AiInsightsApi {
@@ -35,6 +36,29 @@ class AiInsightsApi {
       rethrow;
     }
   }
+
+  Future<RangeReport?> getRangeReport({
+    required DateTime frm,
+    required DateTime to,
+  }) async {
+    final f = _fmtDate(frm);
+    final t = _fmtDate(to);
+    try {
+      final response = await _apiClient.get(
+        '/api/v1/reports/range?frm=$f&to=$t',
+      );
+      if (response is! Map<String, dynamic>) return null;
+      return RangeReport.fromJson(response);
+    } on ApiException catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  static String _fmtDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 
   /// Reserved for future use — fetch a tip for a specific pattern key.
   /// Not yet wired into UI; the local insights pipeline doesn't expose
