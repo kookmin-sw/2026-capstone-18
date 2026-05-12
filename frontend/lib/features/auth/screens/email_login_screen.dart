@@ -24,7 +24,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  bool _submitting = false;
+  _EmailLoginAction? _loadingAction;
   bool _obscurePassword = true;
 
   @override
@@ -37,7 +37,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final isBusy = _submitting || auth.status == AuthStatus.checking;
+    final isBusy = _loadingAction != null || auth.status == AuthStatus.checking;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -129,13 +129,15 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                             SoftPrimaryButton(
                               text: '이메일로 로그인하기',
                               onTap: isBusy ? null : _submit,
-                              isLoading: isBusy,
+                              isLoading:
+                                  _loadingAction == _EmailLoginAction.email,
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             QuietAuthButton(
                               text: 'Google 계정으로 계속하기',
                               onTap: isBusy ? null : _continueWithGoogle,
-                              isLoading: isBusy,
+                              isLoading:
+                                  _loadingAction == _EmailLoginAction.google,
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             _LoginTextActions(
@@ -171,19 +173,27 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
   }
 
   Future<void> _submit() async {
+    if (_loadingAction != null) return;
+
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) {
       _showSnackBar('입력한 내용을 한 번 더 확인해 주세요.');
       return;
     }
 
-    setState(() => _submitting = true);
-
+    setState(() => _loadingAction = _EmailLoginAction.email);
     final auth = context.read<AuthProvider>();
-    final success = await auth.signInWithEmail(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    var success = false;
+    try {
+      success = await auth.signInWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAction = null);
+      }
+    }
 
     if (!mounted) return;
 
@@ -192,15 +202,22 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
       return;
     }
 
-    setState(() => _submitting = false);
     _showSnackBar(auth.errorMessage ?? '로그인하지 못했어요. 잠시 후 다시 시도해 주세요.');
   }
 
   Future<void> _continueWithGoogle() async {
-    setState(() => _submitting = true);
+    if (_loadingAction != null) return;
 
+    setState(() => _loadingAction = _EmailLoginAction.google);
     final auth = context.read<AuthProvider>();
-    final success = await auth.continueWithGoogle();
+    var success = false;
+    try {
+      success = await auth.continueWithGoogle();
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAction = null);
+      }
+    }
 
     if (!mounted) return;
 
@@ -209,7 +226,6 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
       return;
     }
 
-    setState(() => _submitting = false);
     _showSnackBar(auth.errorMessage ?? 'Google 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.');
   }
 
@@ -228,6 +244,8 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
+
+enum _EmailLoginAction { email, google }
 
 class _LoginTextActions extends StatelessWidget {
   final bool enabled;

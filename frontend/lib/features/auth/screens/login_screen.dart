@@ -11,13 +11,20 @@ import 'auth_form_widgets.dart';
 import 'email_login_screen.dart';
 import 'email_register_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  _LandingAuthAction? _loadingAction;
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final isChecking = auth.status == AuthStatus.checking;
+    final isBusy = _loadingAction != null || auth.status == AuthStatus.checking;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -43,7 +50,7 @@ class LoginScreen extends StatelessWidget {
                       ],
                       SoftPrimaryButton(
                         text: '시작하기',
-                        onTap: isChecking
+                        onTap: isBusy
                             ? null
                             : () {
                                 Navigator.of(context).push(
@@ -56,7 +63,7 @@ class LoginScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       QuietAuthButton(
                         text: '이미 계정이 있으신가요?',
-                        onTap: isChecking
+                        onTap: isBusy
                             ? null
                             : () {
                                 Navigator.of(context).push(
@@ -68,8 +75,10 @@ class LoginScreen extends StatelessWidget {
                       ),
                       const Spacer(flex: 2),
                       _AnonymousAction(
-                        enabled: !isChecking,
-                        onAnonymousStart: auth.signInAnonymously,
+                        enabled: !isBusy,
+                        isLoading:
+                            _loadingAction == _LandingAuthAction.anonymous,
+                        onAnonymousStart: _startAnonymously,
                       ),
                     ],
                   ),
@@ -81,7 +90,22 @@ class LoginScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _startAnonymously() async {
+    if (_loadingAction != null) return;
+
+    setState(() => _loadingAction = _LandingAuthAction.anonymous);
+    try {
+      await context.read<AuthProvider>().signInAnonymously();
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAction = null);
+      }
+    }
+  }
 }
+
+enum _LandingAuthAction { anonymous }
 
 class _BrandIntro extends StatelessWidget {
   const _BrandIntro();
@@ -111,10 +135,7 @@ class _BrandIntro extends StatelessWidget {
             ],
           ),
           clipBehavior: Clip.antiAlias,
-          child: Image.asset(
-            'assets/images/logo.png',
-            fit: BoxFit.cover,
-          ),
+          child: Image.asset('assets/images/logo.png', fit: BoxFit.cover),
         ),
         const SizedBox(height: 26),
         Text(
@@ -167,10 +188,12 @@ class _AuthErrorMessage extends StatelessWidget {
 
 class _AnonymousAction extends StatelessWidget {
   final bool enabled;
+  final bool isLoading;
   final VoidCallback onAnonymousStart;
 
   const _AnonymousAction({
     required this.enabled,
+    required this.isLoading,
     required this.onAnonymousStart,
   });
 
@@ -182,15 +205,26 @@ class _AnonymousAction extends StatelessWidget {
       fontWeight: FontWeight.w600,
     );
 
+    final canTap = enabled && !isLoading;
+
     return Opacity(
-      opacity: enabled ? 1 : 0.45,
+      opacity: canTap || isLoading ? 1 : 0.45,
       child: Center(
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: enabled ? onAnonymousStart : null,
+          onTap: canTap ? onAnonymousStart : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Text('익명으로 시작하기', style: textStyle),
+            child: isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: AppColors.primary,
+                    ),
+                  )
+                : Text('익명으로 시작하기', style: textStyle),
           ),
         ),
       ),

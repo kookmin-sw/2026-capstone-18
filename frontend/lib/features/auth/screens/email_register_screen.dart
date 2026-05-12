@@ -24,7 +24,7 @@ class _EmailRegisterScreenState extends State<EmailRegisterScreen> {
   final _passwordConfirmController = TextEditingController();
   final _nameController = TextEditingController();
 
-  bool _submitting = false;
+  _EmailRegisterAction? _loadingAction;
   bool _obscurePassword = true;
   bool _obscurePasswordConfirm = true;
 
@@ -40,7 +40,7 @@ class _EmailRegisterScreenState extends State<EmailRegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final isBusy = _submitting || auth.status == AuthStatus.checking;
+    final isBusy = _loadingAction != null || auth.status == AuthStatus.checking;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -176,13 +176,15 @@ class _EmailRegisterScreenState extends State<EmailRegisterScreen> {
                             SoftPrimaryButton(
                               text: '이메일로 계정 만들기',
                               onTap: isBusy ? null : _submit,
-                              isLoading: isBusy,
+                              isLoading:
+                                  _loadingAction == _EmailRegisterAction.email,
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             QuietAuthButton(
                               text: 'Google 계정으로 계속하기',
                               onTap: isBusy ? null : _continueWithGoogle,
-                              isLoading: isBusy,
+                              isLoading:
+                                  _loadingAction == _EmailRegisterAction.google,
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             TextButton(
@@ -206,20 +208,28 @@ class _EmailRegisterScreenState extends State<EmailRegisterScreen> {
   }
 
   Future<void> _submit() async {
+    if (_loadingAction != null) return;
+
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) {
       _showSnackBar('입력한 내용을 한 번 더 확인해 주세요.');
       return;
     }
 
-    setState(() => _submitting = true);
-
+    setState(() => _loadingAction = _EmailRegisterAction.email);
     final auth = context.read<AuthProvider>();
-    final success = await auth.signUpWithEmail(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-      name: _trimmedOrNull(_nameController.text),
-    );
+    var success = false;
+    try {
+      success = await auth.signUpWithEmail(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        name: _trimmedOrNull(_nameController.text),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAction = null);
+      }
+    }
 
     if (!mounted) return;
 
@@ -228,15 +238,22 @@ class _EmailRegisterScreenState extends State<EmailRegisterScreen> {
       return;
     }
 
-    setState(() => _submitting = false);
     _showSnackBar(auth.errorMessage ?? '계정을 만들지 못했어요. 잠시 후 다시 시도해 주세요.');
   }
 
   Future<void> _continueWithGoogle() async {
-    setState(() => _submitting = true);
+    if (_loadingAction != null) return;
 
+    setState(() => _loadingAction = _EmailRegisterAction.google);
     final auth = context.read<AuthProvider>();
-    final success = await auth.continueWithGoogle();
+    var success = false;
+    try {
+      success = await auth.continueWithGoogle();
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAction = null);
+      }
+    }
 
     if (!mounted) return;
 
@@ -245,7 +262,6 @@ class _EmailRegisterScreenState extends State<EmailRegisterScreen> {
       return;
     }
 
-    setState(() => _submitting = false);
     _showSnackBar(auth.errorMessage ?? 'Google 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.');
   }
 
@@ -273,3 +289,5 @@ class _EmailRegisterScreenState extends State<EmailRegisterScreen> {
     return trimmed.isEmpty ? null : trimmed;
   }
 }
+
+enum _EmailRegisterAction { email, google }
