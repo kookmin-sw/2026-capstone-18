@@ -176,7 +176,6 @@ async def get_range_report(
 
     gen = RangeReportGenerator()
     fresh = await gen.generate(db, user_id=user.id, period_start=frm, period_end=to)
-    await db.commit()
     return RangeReportResponse(
         period_start=fresh.period_start,
         period_end=fresh.period_end,
