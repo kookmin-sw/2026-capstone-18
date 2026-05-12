@@ -156,20 +156,25 @@ class SleepProvider extends ChangeNotifier {
   }
 
   Future<bool> syncSleepFromGalaxyWatch() async {
-    final data = await watchSleepService.getLatestSleepData();
+    try {
+      final data = await watchSleepService.getLatestSleepData();
 
-    if (data == null) {
+      if (data == null) {
+        _errorMessage = 'Galaxy Watch 수면 동기화는 곧 사용할 수 있어요.';
+        notifyListeners();
+        return false;
+      }
+
+      return saveSleepLog(
+        fellAsleepAt: data.fellAsleepAt,
+        wokeUpAt: data.wokeUpAt,
+        endedOn: data.endedOn,
+      );
+    } catch (_) {
       _errorMessage = 'Galaxy Watch 수면 동기화는 곧 사용할 수 있어요.';
-
       notifyListeners();
       return false;
     }
-
-    return saveSleepLog(
-      fellAsleepAt: data.fellAsleepAt,
-      wokeUpAt: data.wokeUpAt,
-      endedOn: data.endedOn,
-    );
   }
 
   void _upsert(SleepLog sleepLog) {

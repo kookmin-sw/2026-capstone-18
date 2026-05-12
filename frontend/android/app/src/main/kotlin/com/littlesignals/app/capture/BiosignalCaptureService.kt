@@ -111,7 +111,14 @@ class BiosignalCaptureService : Service() {
                 },
             )
 
+            val uploader = WindowUploader(client, backendBase, accessToken)
+            val windowHr    = mutableListOf<ScalarSample>()
+            val windowPpg   = mutableListOf<ScalarSample>()
+            val windowEda   = mutableListOf<ScalarSample>()
+            val windowAccel = mutableListOf<VectorSample>()
+
             val startedAtMs = System.currentTimeMillis()
+            var windowRecordedAtMs = startedAtMs
             var windowsUploaded = 0
             var lastWindowStart = startedAtMs
 
@@ -129,11 +136,20 @@ class BiosignalCaptureService : Service() {
                     CaptureChannels.emit(state = "capturing", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
 
                     // Drain samples every second so streaming inference can keep up.
-                    val drainedPpg = syntheticSource?.drainPpg() ?: watchSource?.drainPpg() ?: emptyList()
-                    val drainedEda = syntheticSource?.drainEda() ?: watchSource?.drainEda() ?: emptyList()
+                    val drainedHr    = syntheticSource?.drainHr()    ?: watchSource?.drainHr()    ?: emptyList()
+                    val drainedPpg   = syntheticSource?.drainPpg()   ?: watchSource?.drainPpg()   ?: emptyList()
+                    val drainedEda   = syntheticSource?.drainEda()   ?: watchSource?.drainEda()   ?: emptyList()
                     val drainedAccel = syntheticSource?.drainAccel() ?: watchSource?.drainAccel() ?: emptyList()
+
+                    // Inference path — unchanged
                     preprocessor.appendBatch(drainedPpg, drainedEda, drainedAccel)
                     coordinator.tick(currentMs = nowMs)
+
+                    // Window accumulation for S3 upload
+                    windowHr.addAll(drainedHr)
+                    windowPpg.addAll(drainedPpg)
+                    windowEda.addAll(drainedEda)
+                    windowAccel.addAll(drainedAccel)
 
                     if (watchSource != null) {
                         val sinceLast = nowMs - watchSource.lastSampleAtMs
@@ -145,10 +161,26 @@ class BiosignalCaptureService : Service() {
                     }
 
                     if (nowMs - lastWindowStart >= 60_000L) {
-                        // Per-minute window counter preserved for Flutter status stream semantics.
-                        // Raw S3 upload paused for Phase 2 — per-second drain consumed the samples first.
+                        val payload = WindowPayload(
+                            recordedAtMs = windowRecordedAtMs,
+                            hr    = windowHr.toList(),
+                            ppg   = windowPpg.toList(),
+                            eda   = windowEda.toList(),
+                            accel = windowAccel.toList(),
+                        )
+                        windowHr.clear(); windowPpg.clear(); windowEda.clear(); windowAccel.clear()
+                        windowRecordedAtMs = nowMs
                         windowsUploaded += 1
                         lastWindowStart = nowMs
+                        val snapshotUploaded = windowsUploaded
+                        val snapshotElapsed  = elapsedSec
+                        scope.launch {
+                            val result = uploader.upload(payload)
+                            if (!result.success) {
+                                CaptureChannels.emit(state = "capturing", elapsedSec = snapshotElapsed,
+                                    windowsUploaded = snapshotUploaded, error = "upload_warn_${result.errorCode}")
+                            }
+                        }
                     }
 
                     if (durationSec > 0 && elapsedSec >= durationSec) {
