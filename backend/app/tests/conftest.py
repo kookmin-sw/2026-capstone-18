@@ -92,7 +92,11 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:  # type
     """Per-test transactional session — rolls back changes when the test ends."""
     connection = await test_engine.connect()
     transaction = await connection.begin()
-    session_factory = async_sessionmaker(bind=connection, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        bind=connection,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
     session = session_factory()
     try:
         yield session

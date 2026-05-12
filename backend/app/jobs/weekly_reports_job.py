@@ -55,7 +55,7 @@ async def run_weekly_reports_job(
     failed = 0
     for uid in user_ids:
         try:
-            async with db.begin_nested():  # SAVEPOINT per user — rolls back on exception
+            async with db.begin_nested():  # savepoint per user — rolls back on exception
                 await gen.generate(db, user_id=uid, week_start=week_start)
             written += 1
         except Exception as exc:  # noqa: BLE001
