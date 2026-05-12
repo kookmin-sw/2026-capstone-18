@@ -99,9 +99,9 @@ class ReportDetailScreen extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              '${detail.totalEvents}',
+                              '${detail.totalEvents}건',
                               style: const TextStyle(
-                                fontSize: 46,
+                                fontSize: 40,
                                 fontWeight: FontWeight.w300,
                                 color: Color(0xFFB87888),
                               ),
@@ -119,13 +119,13 @@ class ReportDetailScreen extends StatelessWidget {
                           const SizedBox(width: 8),
                           _MetricCard(
                             label: '평균 스트레스',
-                            value: detail.averageStress.round().toString(),
+                            value: '${detail.averageStress.round()}점',
                           ),
                           const SizedBox(width: 8),
                           _MetricCard(
                             label: '자주 나타난 일차',
                             value: detail.mostCommonCycleDay == null
-                                ? '--'
+                                ? '기록 없음'
                                 : '${detail.mostCommonCycleDay}일차',
                           ),
                         ],
@@ -171,7 +171,7 @@ class ReportDetailScreen extends StatelessWidget {
                                     child: Column(
                                       children: [
                                         Text(
-                                          koPhaseShort(cell.phase),
+                                          koPhase(cell.phase),
                                           style: TextStyle(
                                             fontSize: 9,
                                             fontWeight: active
@@ -184,15 +184,15 @@ class ReportDetailScreen extends StatelessWidget {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          '${cell.count}',
+                                          '${cell.count}건',
                                           style: const TextStyle(
-                                            fontSize: 18,
+                                            fontSize: 16,
                                             fontWeight: FontWeight.w600,
                                             color: Color(0xFF201C28),
                                           ),
                                         ),
                                         Text(
-                                          '평균 ${cell.averageStress.round()}',
+                                          '평균 ${cell.averageStress.round()}점',
                                           style: const TextStyle(
                                             fontSize: 9,
                                             color: Color(0xFF9888A0),
@@ -393,10 +393,10 @@ class _GlassCard extends StatelessWidget {
 
 Color _phaseColor(String phase) {
   return switch (InsightAnalyticsService.normalizePhase(phase)) {
-    'menstrual' => const Color(0xFFFFDAD5),
-    'follicular' => const Color(0xFFF2DCF3),
-    'ovulation' => const Color(0xFFDDEDF8),
-    'luteal' => const Color(0xFF94D0BC),
-    _ => const Color(0xFFE8E0EC),
+    'menstrual' => AppColors.phaseMenstrual,
+    'follicular' => AppColors.phaseFollicular,
+    'ovulation' => AppColors.phaseOvulation,
+    'luteal' => AppColors.phaseLuteal,
+    _ => AppColors.triggerOther,
   };
 }

@@ -10,6 +10,7 @@ import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_title.dart';
 import '../../features/insight/insight_provider.dart';
 import '../../features/insight/services/insight_analytics_service.dart';
+import '../../features/triggers/triggers_provider.dart';
 import 'range_report_screen.dart';
 import 'report_detail_screen.dart';
 
@@ -150,7 +151,7 @@ class _MyReportScreenState extends State<MyReportScreen> {
                               const SizedBox(width: 10),
                               _MetricCard(
                                 label: '평균 스트레스',
-                                value: report.averageStress.round().toString(),
+                                value: '${report.averageStress.round()}점',
                               ),
                               const SizedBox(width: 10),
                               _MetricCard(
@@ -188,6 +189,11 @@ class _PhaseDistribution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxPhaseCount = report.phaseAverages.fold<int>(
+      0,
+      (max, phase) => phase.count > max ? phase.count : max,
+    );
+
     return _GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,9 +201,10 @@ class _PhaseDistribution extends StatelessWidget {
           const SectionTitle(title: '기간별 주기 단계 흐름'),
           const SizedBox(height: 12),
           ...report.phaseAverages.map((phase) {
-            final share = report.totalEvents == 0
+            final phaseCount = phase.count;
+            final barWidthRatio = maxPhaseCount == 0
                 ? 0.0
-                : phase.count / report.totalEvents;
+                : phaseCount / maxPhaseCount;
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
@@ -216,7 +223,7 @@ class _PhaseDistribution extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(999),
                       child: LinearProgressIndicator(
-                        value: share,
+                        value: barWidthRatio,
                         minHeight: 8,
                         backgroundColor: const Color(0xFFF5F1F6),
                         valueColor: AlwaysStoppedAnimation<Color>(
@@ -227,7 +234,7 @@ class _PhaseDistribution extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    '${phase.count}건 · 평균 ${phase.averageStress.round()}',
+                    '$phaseCount건 · 평균 ${phase.averageStress.round()}점',
                     style: const TextStyle(
                       fontSize: 12,
                       color: Color(0xFF9888A0),
@@ -250,39 +257,173 @@ class _TriggerRanking extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final triggerColors = context.watch<TriggersProvider>().triggers;
+    final factors = [...report.triggerRanking]
+      ..sort((a, b) {
+        final countOrder = b.count.compareTo(a.count);
+        if (countOrder != 0) return countOrder;
+        return koTrigger(a.trigger).compareTo(koTrigger(b.trigger));
+      });
+    final topFactors = factors.take(5).toList();
+    final totalFactorCount = factors.fold<int>(
+      0,
+      (sum, item) => sum + item.count,
+    );
+    final maxCount = topFactors.fold<int>(
+      0,
+      (max, item) => item.count > max ? item.count : max,
+    );
+
     return _GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SectionTitle(title: '자주 나타난 요인'),
-          const SizedBox(height: 12),
-          ...report.triggerRanking.take(5).map((item) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+          const SizedBox(height: 6),
+          const Text(
+            '선택한 기간의 전체 요인 기록 중 각 요인이 차지하는 비율입니다.',
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.35,
+              color: AppColors.textM,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (topFactors.isEmpty || totalFactorCount == 0)
+            const _ChartEmptyState(message: '선택한 기간의 스트레스 요인 기록이 아직 없어요.')
+          else
+            SizedBox(
+              height: 198,
               child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      koTrigger(item.trigger),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF201C28),
-                        fontWeight: FontWeight.w500,
-                      ),
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: topFactors.map((item) {
+                  final factorRatio = item.count / totalFactorCount;
+                  final barHeightRatio = maxCount == 0
+                      ? 0.0
+                      : item.count / maxCount;
+                  return Expanded(
+                    child: _TriggerRankingBar(
+                      label: koTrigger(item.trigger),
+                      count: item.count,
+                      ratio: factorRatio,
+                      barHeightRatio: barHeightRatio,
+                      color: _triggerColorFor(item.trigger, triggerColors),
                     ),
-                  ),
-                  Text(
-                    '${item.count}건 · 평균 ${item.averageStress.round()}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9888A0),
-                    ),
-                  ),
-                ],
+                  );
+                }).toList(),
               ),
-            );
-          }),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _TriggerRankingBar extends StatelessWidget {
+  final String label;
+  final int count;
+  final double ratio;
+  final double barHeightRatio;
+  final Color color;
+
+  const _TriggerRankingBar({
+    required this.label,
+    required this.count,
+    required this.ratio,
+    required this.barHeightRatio,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const maxBarHeight = 104.0;
+    final barHeight = (maxBarHeight * barHeightRatio).clamp(8.0, maxBarHeight);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            '$count건',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF7A5867),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              width: 26,
+              height: barHeight,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.82),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 30,
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                height: 1.2,
+                color: Color(0xFF483848),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${(ratio * 100).round()}%',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10,
+              color: Color(0xFF9888A0),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartEmptyState extends StatelessWidget {
+  final String message;
+
+  const _ChartEmptyState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 96,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F0F4),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.45,
+            color: Color(0xFF9888A0),
+          ),
+        ),
       ),
     );
   }
@@ -296,7 +437,7 @@ class _TriggerMatrix extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final phases = InsightAnalyticsService.phases;
-    final maxCount = report.triggerByCyclePhaseMatrix.fold<int>(
+    final maxCellCount = report.triggerByCyclePhaseMatrix.fold<int>(
       0,
       (max, cell) => cell.count > max ? cell.count : max,
     );
@@ -314,7 +455,7 @@ class _TriggerMatrix extends StatelessWidget {
                 (phase) => Expanded(
                   child: Center(
                     child: Text(
-                      koPhaseShort(phase),
+                      koPhase(phase),
                       style: const TextStyle(
                         fontSize: 9,
                         color: Color(0xFF9888A0),
@@ -346,9 +487,10 @@ class _TriggerMatrix extends StatelessWidget {
                     final cell = report.triggerByCyclePhaseMatrix.firstWhere(
                       (item) => item.trigger == trigger && item.phase == phase,
                     );
+                    final cellCount = cell.count;
                     return Expanded(
                       child: GestureDetector(
-                        onTap: cell.count == 0
+                        onTap: cellCount == 0
                             ? null
                             : () => Navigator.push(
                                 context,
@@ -363,18 +505,22 @@ class _TriggerMatrix extends StatelessWidget {
                           height: 40,
                           margin: const EdgeInsets.symmetric(horizontal: 3),
                           decoration: BoxDecoration(
-                            color: _cellColor(cell.count, maxCount),
+                            color: _cellColor(
+                              cellCount: cellCount,
+                              maxCellCount: maxCellCount,
+                              phase: phase,
+                            ),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Center(
                             child: Text(
-                              cell.count == 0 ? '' : '${cell.count}',
+                              cellCount == 0 ? '' : '$cellCount',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: cell.count > maxCount / 2
-                                    ? Colors.white
-                                    : const Color(0xFF7A3848),
+                                color: cellCount > 0
+                                    ? AppColors.textB
+                                    : Colors.transparent,
                               ),
                             ),
                           ),
@@ -391,12 +537,20 @@ class _TriggerMatrix extends StatelessWidget {
     );
   }
 
-  Color _cellColor(int count, int maxCount) {
-    if (count == 0 || maxCount == 0) {
-      return const Color(0xFFE8E0EC).withValues(alpha: 0.3);
+  Color _cellColor({
+    required int cellCount,
+    required int maxCellCount,
+    required String phase,
+  }) {
+    final phaseBaseColor = _phaseColor(phase);
+    if (cellCount == 0 || maxCellCount == 0) {
+      return phaseBaseColor.withValues(alpha: 0.12);
     }
-    final alpha = 0.18 + (count / maxCount) * 0.6;
-    return const Color(0xFFB87888).withValues(alpha: alpha);
+
+
+    final intensityRatio = (cellCount / maxCellCount).clamp(0.0, 1.0);
+    final cellOpacity = intensityRatio >= 0.5 ? 0.85 : 0.42;
+    return phaseBaseColor.withValues(alpha: cellOpacity);
   }
 }
 
@@ -649,7 +803,7 @@ class _AiReportSkeletonState extends State<_AiReportSkeleton>
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // headline placeholder
+
               Container(
                 height: 16,
                 width: double.infinity,
@@ -659,7 +813,7 @@ class _AiReportSkeletonState extends State<_AiReportSkeleton>
                 ),
               ),
               const SizedBox(height: 10),
-              // takeaway placeholder — shorter
+
               Container(
                 height: 12,
                 width: 220,
@@ -743,10 +897,50 @@ class _AiReportStateCard extends StatelessWidget {
 
 Color _phaseColor(String phase) {
   return switch (InsightAnalyticsService.normalizePhase(phase)) {
-    'menstrual' => const Color(0xFFFFDAD5),
-    'follicular' => const Color(0xFFF2DCF3),
-    'ovulation' => const Color(0xFFDDEDF8),
-    'luteal' => const Color(0xFF94D0BC),
-    _ => const Color(0xFFE8E0EC),
+    'menstrual' => AppColors.phaseMenstrual,
+    'follicular' => AppColors.phaseFollicular,
+    'ovulation' => AppColors.phaseOvulation,
+    'luteal' => AppColors.phaseLuteal,
+    _ => AppColors.triggerOther,
+  };
+}
+
+Color _triggerColorFor(String trigger, List<StressTrigger> triggers) {
+  final targetValues = _triggerValues(trigger);
+  final sources = triggers.isEmpty
+      ? TriggersProvider.defaultTriggers
+      : triggers;
+
+  for (final source in sources) {
+    if (_triggerValues(source.name).any(targetValues.contains)) {
+      return source.color;
+    }
+  }
+
+  final normalized = trigger.trim().toLowerCase();
+  final translated = koTrigger(trigger).trim().toLowerCase();
+  return switch (normalized) {
+    '' || 'unknown' || 'uncategorized' => AppColors.triggerOther,
+    'work' => AppColors.triggerWork,
+    'social' => AppColors.triggerSocial,
+    'family' => AppColors.triggerFamily,
+    'school' => AppColors.triggerSchool,
+    'health' => AppColors.triggerHealth,
+    _ => switch (translated) {
+      '업무' => AppColors.triggerWork,
+      '대인관계' => AppColors.triggerSocial,
+      '가족' => AppColors.triggerFamily,
+      '학업' => AppColors.triggerSchool,
+      '건강' => AppColors.triggerHealth,
+      '요인 불명' => AppColors.triggerOther,
+      _ => AppColors.triggerOther,
+    },
+  };
+}
+
+Set<String> _triggerValues(String trigger) {
+  return {
+    trigger.trim().toLowerCase(),
+    koTrigger(trigger).trim().toLowerCase(),
   };
 }

@@ -86,11 +86,9 @@ class _InsightScreenState extends State<InsightScreen> {
                       const Text('인사이트', style: AppTextStyles.screenTitle),
                       const SizedBox(height: 20),
 
-
                       _GlassCard(
                         child: Column(
                           children: [
-
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -130,7 +128,6 @@ class _InsightScreenState extends State<InsightScreen> {
                             ),
                             const SizedBox(height: 12),
 
-
                             Row(
                               children: ['월', '화', '수', '목', '금', '토', '일']
                                   .map(
@@ -150,10 +147,8 @@ class _InsightScreenState extends State<InsightScreen> {
                             ),
                             const SizedBox(height: 8),
 
-
                             _buildCalendarGrid(insight),
                             const SizedBox(height: 12),
-
 
                             Wrap(
                               spacing: 12,
@@ -183,7 +178,6 @@ class _InsightScreenState extends State<InsightScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-
 
                       GestureDetector(
                         onTap: () => Navigator.push(
@@ -237,7 +231,6 @@ class _InsightScreenState extends State<InsightScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-
 
                       GestureDetector(
                         onTap: () => Navigator.push(
@@ -311,11 +304,9 @@ class _InsightScreenState extends State<InsightScreen> {
 
     List<Widget> cells = [];
 
-
     for (int i = 0; i < startOffset; i++) {
       cells.add(const SizedBox());
     }
-
 
     for (int day = 1; day <= daysInMonth; day++) {
       final isSelected = _selectedDay == day;
@@ -390,11 +381,11 @@ class _InsightScreenState extends State<InsightScreen> {
 
 Color _phaseColor(String phase) {
   return switch (InsightAnalyticsService.normalizePhase(phase)) {
-    'menstrual' => const Color(0xFFFFDAD5),
-    'follicular' => const Color(0xFFF2DCF3),
-    'ovulation' => const Color(0xFFDDEDF8),
-    'luteal' => const Color(0xFF94D0BC),
-    _ => const Color(0xFFE8E0EC),
+    'menstrual' => AppColors.phaseMenstrual,
+    'follicular' => AppColors.phaseFollicular,
+    'ovulation' => AppColors.phaseOvulation,
+    'luteal' => AppColors.phaseLuteal,
+    _ => AppColors.triggerOther,
   };
 }
 
