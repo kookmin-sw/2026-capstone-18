@@ -106,4 +106,54 @@ class PhoneSenderConsumerTest {
         assertEquals("sdk_error", end.getString("reason"))
         assertEquals("tracker_unavailable", end.getString("error"))
     }
+
+    @Test fun `samples are restored to batch when send returns false`() = runTest {
+        // FakeSender that fails for the first biosignals/samples send, then succeeds.
+        var failsRemaining = 1
+        val sentPaths = mutableListOf<String>()
+        val sentBodies = mutableListOf<String>()
+        val failThenSucceedSender = object : PhoneSender {
+            override suspend fun send(path: String, body: String): Boolean {
+                return if (path == "/biosignals/samples" && failsRemaining-- > 0) {
+                    false  // simulate phone unreachable
+                } else {
+                    sentPaths.add(path)
+                    sentBodies.add(body)
+                    true
+                }
+            }
+        }
+
+        val consumer = PhoneSenderConsumer(
+            sender = failThenSucceedSender,
+            scope = backgroundScope,
+            flushIntervalMs = 1_000,
+            nowMs = { testScheduler.currentTime + 1_700_000_000_000L },
+        )
+        consumer.start()
+
+        // Add 2 HR samples before the first flush (which will fail)
+        consumer.onHr(ScalarSample(1_700_000_000_001L, 60.0))
+        consumer.onHr(ScalarSample(1_700_000_000_002L, 61.0))
+        advanceTimeBy(1_001)  // first flush fires → send returns false → samples restored
+        runCurrent()
+
+        // No successful sends yet
+        assertEquals(0, sentPaths.size)
+
+        // Add 1 more HR sample — it joins the restored 2 in the batch
+        consumer.onHr(ScalarSample(1_700_000_000_003L, 62.0))
+        advanceTimeBy(1_001)  // second flush fires → send returns true
+        runCurrent()
+
+        // Exactly 1 successful samples send, containing all 3 HR samples
+        val sampleSendIndices = sentPaths.indices.filter { sentPaths[it] == "/biosignals/samples" }
+        assertEquals(1, sampleSendIndices.size)
+        val obj = org.json.JSONObject(sentBodies[sampleSendIndices[0]])
+        assertEquals(
+            "Restored samples (2) + new sample (1) = 3 total",
+            3,
+            obj.getJSONArray("hr").length(),
+        )
+    }
 }

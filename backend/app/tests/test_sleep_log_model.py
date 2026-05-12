@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime
 
 import pytest
@@ -77,3 +78,30 @@ def test_create_caps_window_at_24h() -> None:
     }
     with pytest.raises(ValidationError):
         SleepLogCreate.model_validate(too_long)
+
+
+def test_response_rating_rejects_invalid_value() -> None:
+    """SleepLogResponse must not accept a rating outside the five valid values.
+
+    Before the fix, rating: str accepts any string; the Pydantic model passes
+    "amazing" through silently. After the fix, rating: SleepRating raises.
+    """
+    from app.schemas.sleep_logs import SleepLogResponse
+
+    valid_data = {
+        "id": uuid.uuid4(),
+        "user_id": uuid.uuid4(),
+        "fell_asleep_at": datetime(2026, 5, 6, 23, 0, tzinfo=UTC),
+        "woke_up_at": datetime(2026, 5, 7, 7, 0, tzinfo=UTC),
+        "ended_on": date(2026, 5, 7),
+        "total_minutes": 480,
+        "rating": "great",
+        "note": None,
+        "created_at": datetime(2026, 5, 7, 7, 0, tzinfo=UTC),
+    }
+    # Valid rating: must succeed
+    SleepLogResponse.model_validate(valid_data)
+
+    # Invalid rating: must raise
+    with pytest.raises(ValidationError):
+        SleepLogResponse.model_validate({**valid_data, "rating": "amazing"})

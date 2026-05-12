@@ -49,7 +49,7 @@ class SleepLogResponse(BaseModel):
     woke_up_at: datetime
     ended_on: date
     total_minutes: int
-    rating: str
+    rating: SleepRating
     note: str | None
     created_at: datetime
 

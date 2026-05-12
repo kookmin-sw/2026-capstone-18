@@ -86,6 +86,8 @@ resource "aws_ecs_task_definition" "cron" {
         { name = "S3_BUCKET_SYNC", value = aws_s3_bucket.sync.id },
         { name = "S3_BUCKET_BIOSIGNALS", value = aws_s3_bucket.biosignals.id },
         { name = "TASK_ID", value = "ecs-cron-${var.environment}" },
+        { name = "ENVIRONMENT", value = var.environment },
+        { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://localhost:4317" },
       ]
       secrets = [
         {
@@ -111,6 +113,14 @@ resource "aws_ecs_task_definition" "cron" {
         {
           name      = "GOOGLE_OAUTH_CLIENT_ID"
           valueFrom = "${aws_secretsmanager_secret.supabase.arn}:google_oauth_client_id::"
+        },
+        {
+          name      = "FIREBASE_CREDENTIALS_JSON"
+          valueFrom = aws_secretsmanager_secret.firebase.arn
+        },
+        {
+          name      = "SENTRY_DSN"
+          valueFrom = aws_secretsmanager_secret.sentry.arn
         },
       ]
       logConfiguration = {
@@ -287,6 +297,106 @@ resource "aws_scheduler_schedule" "weekly_reports" {
             "-c",
             "export DATABASE_URL=\"${local.cron_db_url}\" && export AI_FEATURES_ENABLED=true && cd /app && PYTHONPATH=/app python scripts/run_weekly_reports.py",
           ]
+        }
+      ]
+    })
+  }
+}
+
+resource "aws_scheduler_schedule" "send_morning_tips" {
+  name        = "${local.name_prefix}-send-morning-tips"
+  group_name  = aws_scheduler_schedule_group.main.name
+  description = "Daily morning tip push — 07:00 KST = 22:00 UTC. Requires AI_FEATURES_ENABLED=true."
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression          = "cron(0 22 * * ? *)"
+  schedule_expression_timezone = "UTC"
+
+  target {
+    arn      = aws_ecs_cluster.main.arn
+    role_arn = aws_iam_role.scheduler.arn
+
+    ecs_parameters {
+      task_definition_arn = aws_ecs_task_definition.cron.arn_without_revision
+      launch_type         = "FARGATE"
+      task_count          = 1
+
+      network_configuration {
+        subnets          = aws_subnet.private[*].id
+        security_groups  = [aws_security_group.ecs.id]
+        assign_public_ip = false
+      }
+    }
+
+    dead_letter_config {
+      arn = aws_sqs_queue.scheduler_dlq.arn
+    }
+
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts       = 2
+    }
+
+    input = jsonencode({
+      containerOverrides = [
+        {
+          name = "cron"
+          command = [
+            "sh",
+            "-c",
+            "export DATABASE_URL=\"${local.cron_db_url}\" && export AI_FEATURES_ENABLED=true && python -m app.jobs.send_morning_tips",
+          ]
+        }
+      ]
+    })
+  }
+}
+
+resource "aws_scheduler_schedule" "send_sleep_nudges" {
+  name        = "${local.name_prefix}-send-sleep-nudges"
+  group_name  = aws_scheduler_schedule_group.main.name
+  description = "Daily sleep-log nudge for users who didn't log last night — 02:00 UTC."
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression          = "cron(0 2 * * ? *)"
+  schedule_expression_timezone = "UTC"
+
+  target {
+    arn      = aws_ecs_cluster.main.arn
+    role_arn = aws_iam_role.scheduler.arn
+
+    ecs_parameters {
+      task_definition_arn = aws_ecs_task_definition.cron.arn_without_revision
+      launch_type         = "FARGATE"
+      task_count          = 1
+
+      network_configuration {
+        subnets          = aws_subnet.private[*].id
+        security_groups  = [aws_security_group.ecs.id]
+        assign_public_ip = false
+      }
+    }
+
+    dead_letter_config {
+      arn = aws_sqs_queue.scheduler_dlq.arn
+    }
+
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts       = 2
+    }
+
+    input = jsonencode({
+      containerOverrides = [
+        {
+          name    = "cron"
+          command = ["sh", "-c", "export DATABASE_URL=\"${local.cron_db_url}\" && python -m app.jobs.send_sleep_nudges"]
         }
       ]
     })
