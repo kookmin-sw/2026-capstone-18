@@ -3,25 +3,11 @@ import '../../../core/network/api_client.dart';
 import 'morning_tip.dart';
 import 'pattern_tip.dart';
 import 'range_report.dart';
-import 'weekly_report.dart';
 
 class AiInsightsApi {
   final ApiClient _apiClient;
 
   const AiInsightsApi({required ApiClient apiClient}) : _apiClient = apiClient;
-
-  /// Fetch the latest AI-generated weekly report. Returns null if none exists
-  /// or the AI features flag is off (backend returns 404 in both cases).
-  Future<WeeklyReport?> getLatestWeeklyReport() async {
-    try {
-      final response = await _apiClient.get('/api/v1/reports/weekly');
-      if (response is! Map<String, dynamic>) return null;
-      return WeeklyReport.fromJson(response);
-    } on ApiException catch (error) {
-      if (error.statusCode == 404) return null;
-      rethrow;
-    }
-  }
 
   /// Fetch today's contextual morning tip composed by the backend agent
   /// from current cycle phase, last night's sleep, and recent patterns.

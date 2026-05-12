@@ -26,7 +26,6 @@ import 'package:little_signals/features/events/models/stress_event.dart';
 import 'package:little_signals/features/home/home_provider.dart';
 import 'package:little_signals/features/insight/data/ai_insights_api.dart';
 import 'package:little_signals/features/insight/data/morning_tip.dart';
-import 'package:little_signals/features/insight/data/weekly_report.dart';
 import 'package:little_signals/features/insight/insight_provider.dart';
 import 'package:little_signals/features/privacy/data/privacy_api.dart';
 import 'package:little_signals/features/settings/data/settings_api.dart';
@@ -1203,9 +1202,6 @@ class _FakeCategoriesApi extends CategoriesApi {
 
 class _FakeAiInsightsApi extends AiInsightsApi {
   _FakeAiInsightsApi() : super(apiClient: _dummyApiClient());
-
-  @override
-  Future<WeeklyReport?> getLatestWeeklyReport() async => null;
 
   @override
   Future<MorningTip?> getMorningTip() async => null;

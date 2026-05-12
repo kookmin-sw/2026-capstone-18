@@ -10,7 +10,6 @@ import 'package:little_signals/features/insight/data/ai_insights_api.dart';
 import 'package:little_signals/features/insight/data/morning_tip.dart';
 import 'package:little_signals/features/insight/data/pattern_tip.dart';
 import 'package:little_signals/features/insight/data/range_report.dart';
-import 'package:little_signals/features/insight/data/weekly_report.dart';
 import 'package:little_signals/features/insight/insight_provider.dart';
 
 void main() {
@@ -134,9 +133,6 @@ class _FakeAiInsightsApi extends AiInsightsApi {
   _FakeAiInsightsApi({required RangeReport report, this.throwOnGet = false})
       : _report = report,
         super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
-
-  @override
-  Future<WeeklyReport?> getLatestWeeklyReport() async => null;
 
   @override
   Future<MorningTip?> getMorningTip() async => null;
