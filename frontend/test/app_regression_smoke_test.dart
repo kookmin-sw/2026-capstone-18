@@ -486,6 +486,37 @@ void main() {
     expect(find.text('건강'), findsOneWidget);
   });
 
+  testWidgets('trigger row opens edit sheet and delete icon stays separate', (
+    tester,
+  ) async {
+    final data = _SmokeData(authStatus: AuthStatus.authenticated);
+    await data.load();
+
+    await tester.pumpWidget(
+      _SmokeApp(data: data, child: const MyTriggersScreen()),
+    );
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    await tester.tap(find.text('업무').first);
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+    expect(find.text('요인 편집하기'), findsOneWidget);
+
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    expect(find.text('요인 편집하기'), findsNothing);
+
+    await tester.tap(find.byTooltip('요인 삭제').first);
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+    expect(find.text('이 요인을 삭제할까요?'), findsOneWidget);
+    expect(find.text('요인 편집하기'), findsNothing);
+
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('stress log reflects edited and deleted default triggers', (
     tester,
   ) async {

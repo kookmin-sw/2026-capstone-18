@@ -51,29 +51,24 @@ class _MyTriggersScreenState extends State<MyTriggersScreen> {
     super.dispose();
   }
 
-
   void _showAddSheet() {
     _controller.clear();
     _selectedColor = const Color(0xFFB87888);
     String? inlineError;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      clipBehavior: Clip.antiAlias,
+      barrierColor: Colors.black.withValues(alpha: 0.28),
       backgroundColor: const Color(0xFFF8F2F5),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setModal) => Padding(
-          padding: EdgeInsets.only(
-            left: 22,
-            right: 22,
-            top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
+        builder: (ctx, setModal) => _TriggerSheetScaffold(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SectionTitle(title: '새 요인 추가하기'),
@@ -138,40 +133,37 @@ class _MyTriggersScreenState extends State<MyTriggersScreen> {
     _controller.text = koTrigger(trigger.name);
     _selectedColor = trigger.color;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      clipBehavior: Clip.antiAlias,
+      barrierColor: Colors.black.withValues(alpha: 0.28),
       backgroundColor: const Color(0xFFF8F2F5),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setModal) => Padding(
-          padding: EdgeInsets.only(
-            left: 22,
-            right: 22,
-            top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
+        builder: (ctx, setModal) => _TriggerSheetScaffold(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SectionTitle(title: '요인 편집하기'),
-                  TriggerChip(
-                    label: _controller.text.isNotEmpty
-                        ? koTrigger(_controller.text)
-                        : '미리보기',
-                    color: _selectedColor,
-                    selected: true,
-                  ),
-                ],
+              SectionTitle(
+                title: '요인 편집하기',
+                trailing: TriggerChip(
+                  label: _controller.text.isNotEmpty
+                      ? koTrigger(_controller.text)
+                      : '미리보기',
+                  color: _selectedColor,
+                  selected: true,
+                ),
               ),
               const SizedBox(height: 16),
-              _InputBox(controller: _controller, hint: '요인 이름을 입력해 주세요'),
+              _InputBox(
+                controller: _controller,
+                hint: '요인 이름을 입력해 주세요',
+                onChanged: (_) => setModal(() {}),
+              ),
               const SizedBox(height: 18),
               const SectionTitle(title: '색을 선택해요'),
               const SizedBox(height: 12),
@@ -264,7 +256,6 @@ class _MyTriggersScreenState extends State<MyTriggersScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 20, 22, 8),
               child: Row(
@@ -289,7 +280,6 @@ class _MyTriggersScreenState extends State<MyTriggersScreen> {
               ),
             ),
             const SizedBox(height: 18),
-
 
             Expanded(
               child: triggers.isEmpty
@@ -325,50 +315,68 @@ class _MyTriggersScreenState extends State<MyTriggersScreen> {
                       itemBuilder: (_, index) {
                         final trigger = triggers[index];
                         final color = trigger.color;
-                        return GestureDetector(
-                          onTap: () => _showEditSheet(index),
-                          child: GlassCard(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 15,
-                            ),
-                            borderRadius: 18,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: TriggerChip(
-                                      label: koTrigger(trigger.name),
-                                      color: color,
-                                      selected: true,
+                        return GlassCard(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          borderRadius: 18,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () => _showEditSheet(index),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 5,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: TriggerChip(
+                                              label: koTrigger(trigger.name),
+                                              color: color,
+                                              selected: true,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '${trigger.eventCount}건',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFFC0B0C0),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
-                                Text(
-                                  '${trigger.eventCount}건',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFFC0B0C0),
-                                  ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                tooltip: '요인 삭제',
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(
+                                  minWidth: 36,
+                                  minHeight: 36,
                                 ),
-                                const SizedBox(width: 8),
-                                GestureDetector(
-                                  onTap: () => _confirmDelete(index),
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    size: 19,
-                                    color: Color(0xFFB87888),
-                                  ),
+                                onPressed: () => _confirmDelete(index),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 19,
+                                  color: Color(0xFFB87888),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         );
                       },
                     ),
             ),
-
 
             Padding(
               padding: const EdgeInsets.all(22),
@@ -384,7 +392,50 @@ class _MyTriggersScreenState extends State<MyTriggersScreen> {
   }
 }
 
+class _TriggerSheetScaffold extends StatelessWidget {
+  final Widget child;
 
+  const _TriggerSheetScaffold({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF8F2F5),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 22,
+              right: 22,
+              top: 14,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC0B0C0).withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                child,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ColorPicker extends StatelessWidget {
   final List<Color> options;
