@@ -28,8 +28,23 @@ class SleepApi {
     }
   }
 
-  Future<List<SleepLog>> listSleepLogs() async {
-    final response = await _apiClient.get('/api/v1/sleep-logs');
+  Future<List<SleepLog>> listSleepLogs({
+    DateTime? start,
+    DateTime? end,
+    int limit = 200,
+  }) async {
+    final queryParameters = <String, String>{'limit': limit.toString()};
+    if (start != null) {
+      queryParameters['start'] = _apiDate(start);
+    }
+    if (end != null) {
+      queryParameters['end'] = _apiDate(end);
+    }
+
+    final response = await _apiClient.get(
+      '/api/v1/sleep-logs',
+      queryParameters: queryParameters,
+    );
     if (response == null) return const [];
     return _list(response).map(SleepLog.fromJson).toList();
   }
@@ -85,5 +100,11 @@ class SleepApi {
     }
 
     return source;
+  }
+
+  String _apiDate(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 }

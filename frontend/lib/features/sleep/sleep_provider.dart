@@ -42,21 +42,16 @@ class SleepProvider extends ChangeNotifier {
     return total / _history.length;
   }
 
-  Future<void> load() async {
+  Future<void> load({DateTime? start, DateTime? end}) async {
     _loading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final results = await Future.wait<dynamic>([
-        sleepApi.getLatestSleepLog(),
-        sleepApi.listSleepLogs(),
-      ]);
-
-      _latestLog = results[0] as SleepLog?;
-      _history = _sortedByLatest(results[1] as List<SleepLog>);
-
-      _latestLog ??= _firstOrNull(_history);
+      _history = _sortedByLatest(
+        await sleepApi.listSleepLogs(start: start, end: end),
+      );
+      _latestLog = _firstOrNull(_history);
     } on ApiException catch (error) {
       _errorMessage = error.message;
     }
@@ -76,11 +71,13 @@ class SleepProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadHistory() async {
+  Future<void> loadHistory({DateTime? start, DateTime? end}) async {
     try {
-      _history = _sortedByLatest(await sleepApi.listSleepLogs());
+      _history = _sortedByLatest(
+        await sleepApi.listSleepLogs(start: start, end: end),
+      );
 
-      _latestLog ??= _firstOrNull(_history);
+      _latestLog = _firstOrNull(_history);
 
       _errorMessage = null;
     } on ApiException catch (error) {

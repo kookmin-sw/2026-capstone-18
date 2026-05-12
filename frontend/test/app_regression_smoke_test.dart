@@ -222,12 +222,12 @@ void main() {
       await tester.tap(find.text('수면 데이터'));
       await tester.pumpAndSettle();
       _expectNoFlutterException(tester);
-      expect(find.text('최근 수면'), findsOneWidget);
+      expect(find.text('선택 기간의 최근 수면'), findsOneWidget);
       expect(find.text('총 수면 시간'), findsOneWidget);
       expect(find.text('수면 패턴'), findsOneWidget);
       expect(find.text('잠든 시간'), findsOneWidget);
       expect(find.text('일어난 시간'), findsOneWidget);
-      expect(find.text('수면 기록'), findsOneWidget);
+      expect(find.text('최근 수면 기록'), findsOneWidget);
       await _systemBack(tester);
 
       await tester.ensureVisible(find.text('Galaxy Watch'));
@@ -1169,7 +1169,23 @@ class _FakeSleepApi extends SleepApi {
       sleepLogs.isEmpty ? null : sleepLogs.first;
 
   @override
-  Future<List<SleepLog>> listSleepLogs() async => sleepLogs;
+  Future<List<SleepLog>> listSleepLogs({
+    DateTime? start,
+    DateTime? end,
+    int limit = 200,
+  }) async {
+    return sleepLogs
+        .where((sleepLog) {
+          final endedOn = DateUtils.dateOnly(sleepLog.endedOn);
+          final afterStart =
+              start == null || !endedOn.isBefore(DateUtils.dateOnly(start));
+          final beforeEnd =
+              end == null || !endedOn.isAfter(DateUtils.dateOnly(end));
+          return afterStart && beforeEnd;
+        })
+        .take(limit)
+        .toList();
+  }
 }
 
 class _FakeCategoriesApi extends CategoriesApi {

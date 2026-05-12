@@ -21,14 +21,28 @@ class SleepDataScreen extends StatefulWidget {
 }
 
 class _SleepDataScreenState extends State<SleepDataScreen> {
+  late DateTime _rangeStart;
+  late DateTime _rangeEnd;
+
   @override
   void initState() {
     super.initState();
 
+    final today = DateUtils.dateOnly(DateTime.now());
+    _rangeStart = today.subtract(const Duration(days: 6));
+    _rangeEnd = today;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<SleepProvider>().load();
+      _loadSelectedRange();
     });
+  }
+
+  Future<void> _loadSelectedRange() {
+    return context.read<SleepProvider>().load(
+      start: _rangeStart,
+      end: _rangeEnd,
+    );
   }
 
   Future<void> _openWatchConnect() async {
@@ -38,17 +52,46 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
     );
 
     if (!mounted) return;
-    await context.read<SleepProvider>().loadLatest();
+    await _loadSelectedRange();
+  }
+
+  Future<void> _selectRangeDate({required bool isStart}) async {
+    final current = isStart ? _rangeStart : _rangeEnd;
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(2020),
+      lastDate: DateUtils.dateOnly(
+        DateTime.now().add(const Duration(days: 365)),
+      ),
+      helpText: isStart ? '시작 날짜 선택' : '종료 날짜 선택',
+      cancelText: '취소',
+      confirmText: '선택',
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      final date = DateUtils.dateOnly(selected);
+      if (isStart) {
+        _rangeStart = date;
+        if (_rangeStart.isAfter(_rangeEnd)) _rangeEnd = _rangeStart;
+      } else {
+        _rangeEnd = date;
+        if (_rangeEnd.isBefore(_rangeStart)) _rangeStart = _rangeEnd;
+      }
+    });
+
+    await _loadSelectedRange();
   }
 
   @override
   Widget build(BuildContext context) {
     final sleepProvider = context.watch<SleepProvider>();
-    final latest = sleepProvider.latestLog;
-    final history = sleepProvider.history;
+    final latestInRange = sleepProvider.latestLog;
+    final records = sleepProvider.history;
     final sleepInsight = const SleepInsightService().buildInsight(
-      latestLog: latest,
-      history: history,
+      records: records,
     );
 
     return Scaffold(
@@ -56,7 +99,7 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
       body: AppGradientBackground(
         child: RefreshIndicator(
           color: const Color(0xFFB87888),
-          onRefresh: () => context.read<SleepProvider>().load(),
+          onRefresh: _loadSelectedRange,
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
@@ -73,7 +116,15 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const _Header(title: '수면 데이터'),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 18),
+                          _SleepRangeSelector(
+                            start: _rangeStart,
+                            end: _rangeEnd,
+                            onSelectStart: () =>
+                                _selectRangeDate(isStart: true),
+                            onSelectEnd: () => _selectRangeDate(isStart: false),
+                          ),
+                          const SizedBox(height: 16),
 
                           if (sleepProvider.loading)
                             const Expanded(
@@ -84,30 +135,6 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
                                     color: Color(0xFFB87888),
                                   ),
                                 ),
-                              ),
-                            )
-                          else if (latest == null && history.isEmpty)
-                            Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  if (sleepProvider.errorMessage != null) ...[
-                                    _GlassCard(
-                                      child: Text(
-                                        sleepProvider.errorMessage!,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFFB87888),
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                  ],
-                                  _SleepEmptyState(
-                                    onConnect: _openWatchConnect,
-                                  ),
-                                ],
                               ),
                             )
                           else ...[
@@ -125,18 +152,20 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
                               const SizedBox(height: 12),
                             ],
 
-                            if (latest != null)
-                              _LatestSleepCard(sleepLog: latest),
-
-                            if (latest != null) ...[
+                            if (latestInRange != null)
+                              _LatestSleepCard(sleepLog: latestInRange)
+                            else
+                              _LatestSleepEmptyCard(
+                                onConnect: _openWatchConnect,
+                              ),
+                            if (records.isNotEmpty) ...[
                               const SizedBox(height: 12),
-                              _SleepInsightCard(insight: sleepInsight),
+                              _SleepSummaryCard(records: records),
                             ],
-
-                            if (history.isNotEmpty) ...[
-                              if (latest != null) const SizedBox(height: 12),
-                              _SleepHistoryCard(history: history),
-                            ],
+                            const SizedBox(height: 12),
+                            _SleepInsightCard(insight: sleepInsight),
+                            const SizedBox(height: 12),
+                            _SleepHistoryCard(history: records),
                           ],
                         ],
                       ),
@@ -163,7 +192,7 @@ class _LatestSleepCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(title: '최근 수면'),
+          const SectionTitle(title: '선택 기간의 최근 수면'),
           const SizedBox(height: 12),
           const Text(
             '총 수면 시간',
@@ -182,6 +211,40 @@ class _LatestSleepCard extends StatelessWidget {
             value: _formatTime(sleepLog.fellAsleepAt),
           ),
           _SleepInfoRow(label: '일어난 시간', value: _formatTime(sleepLog.wokeUpAt)),
+        ],
+      ),
+    );
+  }
+}
+
+class _LatestSleepEmptyCard extends StatelessWidget {
+  final Future<void> Function() onConnect;
+
+  const _LatestSleepEmptyCard({required this.onConnect});
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionTitle(title: '선택 기간의 최근 수면'),
+          const SizedBox(height: 12),
+          const Text(
+            '선택한 기간의 수면 기록이 아직 없어요.',
+            style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF9888A0),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SoftPrimaryButton(
+            text: 'Galaxy Watch 연결하기',
+            onTap: onConnect,
+            height: 38,
+            fullWidth: false,
+          ),
         ],
       ),
     );
@@ -207,6 +270,106 @@ class _SleepInsightCard extends StatelessWidget {
               fontSize: 13,
               color: Color(0xFF9888A0),
               height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SleepSummaryCard extends StatelessWidget {
+  final List<SleepLog> records;
+
+  const _SleepSummaryCard({required this.records});
+
+  @override
+  Widget build(BuildContext context) {
+    final rangeAverageHours =
+        records.fold<double>(0, (sum, record) => sum + record.durationHours) /
+        records.length;
+    final sortedByDuration = [...records]
+      ..sort((a, b) => b.durationHours.compareTo(a.durationHours));
+    final longest = sortedByDuration.first;
+    final shortest = sortedByDuration.last;
+
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionTitle(title: '선택 기간 요약'),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _SleepMetricItem(
+                  label: '평균 수면',
+                  value: _durationLabelFromHours(rangeAverageHours),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _SleepMetricItem(
+                  label: '총 기록 수',
+                  value: '${records.length}개',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _SleepMetricItem(
+                  label: '가장 긴 수면',
+                  value: longest.durationLabel,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _SleepMetricItem(
+                  label: '가장 짧은 수면',
+                  value: shortest.durationLabel,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SleepMetricItem extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SleepMetricItem({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F0F4),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF9888A0)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF201C28),
             ),
           ),
         ],
@@ -263,91 +426,168 @@ class _SleepHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleHistory = history.take(14).toList();
-
     return _GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(title: '수면 기록'),
+          const SectionTitle(title: '최근 수면 기록'),
+          const SizedBox(height: 6),
+          const Text(
+            '선택한 기간의 수면 기록을 모두 보여줍니다.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF9888A0),
+              height: 1.45,
+            ),
+          ),
           const SizedBox(height: 12),
 
-          ...visibleHistory.map((sleepLog) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${_formatDate(sleepLog.endedOn)}\n${_formatTime(sleepLog.fellAsleepAt)} - ${_formatTime(sleepLog.wokeUpAt)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF9888A0),
-                        height: 1.45,
+          if (history.isEmpty)
+            const Text(
+              '선택한 기간의 수면 기록이 아직 없어요.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF9888A0),
+                height: 1.5,
+              ),
+            )
+          else ...[
+            ...history.map((sleepLog) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_formatDate(sleepLog.endedOn)}\n${_formatTime(sleepLog.fellAsleepAt)} - ${_formatTime(sleepLog.wokeUpAt)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF9888A0),
+                          height: 1.45,
+                        ),
                       ),
                     ),
-                  ),
-                  Text(
-                    sleepLog.durationLabel,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF201C28),
+                    Text(
+                      sleepLog.durationLabel,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF201C28),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          }),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
   }
 }
 
-class _SleepEmptyState extends StatelessWidget {
-  final Future<void> Function() onConnect;
+class _SleepRangeSelector extends StatelessWidget {
+  final DateTime start;
+  final DateTime end;
+  final VoidCallback onSelectStart;
+  final VoidCallback onSelectEnd;
 
-  const _SleepEmptyState({required this.onConnect});
+  const _SleepRangeSelector({
+    required this.start,
+    required this.end,
+    required this.onSelectStart,
+    required this.onSelectEnd,
+  });
 
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.bedtime_outlined,
-            color: Color(0xFFC0B0C0),
-            size: 32,
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            '아직 수면 데이터가 없어요',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              color: Color(0xFF201C28),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Galaxy Watch를 연결하면 수면 시간과 기록을 동기화해 볼 수 있어요.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: Color(0xFF9888A0),
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 14),
-          SoftPrimaryButton(
-            text: 'Galaxy Watch 연결하기',
-            onTap: onConnect,
-            height: 38,
-            fullWidth: false,
+          Text(_rangeTitle(start, end), style: AppTextStyles.cardTitle),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _RangeDateButton(
+                  label: '시작',
+                  date: start,
+                  onTap: onSelectStart,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _RangeDateButton(
+                  label: '종료',
+                  date: end,
+                  onTap: onSelectEnd,
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RangeDateButton extends StatelessWidget {
+  final String label;
+  final DateTime date;
+  final VoidCallback onTap;
+
+  const _RangeDateButton({
+    required this.label,
+    required this.date,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF8F0F4),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFFC0B0C0),
+                      ),
+                    ),
+                    Text(
+                      koYearMonthDay(date),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF201C28),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.keyboard_arrow_down,
+                size: 18,
+                color: Color(0xFFB87888),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -397,4 +637,26 @@ String _formatDate(DateTime date) {
 
 String _formatTime(DateTime date) {
   return koTime(date);
+}
+
+String _rangeTitle(DateTime start, DateTime end) {
+  final today = DateUtils.dateOnly(DateTime.now());
+  final defaultStart = today.subtract(const Duration(days: 6));
+  if (DateUtils.isSameDay(start, defaultStart) &&
+      DateUtils.isSameDay(end, today)) {
+    return '최근 7일';
+  }
+  if (DateUtils.isSameDay(start, end)) {
+    return koFullDate(start);
+  }
+  return '${koYearMonthDay(start)} ~ ${koYearMonthDay(end)}';
+}
+
+String _durationLabelFromHours(double hours) {
+  final minutes = (hours * 60).round().clamp(0, 1440).toInt();
+  final hourPart = minutes ~/ 60;
+  final minutePart = minutes % 60;
+  if (hourPart == 0) return '$minutePart분';
+  if (minutePart == 0) return '$hourPart시간';
+  return '$hourPart시간 $minutePart분';
 }
