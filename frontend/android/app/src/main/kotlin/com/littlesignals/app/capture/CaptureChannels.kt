@@ -10,9 +10,11 @@ import io.flutter.plugin.common.MethodChannel
 
 private const val METHOD_CHANNEL = "littlesignals/capture"
 private const val EVENT_CHANNEL = "littlesignals/capture/status"
+private const val DETECTION_CHANNEL = "littlesignals/capture/detections"
 
 object CaptureChannels {
-    private var eventSink: EventChannel.EventSink? = null
+    private var statusSink: EventChannel.EventSink? = null
+    private var detectionSink: EventChannel.EventSink? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     fun register(context: Context, engine: FlutterEngine) {
@@ -46,7 +48,6 @@ object CaptureChannels {
                     result.success(null)
                 }
                 "isWatchConnected" -> {
-                    // Tasks.await blocks; must not run on the main thread.
                     Thread {
                         val client = WearMessageClient.forContext(appContext)
                         val connected = client.connectedNodeId() != null
@@ -58,8 +59,14 @@ object CaptureChannels {
         }
         EventChannel(engine.dartExecutor.binaryMessenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
-                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) { eventSink = events }
-                override fun onCancel(arguments: Any?) { eventSink = null }
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) { statusSink = events }
+                override fun onCancel(arguments: Any?) { statusSink = null }
+            }
+        )
+        EventChannel(engine.dartExecutor.binaryMessenger, DETECTION_CHANNEL).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) { detectionSink = events }
+                override fun onCancel(arguments: Any?) { detectionSink = null }
             }
         )
     }
@@ -69,6 +76,25 @@ object CaptureChannels {
             "state" to state, "elapsed_sec" to elapsedSec,
             "windows_uploaded" to windowsUploaded, "error" to error,
         )
-        mainHandler.post { eventSink?.success(event) }
+        mainHandler.post { statusSink?.success(event) }
+    }
+
+    fun emitDetection(
+        sessionElapsedSec: Int,
+        detectedAtMs: Long,
+        probStress: Double,
+        state: String,
+        inStressEvent: Boolean,
+        shouldNotify: Boolean,
+    ) {
+        val event = mapOf(
+            "session_elapsed_sec" to sessionElapsedSec,
+            "detected_at_ms" to detectedAtMs,
+            "prob_stress" to probStress,
+            "state" to state,
+            "in_stress_event" to inStressEvent,
+            "should_notify" to shouldNotify,
+        )
+        mainHandler.post { detectionSink?.success(event) }
     }
 }
