@@ -14,8 +14,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-CYCLE_PHASE_VALUES = ("menstrual", "follicular", "ovulation", "luteal")
-
 
 class StressEventCreate(BaseModel):
     """POST body — client supplies the watch's detection event."""
