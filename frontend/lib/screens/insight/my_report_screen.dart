@@ -68,12 +68,6 @@ class _MyReportScreenState extends State<MyReportScreen> {
                         Builder(builder: (context) {
                           final p = context.watch<InsightProvider>();
                           final rangeReport = p.rangeReport;
-                          final bannerLabel =
-                              '${koMonthRange(
-                                start: p.selectedRange.start,
-                                endExclusive: p.selectedRange.endExclusive,
-                                monthCount: p.selectedRange.monthCount,
-                              )} AI 리포트';
                           if (p.rangeReportLoading && rangeReport == null) {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
@@ -81,15 +75,6 @@ class _MyReportScreenState extends State<MyReportScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      bannerLabel,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF9888A0),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
                                     const Text(
                                       'AI 리포트 생성 중…',
                                       style: TextStyle(
@@ -116,15 +101,6 @@ class _MyReportScreenState extends State<MyReportScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      bannerLabel,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF9888A0),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
                                     Text(
                                       rangeReport.headline,
                                       style: const TextStyle(
