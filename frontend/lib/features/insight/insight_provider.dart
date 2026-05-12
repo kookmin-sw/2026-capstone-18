@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../core/errors/api_exception.dart';
@@ -6,6 +8,7 @@ import '../cycles/models/cycle.dart';
 import '../events/data/events_api.dart';
 import '../events/models/stress_event.dart';
 import 'data/ai_insights_api.dart';
+import 'data/range_report.dart';
 import 'data/weekly_report.dart';
 import 'services/insight_analytics_service.dart';
 
@@ -23,6 +26,10 @@ class InsightProvider extends ChangeNotifier {
   DateTime? _selectedEndMonth;
   WeeklyReport? _weeklyReport;
 
+  RangeReport? _rangeReport;
+  bool _rangeReportLoading = false;
+  final Map<String, RangeReport> _rangeCache = {};
+
   InsightProvider({
     required this.eventsApi,
     required this.cyclesApi,
@@ -33,6 +40,8 @@ class InsightProvider extends ChangeNotifier {
   bool get loading => _loading;
   String? get errorMessage => _errorMessage;
   WeeklyReport? get weeklyReport => _weeklyReport;
+  RangeReport? get rangeReport => _rangeReport;
+  bool get rangeReportLoading => _rangeReportLoading;
   List<StressEvent> get events => List.unmodifiable(_events);
   List<Cycle> get cycles => List.unmodifiable(_cycles);
   List<DateTime> get availableMonths {
@@ -96,6 +105,7 @@ class InsightProvider extends ChangeNotifier {
               .toList()
             ..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
       _cycles = results[1] as List<Cycle>;
+      _rangeCache.clear();
       _ensureSelectedRange();
     } on ApiException catch (error) {
       _errorMessage = error.message;
@@ -113,6 +123,7 @@ class InsightProvider extends ChangeNotifier {
       _selectedEndMonth = normalized;
     }
     notifyListeners();
+    unawaited(loadRangeReport());
   }
 
   void selectEndMonth(DateTime month) {
@@ -123,6 +134,7 @@ class InsightProvider extends ChangeNotifier {
       _selectedStartMonth = normalized;
     }
     notifyListeners();
+    unawaited(loadRangeReport());
   }
 
   String monthLabel(DateTime month) {
@@ -165,6 +177,39 @@ class InsightProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> loadRangeReport() async {
+    final frm = selectedRange.start;
+    final to = selectedRange.endExclusive.subtract(const Duration(days: 1));
+    final key = '${_fmtDate(frm)}|${_fmtDate(to)}';
+
+    final cached = _rangeCache[key];
+    if (cached != null) {
+      _rangeReport = cached;
+      notifyListeners();
+      return;
+    }
+
+    _rangeReportLoading = true;
+    notifyListeners();
+    try {
+      final fetched = await aiInsightsApi.getRangeReport(frm: frm, to: to);
+      if (fetched != null) {
+        _rangeCache[key] = fetched;
+      }
+      _rangeReport = fetched;
+    } catch (_) {
+      _rangeReport = null;
+    } finally {
+      _rangeReportLoading = false;
+      notifyListeners();
+    }
+  }
+
+  static String _fmtDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
   void clearSessionData() {
     _loading = false;
     _errorMessage = null;
@@ -173,6 +218,9 @@ class InsightProvider extends ChangeNotifier {
     _selectedStartMonth = null;
     _selectedEndMonth = null;
     _weeklyReport = null;
+    _rangeReport = null;
+    _rangeReportLoading = false;
+    _rangeCache.clear();
     notifyListeners();
   }
 
