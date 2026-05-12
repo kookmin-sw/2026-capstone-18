@@ -60,6 +60,11 @@ class PhoneSenderConsumer(
         if (batch.isEmpty()) return
         val drain = batch.drain()
         val body = serializeBatchPayload(tStartMs = nowMs(), drain = drain)
-        sender.send("/biosignals/samples", body)
+        val sent = sender.send("/biosignals/samples", body)
+        if (!sent) {
+            // Phone unreachable — re-queue drained samples so the next flush retries.
+            // batch.restore() caps the merged buffer at MAX_SAMPLES_PER_CHANNEL per channel.
+            batch.restore(drain)
+        }
     }
 }
