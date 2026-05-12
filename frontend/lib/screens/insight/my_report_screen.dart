@@ -218,7 +218,7 @@ class _PhaseDistribution extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: share,
                         minHeight: 8,
-                        backgroundColor: const Color(0xFFF2DCF3),
+                        backgroundColor: const Color(0xFFF5F1F6),
                         valueColor: AlwaysStoppedAnimation<Color>(
                           _phaseColor(phase.phase),
                         ),
