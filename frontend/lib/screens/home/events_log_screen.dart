@@ -296,21 +296,22 @@ class _EventItem extends StatelessWidget {
   }
 
   String _timeLabel(DateTime dateTime) {
+    final local = dateTime.toLocal();
     final now = DateTime.now();
 
     final isToday =
-        now.year == dateTime.year &&
-        now.month == dateTime.month &&
-        now.day == dateTime.day;
+        now.year == local.year &&
+        now.month == local.month &&
+        now.day == local.day;
 
     final yesterday = now.subtract(const Duration(days: 1));
 
     final isYesterday =
-        yesterday.year == dateTime.year &&
-        yesterday.month == dateTime.month &&
-        yesterday.day == dateTime.day;
+        yesterday.year == local.year &&
+        yesterday.month == local.month &&
+        yesterday.day == local.day;
 
-    final time = koTime(dateTime);
+    final time = koTime(local);
 
     if (isToday) return time;
 
@@ -318,6 +319,6 @@ class _EventItem extends StatelessWidget {
       return '어제 · $time';
     }
 
-    return '${dateTime.month}/${dateTime.day} · $time';
+    return '${local.month}/${local.day} · $time';
   }
 }

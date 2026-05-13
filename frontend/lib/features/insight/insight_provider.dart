@@ -58,10 +58,10 @@ class InsightProvider extends ChangeNotifier {
 
     final months =
         _events
-            .map(
-              (event) =>
-                  DateTime(event.detectedAt.year, event.detectedAt.month),
-            )
+            .map((event) {
+              final detectedAt = event.detectedAt.toLocal();
+              return DateTime(detectedAt.year, detectedAt.month);
+            })
             .toSet()
             .toList()
           ..sort();

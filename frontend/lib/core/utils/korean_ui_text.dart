@@ -60,21 +60,25 @@ String koMonthLabel(DateTime date) {
 }
 
 String koMonthDay(DateTime date) {
-  return '${date.month}월 ${date.day}일';
+  final local = date.toLocal();
+  return '${local.month}월 ${local.day}일';
 }
 
 String koFullDate(DateTime date) {
-  return '${date.year}년 ${date.month}월 ${date.day}일';
+  final local = date.toLocal();
+  return '${local.year}년 ${local.month}월 ${local.day}일';
 }
 
 String koYearMonthDay(DateTime date) {
-  return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+  final local = date.toLocal();
+  return '${local.year}.${local.month.toString().padLeft(2, '0')}.${local.day.toString().padLeft(2, '0')}';
 }
 
 String koTime(DateTime date) {
-  final period = date.hour < 12 ? '오전' : '오후';
-  final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
-  final minute = date.minute.toString().padLeft(2, '0');
+  final local = date.toLocal();
+  final period = local.hour < 12 ? '오전' : '오후';
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
   return '$period $hour:$minute';
 }
 

@@ -24,7 +24,7 @@ class EventsProvider extends ChangeNotifier {
     final startOfToday = DateTime(now.year, now.month, now.day);
 
     final list = _events
-        .where((event) => !event.detectedAt.isBefore(startOfToday))
+        .where((event) => !event.detectedAt.toLocal().isBefore(startOfToday))
         .toList();
 
     list.sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
@@ -283,7 +283,7 @@ class EventsProvider extends ChangeNotifier {
   void addUnloggedDetection({required DateTime detectedAt}) {
     final event = StressEvent(
       id: 'detected-${detectedAt.millisecondsSinceEpoch}',
-      detectedAt: detectedAt,
+      detectedAt: detectedAt.toLocal(),
       stressDetected: true,
       trigger: '',
       note: null,

@@ -191,6 +191,6 @@ class _EventItem extends StatelessWidget {
   }
 
   String _formatTime(DateTime date) {
-    return koTime(date);
+    return koTime(date.toLocal());
   }
 }

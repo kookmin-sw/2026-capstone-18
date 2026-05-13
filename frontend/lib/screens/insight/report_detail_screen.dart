@@ -299,6 +299,7 @@ class ReportDetailScreen extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
+    final local = date.toLocal();
     const months = [
       '1월',
       '2월',
@@ -313,7 +314,7 @@ class ReportDetailScreen extends StatelessWidget {
       '11월',
       '12월',
     ];
-    return '${months[date.month - 1]} ${date.day}일';
+    return '${months[local.month - 1]} ${local.day}일';
   }
 }
 

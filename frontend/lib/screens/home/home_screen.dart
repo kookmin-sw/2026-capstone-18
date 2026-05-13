@@ -114,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final weekAgo = date.subtract(const Duration(days: 7));
     final weekCount = eventsProvider.loggedEvents
-        .where((event) => event.detectedAt.isAfter(weekAgo))
+        .where((event) => event.detectedAt.toLocal().isAfter(weekAgo))
         .length;
 
     final hasCycle = home.currentCycle != null;

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 enum StressEventState { detectedUnlogged, logged }
 
 class StressEvent {
@@ -53,8 +55,7 @@ class StressEvent {
 
     return StressEvent(
       id: '${json['id'] ?? ''}',
-      detectedAt:
-          DateTime.tryParse('${json['detected_at'] ?? ''}') ?? DateTime.now(),
+      detectedAt: _detectedAtFromJson(json['detected_at']),
       stressDetected: stressDetected ?? true,
       cyclePhase: '${json['cycle_phase'] ?? 'unknown'}',
       cycleDay: (json['cycle_day'] as num?)?.round() ?? 0,
@@ -122,7 +123,7 @@ class StressEvent {
   }) {
     return StressEvent(
       id: id ?? this.id,
-      detectedAt: detectedAt ?? this.detectedAt,
+      detectedAt: detectedAt?.toLocal() ?? this.detectedAt,
       stressDetected: stressDetected ?? this.stressDetected,
       cyclePhase: cyclePhase ?? this.cyclePhase,
       cycleDay: cycleDay ?? this.cycleDay,
@@ -154,5 +155,20 @@ class StressEvent {
   static int? _backendCycleDay(int value) {
     if (value < 1) return null;
     return value;
+  }
+
+  static DateTime _detectedAtFromJson(Object? value) {
+    final raw = '${value ?? ''}';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return DateTime.now();
+
+    final local = parsed.toLocal();
+    assert(() {
+      debugPrint('StressEvent.detectedAt raw=$raw');
+      debugPrint('StressEvent.detectedAt isUtc=${parsed.isUtc}');
+      debugPrint('StressEvent.detectedAt local=$local');
+      return true;
+    }());
+    return local;
   }
 }

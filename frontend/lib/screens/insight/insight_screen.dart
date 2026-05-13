@@ -402,8 +402,7 @@ class _InsightScreenState extends State<InsightScreen> {
   DateTime _earliestCalendarMonth(InsightProvider insight) {
     final currentMonth = _currentMonth();
     final recordMonths = <DateTime>[
-      for (final event in insight.events)
-        DateTime(event.detectedAt.year, event.detectedAt.month),
+      for (final event in insight.events) _eventMonth(event.detectedAt),
       for (final cycle in insight.cycles)
         DateTime(cycle.lastPeriodStart.year, cycle.lastPeriodStart.month),
       for (final cycle in insight.cycles)
@@ -425,6 +424,11 @@ class _InsightScreenState extends State<InsightScreen> {
   DateTime _currentMonth() {
     final now = DateTime.now();
     return DateTime(now.year, now.month);
+  }
+
+  DateTime _eventMonth(DateTime detectedAt) {
+    final local = detectedAt.toLocal();
+    return DateTime(local.year, local.month);
   }
 
   DateTime _clampMonth(

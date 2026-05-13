@@ -60,4 +60,17 @@ void main() {
     expect(event.categoryId, 'category-work');
     expect(event.trigger, 'Work');
   });
+
+  test('converts backend UTC detected_at to local time', () {
+    final event = StressEvent.fromJson({
+      'id': 'event-1',
+      'detected_at': '2026-05-08T12:00:00Z',
+      'logged': true,
+      'user_stress_level': 64,
+      'log_chips': ['Work'],
+    });
+
+    expect(event.detectedAt.isUtc, isFalse);
+    expect(event.detectedAt, DateTime.parse('2026-05-08T12:00:00Z').toLocal());
+  });
 }

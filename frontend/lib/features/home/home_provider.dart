@@ -70,7 +70,8 @@ class HomeProvider extends ChangeNotifier {
     return _todayEvents
         .where(
           (event) =>
-              event.isLoggedWithScore && event.detectedAt.isAfter(weekAgo),
+              event.isLoggedWithScore &&
+              event.detectedAt.toLocal().isAfter(weekAgo),
         )
         .length;
   }
@@ -138,9 +139,10 @@ class HomeProvider extends ChangeNotifier {
 
   bool _isToday(DateTime dateTime) {
     final now = DateTime.now();
-    return now.year == dateTime.year &&
-        now.month == dateTime.month &&
-        now.day == dateTime.day;
+    final local = dateTime.toLocal();
+    return now.year == local.year &&
+        now.month == local.month &&
+        now.day == local.day;
   }
 
   void clearSessionData() {

@@ -935,7 +935,7 @@ class _WaveformPainter extends CustomPainter {
       final y =
           mid +
           (mid * 0.7) *
-              (0.5 * (1 - 1) * 0 + // placeholder so formula is readable
+              (0.5 * (1 - 1) * 0 +
                   0.6 * mathSin(t) +
                   0.3 * mathSin(t * 2.3));
       if (i == 0) {
@@ -959,7 +959,7 @@ class _DetectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ago = DateTime.now().toUtc().difference(detection.detectedAt);
+    final ago = DateTime.now().difference(detection.detectedAt.toLocal());
     final agoMin = ago.inMinutes;
     final agoSec = ago.inSeconds % 60;
     final agoLabel = agoMin > 0 ? '$agoMin분 $agoSec초 전' : '$agoSec초 전';

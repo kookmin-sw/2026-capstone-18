@@ -13,8 +13,10 @@ class InsightDateRange {
     required this.monthCount,
   });
 
-  bool contains(DateTime date) =>
-      !date.isBefore(start) && date.isBefore(endExclusive);
+  bool contains(DateTime date) {
+    final local = date.toLocal();
+    return !local.isBefore(start) && local.isBefore(endExclusive);
+  }
 
   String get label {
     final endMonth = DateTime(endExclusive.year, endExclusive.month - 1);
@@ -289,21 +291,17 @@ class InsightAnalyticsService {
   }) {
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
-    return events
-        .where((event) => event.isLoggedWithScore)
-        .where(
-          (event) =>
-              !event.detectedAt.isBefore(start) &&
-              event.detectedAt.isBefore(end),
-        )
-        .toList()
-      ..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
+    return events.where((event) => event.isLoggedWithScore).where((event) {
+      final detectedAt = event.detectedAt.toLocal();
+      return !detectedAt.isBefore(start) && detectedAt.isBefore(end);
+    }).toList()..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
   }
 
   String? phaseForDate(DateTime date, List<Cycle> cycles) {
-    final cycle = _cycleForDate(date, cycles);
+    final local = date.toLocal();
+    final cycle = _cycleForDate(local, cycles);
     if (cycle == null) return null;
-    if (_isDateInCurrentOngoingPeriod(date, cycle)) {
+    if (_isDateInCurrentOngoingPeriod(local, cycle)) {
       return 'menstrual';
     }
 
@@ -312,7 +310,7 @@ class InsightAnalyticsService {
       cycle.lastPeriodStart.month,
       cycle.lastPeriodStart.day,
     );
-    final eventDate = DateTime(date.year, date.month, date.day);
+    final eventDate = DateTime(local.year, local.month, local.day);
     final cycleLength = cycle.cycleLength <= 0 ? 28 : cycle.cycleLength;
     final periodLength = (cycle.periodLength <= 0 ? 5 : cycle.periodLength)
         .clamp(1, cycleLength)
@@ -330,9 +328,9 @@ class InsightAnalyticsService {
   String? phaseForEventOrNull(StressEvent event, List<Cycle> cycles) {
     final day = cycleDayForEvent(event, cycles);
     if (day != null) {
-      final cycle = _cycleForDate(event.detectedAt, cycles);
-      if (cycle != null &&
-          _isDateInCurrentOngoingPeriod(event.detectedAt, cycle)) {
+      final detectedAt = event.detectedAt.toLocal();
+      final cycle = _cycleForDate(detectedAt, cycles);
+      if (cycle != null && _isDateInCurrentOngoingPeriod(detectedAt, cycle)) {
         return 'menstrual';
       }
       return _phaseForDay(day, cycle?.periodLength ?? 5);
@@ -342,7 +340,8 @@ class InsightAnalyticsService {
   }
 
   int? cycleDayForEvent(StressEvent event, List<Cycle> cycles) {
-    final cycle = _cycleForDate(event.detectedAt, cycles);
+    final detectedAt = event.detectedAt.toLocal();
+    final cycle = _cycleForDate(detectedAt, cycles);
     if (cycle == null) return null;
 
     final start = DateTime(
@@ -351,9 +350,9 @@ class InsightAnalyticsService {
       cycle.lastPeriodStart.day,
     );
     final eventDate = DateTime(
-      event.detectedAt.year,
-      event.detectedAt.month,
-      event.detectedAt.day,
+      detectedAt.year,
+      detectedAt.month,
+      detectedAt.day,
     );
     final safeCycleLength = cycle.cycleLength <= 0 ? 28 : cycle.cycleLength;
     final diff = eventDate.difference(start).inDays;
@@ -363,7 +362,8 @@ class InsightAnalyticsService {
   Cycle? _cycleForDate(DateTime date, List<Cycle> cycles) {
     if (cycles.isEmpty) return null;
 
-    final eventDate = DateTime(date.year, date.month, date.day);
+    final local = date.toLocal();
+    final eventDate = DateTime(local.year, local.month, local.day);
     final sortedCycles = [...cycles]
       ..sort((a, b) => b.lastPeriodStart.compareTo(a.lastPeriodStart));
 
@@ -382,7 +382,8 @@ class InsightAnalyticsService {
   bool _isDateInCurrentOngoingPeriod(DateTime date, Cycle cycle) {
     if (!cycle.periodOngoing || cycle.periodEndDate != null) return false;
 
-    final target = DateTime(date.year, date.month, date.day);
+    final local = date.toLocal();
+    final target = DateTime(local.year, local.month, local.day);
     final start = DateTime(
       cycle.lastPeriodStart.year,
       cycle.lastPeriodStart.month,
@@ -458,13 +459,10 @@ class InsightAnalyticsService {
     return List.generate(range.monthCount, (index) {
       final month = DateTime(range.start.year, range.start.month + index);
       final nextMonth = DateTime(month.year, month.month + 1);
-      final monthEvents = events
-          .where(
-            (event) =>
-                !event.detectedAt.isBefore(month) &&
-                event.detectedAt.isBefore(nextMonth),
-          )
-          .toList();
+      final monthEvents = events.where((event) {
+        final detectedAt = event.detectedAt.toLocal();
+        return !detectedAt.isBefore(month) && detectedAt.isBefore(nextMonth);
+      }).toList();
 
       return MonthlyStressByPhase(
         month: month,
