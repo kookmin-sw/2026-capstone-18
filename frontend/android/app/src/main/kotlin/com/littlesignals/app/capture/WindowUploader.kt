@@ -27,11 +27,16 @@ class WindowUploader(
     private val client: OkHttpClient,
     private val backendBase: String,
     private val accessToken: String,
+    private val cipher: BlobCipher,
 ) {
     suspend fun upload(window: WindowPayload): UploadResult = uploadAttempt(window, attempt = 0)
 
     private suspend fun uploadAttempt(window: WindowPayload, attempt: Int): UploadResult {
-        val blobs = buildBlobs(window)
+        // Encrypt each channel before anything else — byte_size and content_hash
+        // must describe the ciphertext that S3 actually stores.
+        val blobs = buildBlobs(window).map { (signalType, plaintext) ->
+            signalType to cipher.encrypt(plaintext)
+        }
         val recordedAtIso = Instant.ofEpochMilli(window.recordedAtMs).toString()
         val batchBody = JSONObject().apply {
             put("items", JSONArray().apply {
@@ -60,8 +65,11 @@ class WindowUploader(
             for (i in 0 until items.length()) {
                 val url = items.getJSONObject(i).getString("presigned_put_url")
                 val (_, bytes) = blobs[i]
+                // No x-amz-server-side-encryption header here: the backend already
+                // bakes SSE-KMS into the presigned URL's signed conditions
+                // (services/s3.py uses ServerSideEncryption=aws:kms), and sending
+                // a conflicting AES256 header makes S3 reject with SignatureDoesNotMatch.
                 val putReq = Request.Builder().url(url)
-                    .header("x-amz-server-side-encryption", "AES256")
                     .put(bytes.toRequestBody(OCTET_MT)).build()
                 val putResp = runCatching { client.newCall(putReq).execute() }.getOrNull()
                     ?: return UploadResult(false, "s3_put_failed")
