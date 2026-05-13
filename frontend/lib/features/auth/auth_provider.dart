@@ -32,7 +32,12 @@ class AuthProvider extends ChangeNotifier {
   }
 
   AuthStatus get status => _status;
-  AppUser? get user => _user;
+  AppUser? get user {
+    final current = _user;
+    if (current == null) return null;
+    return _applySessionMetadata(current);
+  }
+
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
 
@@ -359,6 +364,9 @@ class AuthProvider extends ChangeNotifier {
       accountType: _sessionAccountType,
       email: _sessionEmail,
     );
+    if (_user != null) {
+      _user = _applySessionMetadata(_user!);
+    }
   }
 
   AppUser _applySessionMetadata(AppUser user) {

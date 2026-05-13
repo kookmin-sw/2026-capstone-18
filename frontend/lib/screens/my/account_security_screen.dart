@@ -15,9 +15,17 @@ class AccountSecurityScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user;
-
-    final loginInfo = _loginInfoFor(user);
+    final auth = context.watch<AuthProvider>();
+    final user = auth.user;
+    final isLoadingAccount =
+        auth.status == AuthStatus.checking ||
+        (auth.status == AuthStatus.authenticated && user == null);
+    final loginInfo = isLoadingAccount
+        ? const _LoginInfo(
+            accountLabel: '불러오는 중...',
+            passwordLabel: '불러오는 중...',
+          )
+        : _loginInfoFor(user);
 
     return Scaffold(
       backgroundColor: AppColors.background,
