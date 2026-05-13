@@ -5,8 +5,11 @@ import 'package:provider/provider.dart';
 
 import '../../core/storage/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/soft_primary_button.dart';
 import '../../features/biosignals/biosignal_capture_controller.dart';
 import '../../features/biosignals/stress_detection.dart';
 import '../../features/consent/consent_provider.dart';
@@ -100,108 +103,129 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               GlassCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      Text(
-                        '상태: ${_controller.state}',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '경과 $mm:$ss · 업로드된 윈도우 ${_controller.windowsUploaded}',
-                      ),
-                      if (_controller.error != null) ...[
-                        const SizedBox(height: 8),
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _StatusChip(state: _controller.state),
+                        const Spacer(),
                         Text(
-                          '오류: ${_controller.error}',
-                          style: const TextStyle(color: Colors.red),
+                          '경과 $mm:$ss',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textB,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _InlineMetricRow(
+                      items: [
+                        _InlineMetricItem(
+                          label: '업로드된 윈도우',
+                          value: '${_controller.windowsUploaded}',
+                        ),
+                        _InlineMetricItem(
+                          label: '상태',
+                          value: _statusLabel(_controller.state),
+                        ),
+                      ],
+                    ),
+                    if (_shouldShowErrorNotice(_controller.error)) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _ErrorNotice(rawError: _controller.error!),
                     ],
-                  ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.lg),
               if (!isCapturing) ...[
                 Consumer<ConsentProvider>(
                   builder: (context, provider, _) {
                     final granted =
                         provider.consent?.rawBiosignalConsent == true &&
                         provider.consent?.consentRevokedAt == null;
+                    final usesWatchSource = _selectedSource == 'watch';
                     return GlassCard(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '원시 생체신호 데이터 업로드 동의',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '원시 생체신호 데이터 업로드 동의',
+                                  style: AppTextStyles.cardTitle.copyWith(
+                                    height: 1.35,
                                   ),
                                 ),
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              if (usesWatchSource)
                                 Switch(
                                   value: granted,
+                                  activeThumbColor: AppColors.primary,
+                                  activeTrackColor: AppColors.primaryLight,
                                   onChanged: (next) async {
                                     await provider.updateConsent({
                                       'raw_biosignal_consent': next,
                                     });
                                   },
-                                ),
-                              ],
+                                )
+                              else
+                                const _DemoSourceBadge(),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            !usesWatchSource
+                                ? '합성 데이터는 실제 사용자 생체신호가 아니며, 이 동의와 무관하게 데모 캡처를 실행할 수 있어요.'
+                                : granted
+                                ? '시계의 원시 생체신호 데이터가 안전하게 업로드됩니다. 언제든지 끌 수 있어요.'
+                                : '동의가 필요해요. 동의를 켜야 캡처를 시작할 수 있어요.',
+                            style: AppTextStyles.caption.copyWith(
+                              color: granted || !usesWatchSource
+                                  ? AppColors.textM
+                                  : AppColors.textB,
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              granted
-                                  ? '시계의 원시 생체신호 데이터가 안전하게 백엔드에 업로드됩니다. 언제든지 끌 수 있어요.'
-                                  : '동의가 필요해요. 동의를 켜야 캡처를 시작할 수 있어요.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: granted
-                                    ? Colors.grey.shade700
-                                    : Colors.orange.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     );
                   },
                 ),
-                const SizedBox(height: 16),
-                Text('소스', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.lg),
+                const _SectionLabel(title: '소스'),
+                const SizedBox(height: AppSpacing.sm),
                 Wrap(
-                  spacing: 8,
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
                   children: [
                     _sourceChip('watch', '시계'),
                     _sourceChip('synthetic', '합성'),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: AppSpacing.sm),
                 _watchStatusLine(),
-                const SizedBox(height: 16),
-                Text('지속 시간', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.lg),
+                const _SectionLabel(title: '지속 시간'),
+                const SizedBox(height: AppSpacing.sm),
                 Wrap(
-                  spacing: 8,
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
                   children: [
                     _durationChip(const Duration(minutes: 10), '10분'),
                     _durationChip(const Duration(minutes: 30), '30분'),
                     _durationChip(null, '직접 멈출 때까지'),
                   ],
                 ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _canStart() ? _onStart : null,
-                  child: const Text('캡처 시작'),
+                const SizedBox(height: AppSpacing.lg),
+                SoftPrimaryButton(
+                  text: '캡처 시작',
+                  onTap: _canStart() ? _onStart : null,
                 ),
               ] else ...[
                 _LiveCaptureView(
@@ -212,7 +236,7 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                 ),
                 if (_controller.latestDetection != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 16),
+                    padding: const EdgeInsets.only(top: AppSpacing.md),
                     child: _DetectionCard(
                       detection: _controller.latestDetection!,
                     ),
@@ -226,18 +250,18 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
   }
 
   Widget _durationChip(Duration? duration, String label) {
-    return ChoiceChip(
-      label: Text(label),
+    return _CaptureChoiceChip(
+      label: label,
       selected: _selectedDuration == duration,
-      onSelected: (_) => setState(() => _selectedDuration = duration),
+      onTap: () => setState(() => _selectedDuration = duration),
     );
   }
 
   Widget _sourceChip(String source, String label) {
-    return ChoiceChip(
-      label: Text(label),
+    return _CaptureChoiceChip(
+      label: label,
       selected: _selectedSource == source,
-      onSelected: (_) {
+      onTap: () {
         setState(() => _selectedSource = source);
         if (source == 'watch') {
           _controller.refreshWatchConnection();
@@ -249,24 +273,280 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
   Widget _watchStatusLine() {
     if (_selectedSource != 'watch') return const SizedBox.shrink();
     final connected = _controller.watchConnected;
-    return Text(
-      connected ? '시계 연결됨 ✓' : '시계 연결 안 됨 — 시계 앱을 페어링해 주세요',
-      style: TextStyle(
-        fontSize: 12,
-        color: connected ? Colors.green.shade700 : Colors.orange.shade700,
-      ),
+    return Row(
+      children: [
+        Icon(
+          connected ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+          size: 15,
+          color: connected ? AppColors.phaseLuteal : AppColors.textM,
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Text(
+            connected ? '시계 연결됨' : '시계가 연결되지 않았어요. 시계 앱을 페어링해 주세요.',
+            style: AppTextStyles.caption.copyWith(
+              color: connected ? AppColors.textB : AppColors.textM,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   bool _canStart() {
+    if (_selectedSource == 'synthetic') {
+      return true;
+    }
+
     final consent = context.read<ConsentProvider>().consent;
     final granted =
         consent?.rawBiosignalConsent == true &&
         consent?.consentRevokedAt == null;
-    if (!granted) return false;
-    // Don't gate on watchConnected — connectedNodes is unreliable.
-    return true;
+    return granted && _controller.watchConnected;
   }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String state;
+
+  const _StatusChip({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCapturing = state == 'capturing';
+    final isError = state == 'error';
+    final color = isCapturing
+        ? AppColors.primary
+        : isError
+        ? AppColors.primaryPressed
+        : AppColors.textM;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isCapturing ? 0.16 : 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            _statusLabel(state),
+            style: AppTextStyles.label.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineMetricItem {
+  final String label;
+  final String value;
+
+  const _InlineMetricItem({required this.label, required this.value});
+}
+
+class _InlineMetricRow extends StatelessWidget {
+  final List<_InlineMetricItem> items;
+
+  const _InlineMetricRow({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var index = 0; index < items.length; index += 1) ...[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(items[index].label, style: AppTextStyles.label),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  items[index].value,
+                  style: AppTextStyles.cardTitle.copyWith(
+                    color: AppColors.textB,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (index != items.length - 1) const SizedBox(width: AppSpacing.md),
+        ],
+      ],
+    );
+  }
+}
+
+class _ErrorNotice extends StatelessWidget {
+  final String rawError;
+
+  const _ErrorNotice({required this.rawError});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _userErrorLabel(rawError),
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textB,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String title;
+
+  const _SectionLabel({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(title, style: AppTextStyles.cardTitle);
+  }
+}
+
+class _DemoSourceBadge extends StatelessWidget {
+  const _DemoSourceBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight.withValues(alpha: 0.26),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+      ),
+      child: Text(
+        '데모 신호',
+        style: AppTextStyles.label.copyWith(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _CaptureChoiceChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _CaptureChoiceChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? AppColors.primaryLight.withValues(alpha: 0.38)
+          : Colors.white.withValues(alpha: 0.38),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected
+                  ? AppColors.primary.withValues(alpha: 0.42)
+                  : AppColors.textL.withValues(alpha: 0.34),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected) ...[
+                const Icon(
+                  Icons.check_rounded,
+                  size: 15,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+              ],
+              Text(
+                label,
+                style: AppTextStyles.caption.copyWith(
+                  color: selected ? AppColors.primary : AppColors.textB,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _statusLabel(String state) {
+  return switch (state) {
+    'capturing' => '캡처 중',
+    'error' => '오류',
+    'done' => '완료',
+    'idle' => '대기 중',
+    _ => '대기 중',
+  };
+}
+
+String _userErrorLabel(String rawError) {
+  final error = rawError.trim();
+  if (error == 'watch_not_connected') {
+    return '시계가 연결되지 않았어요.';
+  }
+  if (error == 'watch_send_failed') {
+    return '시계로 캡처 시작 신호를 보내지 못했어요.';
+  }
+  if (error == 'watch_disconnected') {
+    return '캡처 중 시계 연결이 끊어졌어요.';
+  }
+  if (error == 'missing_token') {
+    return '로그인이 필요해요.';
+  }
+  if (error.startsWith('upload_warn_')) {
+    return '일부 데이터 업로드 상태를 확인하지 못했어요. 캡처는 계속 진행 중이에요.';
+  }
+  return '캡처 상태를 확인하지 못했어요.';
+}
+
+bool _shouldShowErrorNotice(String? rawError) {
+  final error = rawError?.trim();
+  if (error == null || error.isEmpty) {
+    return false;
+  }
+  return error != 'watch_not_connected';
 }
 
 class _LiveCaptureView extends StatefulWidget {
@@ -317,151 +597,137 @@ class _LiveCaptureViewState extends State<_LiveCaptureView>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Live timer + progress ring
         GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
-            child: Column(
-              children: [
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) => Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color.lerp(
-                            const Color(0xFFF8C4D7),
-                            const Color(0xFFB89DDB),
-                            _pulseController.value,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '캡처 중',
-                        style: TextStyle(
-                          color: Colors.pink.shade400,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: 200,
-                  height: 200,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CustomPaint(
-                        size: const Size(200, 200),
-                        painter: _ProgressArcPainter(progress: progress),
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '$mm:$ss',
-                            style: const TextStyle(
-                              fontSize: 44,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF2D2433),
-                            ),
-                          ),
-                          if (totalSec != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              '/ ${(totalSec ~/ 60).toString().padLeft(2, '0')}:${(totalSec % 60).toString().padLeft(2, '0')}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
+          padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.xl,
+            horizontal: 20,
+          ),
+          child: Column(
+            children: [
+              AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) => Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _StatChip(
-                      label: '업로드',
-                      value: '${widget.windowsUploaded}',
-                      sub: '윈도우',
+                    Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color.lerp(
+                          AppColors.primaryLight,
+                          AppColors.primary,
+                          _pulseController.value,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 24),
-                    _StatChip(
-                      label: '데이터',
-                      value: (widget.windowsUploaded * 240 / 1024)
-                          .toStringAsFixed(1),
-                      sub: 'MB',
+                    const SizedBox(width: 7),
+                    Text(
+                      '캡처 중',
+                      style: AppTextStyles.label.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                width: 200,
+                height: 200,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CustomPaint(
+                      size: const Size(200, 200),
+                      painter: _ProgressArcPainter(progress: progress),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$mm:$ss',
+                          style: AppTextStyles.metricNumber.copyWith(
+                            fontSize: 44,
+                            color: AppColors.textH,
+                          ),
+                        ),
+                        if (totalSec != null) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            '/ ${(totalSec ~/ 60).toString().padLeft(2, '0')}:${(totalSec % 60).toString().padLeft(2, '0')}',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textM,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _StatChip(
+                    label: '업로드',
+                    value: '${widget.windowsUploaded}',
+                    sub: '윈도우',
+                  ),
+                  const SizedBox(width: AppSpacing.xl),
+                  _StatChip(
+                    label: '데이터',
+                    value: (widget.windowsUploaded * 240 / 1024)
+                        .toStringAsFixed(1),
+                    sub: 'MB',
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 16),
-        // Animated channel waveforms
+        const SizedBox(height: AppSpacing.md),
         GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('실시간 신호', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                _ChannelRow(
-                  label: 'HR',
-                  color: Colors.pink.shade300,
-                  controller: _pulseController,
-                  rate: 0.3,
-                ),
-                const SizedBox(height: 10),
-                _ChannelRow(
-                  label: 'PPG',
-                  color: Colors.purple.shade300,
-                  controller: _pulseController,
-                  rate: 1.0,
-                ),
-                const SizedBox(height: 10),
-                _ChannelRow(
-                  label: 'EDA',
-                  color: Colors.teal.shade300,
-                  controller: _pulseController,
-                  rate: 0.7,
-                ),
-                const SizedBox(height: 10),
-                _ChannelRow(
-                  label: 'ACC',
-                  color: Colors.amber.shade400,
-                  controller: _pulseController,
-                  rate: 1.4,
-                ),
-              ],
-            ),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('실시간 신호', style: AppTextStyles.cardTitle),
+              const SizedBox(height: AppSpacing.md),
+              _ChannelRow(
+                label: 'HR',
+                color: AppColors.primary,
+                controller: _pulseController,
+                rate: 0.3,
+              ),
+              const SizedBox(height: 10),
+              _ChannelRow(
+                label: 'PPG',
+                color: AppColors.phaseFollicular,
+                controller: _pulseController,
+                rate: 1.0,
+              ),
+              const SizedBox(height: 10),
+              _ChannelRow(
+                label: 'EDA',
+                color: AppColors.phaseLuteal,
+                controller: _pulseController,
+                rate: 0.7,
+              ),
+              const SizedBox(height: 10),
+              _ChannelRow(
+                label: 'ACC',
+                color: AppColors.triggerHealth,
+                controller: _pulseController,
+                rate: 1.4,
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: widget.onStop,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red.shade400,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          child: const Text('캡처 중지'),
-        ),
+        const SizedBox(height: AppSpacing.md),
+        _StopCaptureButton(onTap: widget.onStop),
       ],
     );
   }
@@ -484,7 +750,7 @@ class _ProgressArcPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0x22B89DDB);
+      ..color = AppColors.phaseFollicular.withValues(alpha: 0.28);
     canvas.drawArc(rect, -1.5708, 6.2832, false, track);
 
     final fg = Paint()
@@ -492,7 +758,11 @@ class _ProgressArcPainter extends CustomPainter {
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round
       ..shader = const SweepGradient(
-        colors: [Color(0xFFB89DDB), Color(0xFFF8C4D7), Color(0xFFB89DDB)],
+        colors: [
+          AppColors.phaseFollicular,
+          AppColors.phaseMenstrual,
+          AppColors.phaseFollicular,
+        ],
         startAngle: -1.5708,
         endAngle: 4.7124,
       ).createShader(rect);
@@ -518,23 +788,65 @@ class _StatChip extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: AppTextStyles.label.copyWith(
+            color: AppColors.textM,
             fontSize: 9,
-            color: Colors.grey.shade600,
-            letterSpacing: 0.5,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           value,
-          style: const TextStyle(
+          style: AppTextStyles.cardTitle.copyWith(
             fontSize: 22,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF2D2433),
+            color: AppColors.textH,
           ),
         ),
-        Text(sub, style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+        Text(
+          sub,
+          style: AppTextStyles.label.copyWith(
+            color: AppColors.textM,
+            fontSize: 9,
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _StopCaptureButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _StopCaptureButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primaryPressed,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          height: 56,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryPressed.withValues(alpha: 0.24),
+                blurRadius: 24,
+                spreadRadius: -10,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Text(
+            '캡처 중지',
+            style: AppTextStyles.button.copyWith(color: Colors.white),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -563,8 +875,8 @@ class _ChannelRow extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-              letterSpacing: 0.5,
+              color: AppColors.textM,
+              letterSpacing: 0,
             ),
           ),
         ),
@@ -640,29 +952,29 @@ class _DetectionCard extends StatelessWidget {
     final probLabel = (detection.probStress * 100).toStringAsFixed(1);
     final stateLabel = detection.inStressEvent ? '스트레스 감지' : '정상';
     final color = detection.inStressEvent
-        ? Colors.orange.shade700
-        : Colors.green.shade700;
+        ? AppColors.primaryPressed
+        : AppColors.phaseLuteal;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('최신 감지', style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 4),
+          Text('최신 감지', style: AppTextStyles.label),
+          const SizedBox(height: AppSpacing.xs),
           Text(
             '$stateLabel · 신뢰도 $probLabel%',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            style: AppTextStyles.cardTitle.copyWith(
               color: color,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(agoLabel, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: AppSpacing.xs),
+          Text(agoLabel, style: AppTextStyles.caption),
         ],
       ),
     );
