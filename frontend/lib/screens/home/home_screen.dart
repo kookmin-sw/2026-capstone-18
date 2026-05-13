@@ -350,9 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: Icons.water_drop_outlined,
                             iconColor: CyclePhaseUi.of('menstrual').color,
                             value: cycleDay,
-                            caption: hasCycle
-                                ? ''
-                                : '최근 생리 시작일을 추가하거나 건강 데이터에서 불러와요',
+                            caption: hasCycle ? '' : '생리 시작일을 추가해요',
                             captionColor: hasCycle
                                 ? AppColors.textL
                                 : AppColors.primary,
@@ -475,7 +473,12 @@ class _MetricCardContent extends StatelessWidget {
           const Spacer(),
           Text(value, style: AppTextStyles.metricNumber.copyWith(fontSize: 22)),
           if (caption.isNotEmpty)
-            Text(caption, style: TextStyle(fontSize: 10, color: captionColor)),
+            Text(
+              caption,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10, color: captionColor),
+            ),
         ],
       ),
     );
