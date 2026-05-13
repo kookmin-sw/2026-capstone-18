@@ -148,6 +148,7 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                         provider.consent?.rawBiosignalConsent == true &&
                         provider.consent?.consentRevokedAt == null;
                     final usesWatchSource = _selectedSource == 'watch';
+                    final isLoadingConsent = provider.isLoading;
                     return GlassCard(
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Column(
@@ -169,11 +170,13 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                                   value: granted,
                                   activeThumbColor: AppColors.primary,
                                   activeTrackColor: AppColors.primaryLight,
-                                  onChanged: (next) async {
-                                    await provider.updateConsent({
-                                      'raw_biosignal_consent': next,
-                                    });
-                                  },
+                                  onChanged: isLoadingConsent
+                                      ? null
+                                      : (next) async {
+                                          await provider.updateConsent({
+                                            'raw_biosignal_consent': next,
+                                          });
+                                        },
                                 )
                               else
                                 const _DemoSourceBadge(),
@@ -181,7 +184,9 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           Text(
-                            !usesWatchSource
+                            isLoadingConsent && usesWatchSource
+                                ? '현재 계정의 동의 상태를 확인하고 있어요.'
+                                : !usesWatchSource
                                 ? '합성 데이터는 실제 사용자 생체신호가 아니며, 이 동의와 무관하게 데모 캡처를 실행할 수 있어요.'
                                 : granted
                                 ? '시계의 원시 생체신호 데이터가 안전하게 업로드됩니다. 언제든지 끌 수 있어요.'
@@ -298,7 +303,10 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
       return true;
     }
 
-    final consent = context.read<ConsentProvider>().consent;
+    final consentProvider = context.read<ConsentProvider>();
+    if (consentProvider.isLoading) return false;
+
+    final consent = consentProvider.consent;
     final granted =
         consent?.rawBiosignalConsent == true &&
         consent?.consentRevokedAt == null;

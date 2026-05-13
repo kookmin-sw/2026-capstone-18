@@ -217,6 +217,7 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   AuthStatus? _lastStatus;
+  String? _lastAuthenticatedUserId;
   String? _fcmRegisteredUserId;
   String? _realtimeConnectedUserId;
   String? _notificationHandlingUserId;
@@ -227,16 +228,24 @@ class _AuthGateState extends State<_AuthGate> {
     final status = context.select<AuthProvider, AuthStatus>(
       (auth) => auth.status,
     );
+    final userId = context.select<AuthProvider, String?>(
+      (auth) => auth.user?.id,
+    );
 
-    if (status != _lastStatus) {
+    final authenticatedUserChanged =
+        status == AuthStatus.authenticated &&
+        userId != _lastAuthenticatedUserId;
+    if (status != _lastStatus || authenticatedUserChanged) {
       _lastStatus = status;
       if (status == AuthStatus.authenticated) {
+        _lastAuthenticatedUserId = userId;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _clearAuthenticatedSessionData();
-          unawaited(_loadAuthenticatedSession());
+          unawaited(_loadAuthenticatedSession(userId));
         });
       } else if (status == AuthStatus.unauthenticated) {
+        _lastAuthenticatedUserId = null;
         _fcmRegisteredUserId = null;
         _realtimeConnectedUserId = null;
         _notificationHandlingUserId = null;
@@ -255,7 +264,7 @@ class _AuthGateState extends State<_AuthGate> {
     };
   }
 
-  Future<void> _loadAuthenticatedSession() async {
+  Future<void> _loadAuthenticatedSession(String? sessionUserId) async {
     debugPrint('AUTH authenticated: loading initial staging data');
 
     final futures = <Future<void>>[
@@ -268,8 +277,7 @@ class _AuthGateState extends State<_AuthGate> {
       context.read<SleepProvider>().loadLatest(),
     ];
 
-    final user = context.read<AuthProvider>().user;
-    final userId = user?.id ?? 'authenticated';
+    final userId = sessionUserId ?? 'authenticated';
     if (_fcmRegisteredUserId != userId) {
       _fcmRegisteredUserId = userId;
       futures.add(
