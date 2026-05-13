@@ -227,6 +227,9 @@ void main() {
       _expectNoFlutterException(tester);
       expect(find.text('선택 기간의 최근 수면'), findsOneWidget);
       expect(find.text('총 수면 시간'), findsOneWidget);
+      expect(find.text('건강 데이터 동기화'), findsOneWidget);
+      expect(find.text('다시 불러오기'), findsOneWidget);
+      expect(find.text('Health Connect 기반 데이터'), findsOneWidget);
       expect(find.text('수면 패턴'), findsOneWidget);
       expect(find.text('잠든 시간'), findsOneWidget);
       expect(find.text('일어난 시간'), findsOneWidget);
@@ -391,6 +394,8 @@ void main() {
     _expectNoFlutterException(tester);
 
     expect(find.text('건강 데이터에서 주기 기록을 불러왔어요.'), findsOneWidget);
+    expect(find.textContaining('마지막 동기화'), findsOneWidget);
+    expect(find.textContaining('Health Connect에서 가져옴'), findsOneWidget);
     expect(find.text(koFullDate(watchStart)), findsOneWidget);
     expect(find.text(koFullDate(watchEnd)), findsOneWidget);
     expect(data.cycleProvider.currentCycle!.lastPeriodStart, watchStart);

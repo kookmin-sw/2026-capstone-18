@@ -31,6 +31,8 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
   bool _periodOngoing = false;
   bool _saving = false;
   bool _syncingCycle = false;
+  DateTime? _lastCycleSyncedAt;
+  String? _lastCycleSyncSource;
   _CycleSavePayload? _lastSavedPayload;
   _CycleSavePayload? _inFlightSavePayload;
 
@@ -317,7 +319,16 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
         _syncingCycle = false;
       });
 
-      await _saveCycle(successMessage: '건강 데이터에서 주기 기록을 불러왔어요.');
+      final saved = await _saveCycle(
+        successMessage: '건강 데이터에서 주기 기록을 불러왔어요.',
+        showSuccessWhenUnchanged: true,
+      );
+      if (saved && mounted) {
+        setState(() {
+          _lastCycleSyncedAt = DateTime.now();
+          _lastCycleSyncSource = 'Health Connect';
+        });
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -353,14 +364,20 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
     }
   }
 
-  Future<bool> _saveCycle({String successMessage = '주기 기록이 저장되었어요.'}) async {
+  Future<bool> _saveCycle({
+    String successMessage = '주기 기록이 저장되었어요.',
+    bool showSuccessWhenUnchanged = false,
+  }) async {
     final cycleProvider = context.read<CycleProvider>();
     final homeProvider = context.read<HomeProvider>();
     final insightProvider = context.read<InsightProvider>();
     final messenger = ScaffoldMessenger.of(context);
     final payload = _currentSavePayload();
 
-    if (_lastSavedPayload == payload) return true;
+    if (_lastSavedPayload == payload) {
+      if (showSuccessWhenUnchanged) _showSnackBar(messenger, successMessage);
+      return true;
+    }
     if (_saving) return _inFlightSavePayload == payload;
 
     setState(() {
@@ -428,9 +445,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
   ) async {
     try {
       await Future.wait([homeProvider.refresh(), insightProvider.refresh()]);
-    } catch (_) {
-
-    }
+    } catch (_) {}
   }
 
   void _showSnackBar(ScaffoldMessengerState messenger, String message) {
@@ -575,6 +590,8 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
                         onSync: _syncCycleFromGalaxyWatch,
                         isSyncing: _syncingCycle,
                         isDisabled: _saving,
+                        lastSyncedAt: _lastCycleSyncedAt,
+                        sourceLabel: _lastCycleSyncSource,
                       ),
 
                       const SizedBox(height: 24),
@@ -1318,11 +1335,15 @@ class _WatchSyncSection extends StatelessWidget {
   final Future<void> Function() onSync;
   final bool isSyncing;
   final bool isDisabled;
+  final DateTime? lastSyncedAt;
+  final String? sourceLabel;
 
   const _WatchSyncSection({
     required this.onSync,
     required this.isSyncing,
     required this.isDisabled,
+    required this.lastSyncedAt,
+    required this.sourceLabel,
   });
 
   @override
@@ -1356,6 +1377,11 @@ class _WatchSyncSection extends StatelessWidget {
                   'Health Connect의 생리 주기 기록을 불러와요.',
                   style: AppTextStyles.caption,
                 ),
+                const SizedBox(height: 8),
+                _SyncStatusLine(
+                  lastSyncedAt: lastSyncedAt,
+                  sourceLabel: sourceLabel,
+                ),
                 const SizedBox(height: 12),
                 SoftPrimaryButton(
                   text: '동기화하기',
@@ -1369,6 +1395,30 @@ class _WatchSyncSection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SyncStatusLine extends StatelessWidget {
+  final DateTime? lastSyncedAt;
+  final String? sourceLabel;
+
+  const _SyncStatusLine({
+    required this.lastSyncedAt,
+    required this.sourceLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final syncedAt = lastSyncedAt;
+    final source = sourceLabel ?? 'Health Connect';
+    final text = syncedAt == null
+        ? '$source 기반 데이터'
+        : '마지막 동기화: ${_relativeSyncTime(syncedAt)} · $source에서 가져옴';
+
+    return Text(
+      text,
+      style: AppTextStyles.caption.copyWith(color: AppColors.textM),
     );
   }
 }
@@ -1472,4 +1522,12 @@ class _PhaseCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _relativeSyncTime(DateTime syncedAt) {
+  final elapsed = DateTime.now().difference(syncedAt);
+  if (elapsed.inMinutes < 1) return '방금 전';
+  if (elapsed.inHours < 1) return '${elapsed.inMinutes}분 전';
+  if (elapsed.inDays < 1) return '${elapsed.inHours}시간 전';
+  return koFullDate(syncedAt);
 }

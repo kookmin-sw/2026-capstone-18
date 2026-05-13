@@ -25,6 +25,8 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
   late DateTime _rangeStart;
   late DateTime _rangeEnd;
   bool _syncingSleep = false;
+  DateTime? _lastSleepSyncedAt;
+  String? _lastSleepSyncSource;
 
   @override
   void initState() {
@@ -62,10 +64,20 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
       if (!mounted) return;
 
       if (synced) {
+        final importedEndedOn = sleepProvider.latestLog?.endedOn;
         await _loadSelectedRange();
         if (!mounted) return;
-        messenger.showSnackBar(
-          const SnackBar(content: Text('건강 데이터에서 수면 기록을 불러왔어요.')),
+        setState(() {
+          _lastSleepSyncedAt = DateTime.now();
+          _lastSleepSyncSource = 'Health Connect';
+        });
+        final isVisibleInRange =
+            importedEndedOn != null && _isDateInSelectedRange(importedEndedOn);
+        _showSnackBar(
+          messenger,
+          isVisibleInRange
+              ? '건강 데이터에서 수면 기록을 불러왔어요.'
+              : '최근 수면 기록을 불러왔어요. 현재 선택한 기간에는 표시되지 않을 수 있어요.',
         );
       } else if (sleepProvider.healthSyncFailureReason ==
           HealthConnectFailureReason.permissionDenied) {
@@ -76,12 +88,9 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
         }
         await _requestSleepPermissionAndRetry();
       } else {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              sleepProvider.errorMessage ?? '수면 데이터를 동기화하지 못했어요. 다시 시도해 주세요.',
-            ),
-          ),
+        _showSnackBar(
+          messenger,
+          sleepProvider.errorMessage ?? '수면 데이터를 동기화하지 못했어요. 다시 시도해 주세요.',
         );
       }
     } finally {
@@ -106,10 +115,9 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
     if (granted) {
       await _syncSleepFromHealthData();
     } else {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(sleepProvider.errorMessage ?? '건강 데이터 접근 권한이 필요해요.'),
-        ),
+      _showSnackBar(
+        messenger,
+        sleepProvider.errorMessage ?? '건강 데이터 접근 권한이 필요해요.',
       );
     }
   }
@@ -265,6 +273,16 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
     await _loadSelectedRange();
   }
 
+  bool _isDateInSelectedRange(DateTime date) {
+    final dateOnly = _dateOnly(date);
+    return !dateOnly.isBefore(_rangeStart) && !dateOnly.isAfter(_rangeEnd);
+  }
+
+  void _showSnackBar(ScaffoldMessengerState messenger, String message) {
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final sleepProvider = context.watch<SleepProvider>();
@@ -305,6 +323,16 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
                             onSelectEnd: () =>
                                 _pickRangeBoundary(isStart: false),
                           ),
+                          const SizedBox(height: 12),
+                          _HealthConnectSyncCard(
+                            title: '건강 데이터 동기화',
+                            description: 'Health Connect에서 최근 수면 기록을 불러와요.',
+                            buttonText: records.isEmpty ? '불러오기' : '다시 불러오기',
+                            isSyncing: _syncingSleep,
+                            lastSyncedAt: _lastSleepSyncedAt,
+                            sourceLabel: _lastSleepSyncSource,
+                            onSync: _syncSleepFromHealthData,
+                          ),
                           const SizedBox(height: 16),
 
                           if (sleepProvider.loading)
@@ -336,10 +364,7 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
                             if (latestInRange != null)
                               _LatestSleepCard(sleepLog: latestInRange)
                             else
-                              _LatestSleepEmptyCard(
-                                isSyncing: _syncingSleep,
-                                onSync: _syncSleepFromHealthData,
-                              ),
+                              _LatestSleepEmptyCard(),
                             if (records.isNotEmpty) ...[
                               const SizedBox(height: 12),
                               _SleepSummaryCard(records: records),
@@ -400,10 +425,7 @@ class _LatestSleepCard extends StatelessWidget {
 }
 
 class _LatestSleepEmptyCard extends StatelessWidget {
-  final bool isSyncing;
-  final Future<void> Function() onSync;
-
-  const _LatestSleepEmptyCard({required this.isSyncing, required this.onSync});
+  const _LatestSleepEmptyCard();
 
   @override
   Widget build(BuildContext context) {
@@ -421,16 +443,101 @@ class _LatestSleepEmptyCard extends StatelessWidget {
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 14),
-          SoftPrimaryButton(
-            text: '건강 데이터에서 불러오기',
-            onTap: isSyncing ? null : onSync,
-            isLoading: isSyncing,
-            height: 38,
-            fullWidth: false,
+        ],
+      ),
+    );
+  }
+}
+
+class _HealthConnectSyncCard extends StatelessWidget {
+  final String title;
+  final String description;
+  final String buttonText;
+  final bool isSyncing;
+  final DateTime? lastSyncedAt;
+  final String? sourceLabel;
+  final Future<void> Function() onSync;
+
+  const _HealthConnectSyncCard({
+    required this.title,
+    required this.description,
+    required this.buttonText,
+    required this.isSyncing,
+    required this.lastSyncedAt,
+    required this.sourceLabel,
+    required this.onSync,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.health_and_safety_outlined,
+              size: 20,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTextStyles.cardTitle),
+                const SizedBox(height: 5),
+                Text(description, style: AppTextStyles.caption),
+                const SizedBox(height: 8),
+                _SyncStatusLine(
+                  lastSyncedAt: lastSyncedAt,
+                  sourceLabel: sourceLabel,
+                ),
+                const SizedBox(height: 12),
+                SoftPrimaryButton(
+                  text: buttonText,
+                  onTap: isSyncing ? null : onSync,
+                  isLoading: isSyncing,
+                  fullWidth: false,
+                  height: 36,
+                ),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SyncStatusLine extends StatelessWidget {
+  final DateTime? lastSyncedAt;
+  final String? sourceLabel;
+
+  const _SyncStatusLine({
+    required this.lastSyncedAt,
+    required this.sourceLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final syncedAt = lastSyncedAt;
+    final source = sourceLabel ?? 'Health Connect';
+    final text = syncedAt == null
+        ? '$source 기반 데이터'
+        : '마지막 동기화: ${_relativeSyncTime(syncedAt)} · $source에서 가져옴';
+
+    return Text(
+      text,
+      style: AppTextStyles.caption.copyWith(color: AppColors.textM),
     );
   }
 }
@@ -1335,4 +1442,12 @@ String _durationLabelFromHours(double hours) {
   if (hourPart == 0) return '$minutePart분';
   if (minutePart == 0) return '$hourPart시간';
   return '$hourPart시간 $minutePart분';
+}
+
+String _relativeSyncTime(DateTime syncedAt) {
+  final elapsed = DateTime.now().difference(syncedAt);
+  if (elapsed.inMinutes < 1) return '방금 전';
+  if (elapsed.inHours < 1) return '${elapsed.inMinutes}분 전';
+  if (elapsed.inDays < 1) return '${elapsed.inHours}시간 전';
+  return koFullDate(syncedAt);
 }
