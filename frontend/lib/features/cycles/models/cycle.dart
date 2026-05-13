@@ -99,15 +99,6 @@ class Cycle {
     };
   }
 
-  Map<String, dynamic> toPatchJson() {
-    return {
-      'period_start_date': _date(lastPeriodStart),
-      'period_end_date': periodEndDate == null ? null : _date(periodEndDate!),
-      'cycle_length_days': cycleLength,
-      'is_period_ongoing': periodOngoing,
-    };
-  }
-
   String get phase {
     if (periodOngoing && periodEndDate == null) {
       return 'menstrual';
