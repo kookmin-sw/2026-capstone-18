@@ -479,6 +479,30 @@ void main() {
     );
   });
 
+  testWidgets('my cycle selecting unchanged date does not auto-save again', (
+    tester,
+  ) async {
+    final data = _SmokeData(authStatus: AuthStatus.authenticated);
+    await data.load();
+
+    await tester.pumpWidget(
+      _SmokeApp(data: data, child: const MyCycleScreen()),
+    );
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    final initialStart = data.cycleProvider.currentCycle!.lastPeriodStart;
+
+    await tester.tap(find.text(koFullDate(initialStart)).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('확인'));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(data.cyclesApi.saveCount, 0);
+    expect(find.text('주기 기록이 저장되었어요.'), findsNothing);
+  });
+
   testWidgets('my cycle end date selection auto-saves and refreshes data', (
     tester,
   ) async {
@@ -933,7 +957,7 @@ class _SmokeData {
     _events.add(
       StressEvent(
         id: 'event-1',
-        detectedAt: now.subtract(const Duration(hours: 2)),
+        detectedAt: now,
         stressScore: 62,
         trigger: 'Work',
         cyclePhase: 'luteal',
@@ -1208,6 +1232,7 @@ class _FakeCyclesApi extends CyclesApi {
   final List<Cycle> Function() cycles;
   final ValueChanged<Cycle> onSave;
   final bool failSave;
+  int saveCount = 0;
 
   _FakeCyclesApi({
     required Cycle Function() currentCycle,
@@ -1229,6 +1254,7 @@ class _FakeCyclesApi extends CyclesApi {
       throw const ApiException(message: '생리 주기 정보를 저장하지 못했어요.');
     }
 
+    saveCount++;
     final saved = Cycle(
       id: cycle.id.isEmpty ? 'cycle-saved' : cycle.id,
       lastPeriodStart: cycle.lastPeriodStart,
@@ -1247,6 +1273,7 @@ class _FakeCyclesApi extends CyclesApi {
       throw const ApiException(message: '생리 주기 정보를 저장하지 못했어요.');
     }
 
+    saveCount++;
     final current = _currentCycleGetter.call();
     final periodStart = DateTime.tryParse(
       '${changes['period_start_date'] ?? ''}',

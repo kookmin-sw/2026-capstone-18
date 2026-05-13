@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -29,6 +31,8 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
   bool _periodOngoing = false;
   bool _saving = false;
   bool _syncingCycle = false;
+  _CycleSavePayload? _lastSavedPayload;
+  _CycleSavePayload? _inFlightSavePayload;
 
   @override
   void initState() {
@@ -42,6 +46,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
           : _dateOnly(currentCycle.periodEndDate!);
       _periodOngoing =
           currentCycle.periodOngoing && currentCycle.periodEndDate == null;
+      _lastSavedPayload = _currentSavePayload();
     }
   }
 
@@ -192,8 +197,11 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
 
     if (picked == null) return;
 
+    final normalizedPicked = _dateOnly(picked);
+    if (normalizedPicked == periodStart) return;
+
     setState(() {
-      periodStart = picked;
+      periodStart = normalizedPicked;
       if (periodEnd != null && periodEnd!.isBefore(periodStart)) {
         periodEnd = null;
         _periodOngoing = false;
@@ -214,8 +222,11 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
 
     if (picked == null) return;
 
+    final normalizedPicked = _dateOnly(picked);
+    if (normalizedPicked == periodEnd) return;
+
     setState(() {
-      periodEnd = picked;
+      periodEnd = normalizedPicked;
       _periodOngoing = false;
     });
     await _saveCycle();
@@ -343,55 +354,88 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
   }
 
   Future<bool> _saveCycle({String successMessage = '주기 기록이 저장되었어요.'}) async {
-    if (_saving) return false;
-
     final cycleProvider = context.read<CycleProvider>();
     final homeProvider = context.read<HomeProvider>();
     final insightProvider = context.read<InsightProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final payload = _currentSavePayload();
+
+    if (_lastSavedPayload == payload) return true;
+    if (_saving) return _inFlightSavePayload == payload;
 
     setState(() {
       _saving = true;
     });
+    _inFlightSavePayload = payload;
 
     try {
       final saved = await cycleProvider.savePeriod(
-        lastPeriodStart: periodStart,
-        periodEndDate: periodEnd,
-        periodLength: periodLengthForCalculation,
-        periodOngoing: _periodOngoing && periodEnd == null,
+        lastPeriodStart: payload.periodStart,
+        periodEndDate: payload.periodEnd,
+        cycleLength: payload.cycleLength,
+        periodLength: payload.periodLength,
+        periodOngoing: payload.periodOngoing,
       );
 
       if (!mounted) return false;
 
       if (!saved) {
+        _inFlightSavePayload = null;
         setState(() {
           _saving = false;
         });
         final message = cycleProvider.errorMessage ?? '생리 주기 정보를 저장하지 못했어요.';
-        messenger.showSnackBar(SnackBar(content: Text(message)));
+        _showSnackBar(messenger, message);
         return false;
       }
 
-      await Future.wait([homeProvider.refresh(), insightProvider.refresh()]);
-
-      if (!mounted) return false;
+      _lastSavedPayload = payload;
+      _inFlightSavePayload = null;
 
       setState(() {
         _saving = false;
       });
-      messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+      _showSnackBar(messenger, successMessage);
+      unawaited(_refreshRelatedProviders(homeProvider, insightProvider));
       return true;
     } catch (_) {
       if (!mounted) return false;
 
+      _inFlightSavePayload = null;
       setState(() {
         _saving = false;
       });
       final message = cycleProvider.errorMessage ?? '생리 주기 정보를 저장하지 못했어요.';
-      messenger.showSnackBar(SnackBar(content: Text(message)));
+      _showSnackBar(messenger, message);
       return false;
     }
+  }
+
+  _CycleSavePayload _currentSavePayload() {
+    final cycleLength = context.read<CycleProvider>().calculatedCycleLength;
+    return _CycleSavePayload(
+      periodStart: _dateOnly(periodStart),
+      periodEnd: periodEnd == null ? null : _dateOnly(periodEnd!),
+      cycleLength: cycleLength,
+      periodLength: periodLengthForCalculation,
+      periodOngoing: _periodOngoing && periodEnd == null,
+    );
+  }
+
+  Future<void> _refreshRelatedProviders(
+    HomeProvider homeProvider,
+    InsightProvider insightProvider,
+  ) async {
+    try {
+      await Future.wait([homeProvider.refresh(), insightProvider.refresh()]);
+    } catch (_) {
+
+    }
+  }
+
+  void _showSnackBar(ScaffoldMessengerState messenger, String message) {
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   DateTime _dateOnly(DateTime date) {
@@ -561,6 +605,41 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
       ),
     );
   }
+}
+
+class _CycleSavePayload {
+  final DateTime periodStart;
+  final DateTime? periodEnd;
+  final int cycleLength;
+  final int periodLength;
+  final bool periodOngoing;
+
+  const _CycleSavePayload({
+    required this.periodStart,
+    required this.periodEnd,
+    required this.cycleLength,
+    required this.periodLength,
+    required this.periodOngoing,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _CycleSavePayload &&
+        other.periodStart == periodStart &&
+        other.periodEnd == periodEnd &&
+        other.cycleLength == cycleLength &&
+        other.periodLength == periodLength &&
+        other.periodOngoing == periodOngoing;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    periodStart,
+    periodEnd,
+    cycleLength,
+    periodLength,
+    periodOngoing,
+  );
 }
 
 class _CycleCalendar extends StatefulWidget {
