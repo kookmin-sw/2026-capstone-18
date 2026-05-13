@@ -133,7 +133,10 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                         ),
                       ],
                     ),
-                    if (_shouldShowErrorNotice(_controller.error)) ...[
+                    if (_shouldShowErrorNotice(
+                      _controller.error,
+                      _selectedSource,
+                    )) ...[
                       const SizedBox(height: AppSpacing.md),
                       _ErrorNotice(rawError: _controller.error!),
                     ],
@@ -549,12 +552,15 @@ String _userErrorLabel(String rawError) {
   return '캡처 상태를 확인하지 못했어요.';
 }
 
-bool _shouldShowErrorNotice(String? rawError) {
+bool _shouldShowErrorNotice(String? rawError, String selectedSource) {
   final error = rawError?.trim();
   if (error == null || error.isEmpty) {
     return false;
   }
-  return error != 'watch_not_connected';
+  if (selectedSource != 'watch' && error.startsWith('watch_')) {
+    return false;
+  }
+  return true;
 }
 
 class _LiveCaptureView extends StatefulWidget {
