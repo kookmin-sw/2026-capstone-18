@@ -42,8 +42,9 @@ async def test_event_creation_pushes_via_websocket(
                 transport=ASGIWebSocketTransport(app=app),
                 base_url="http://test",
             ) as http,
-            aconnect_ws(f"http://test/ws/realtime?token={token}", http) as ws,
+            aconnect_ws("http://test/ws/realtime", http) as ws,
         ):
+            await ws.send_json({"type": "auth", "token": token})
             await ws.receive_json()  # discard hello
 
             resp = await http.post(
