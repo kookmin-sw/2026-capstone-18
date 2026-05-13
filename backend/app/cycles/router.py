@@ -147,11 +147,14 @@ async def patch_cycle(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"status": "error", "reason": "cycle_not_found"},
         )
-    if payload.period_start_date is not None:
+    fields = payload.model_fields_set
+    if "period_start_date" in fields:
+        # CycleUpdate._validate guarantees this is non-null when present.
+        assert payload.period_start_date is not None
         row.period_start_date = payload.period_start_date
-    if payload.period_end_date is not None:
+    if "period_end_date" in fields:
         row.period_end_date = payload.period_end_date
-    if payload.cycle_length_days is not None:
+    if "cycle_length_days" in fields:
         row.cycle_length_days = payload.cycle_length_days
     row.user_corrected = True
     await db.flush()

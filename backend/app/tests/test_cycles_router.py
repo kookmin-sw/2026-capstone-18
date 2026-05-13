@@ -170,6 +170,82 @@ async def test_patch_cycle_rejects_empty_body(
 
 
 @pytest.mark.asyncio
+async def test_patch_cycle_clears_period_end_date_with_explicit_null(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+    cycle = Cycle(
+        user_id=me.id,
+        period_start_date=date(2026, 5, 10),
+        period_end_date=date(2026, 5, 12),
+    )
+    db_session.add(cycle)
+    await db_session.flush()
+
+    resp = await client.patch(
+        f"/api/v1/cycles/{cycle.id}",
+        headers=auth_headers(str(me.supabase_user_id)),
+        json={"period_end_date": None},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["period_end_date"] is None
+
+    await db_session.refresh(cycle)
+    assert cycle.period_end_date is None
+
+
+@pytest.mark.asyncio
+async def test_patch_cycle_clears_cycle_length_days_with_explicit_null(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+    cycle = Cycle(
+        user_id=me.id,
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+    )
+    db_session.add(cycle)
+    await db_session.flush()
+
+    resp = await client.patch(
+        f"/api/v1/cycles/{cycle.id}",
+        headers=auth_headers(str(me.supabase_user_id)),
+        json={"cycle_length_days": None},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["cycle_length_days"] is None
+
+
+@pytest.mark.asyncio
+async def test_patch_cycle_rejects_clearing_period_start_date(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+    cycle = Cycle(user_id=me.id, period_start_date=date(2026, 5, 1))
+    db_session.add(cycle)
+    await db_session.flush()
+
+    resp = await client.patch(
+        f"/api/v1/cycles/{cycle.id}",
+        headers=auth_headers(str(me.supabase_user_id)),
+        json={"period_start_date": None},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_patch_cycle_404s_for_other_user(
     client: AsyncClient,
     db_session: AsyncSession,

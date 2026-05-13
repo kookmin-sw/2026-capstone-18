@@ -22,17 +22,25 @@ class CyclePeriodStart(BaseModel):
 
 
 class CycleUpdate(BaseModel):
-    """PATCH body for `PATCH /api/v1/cycles/{id}`."""
+    """PATCH body for `PATCH /api/v1/cycles/{id}`.
+
+    Field presence (`model_fields_set`) is the source of truth for what
+    the caller wants to change. An explicit `null` clears the column for
+    nullable fields; an omitted field leaves it untouched.
+    """
 
     period_start_date: date | None = None
     period_end_date: date | None = None
     cycle_length_days: int | None = Field(default=None, ge=14, le=60)
 
     def is_empty(self) -> bool:
-        return all(v is None for v in self.model_dump().values())
+        return not self.model_fields_set
 
     @model_validator(mode="after")
-    def _validate_dates(self) -> CycleUpdate:
+    def _validate(self) -> CycleUpdate:
+        # period_start_date is NOT NULL in the DB — reject an explicit clear.
+        if "period_start_date" in self.model_fields_set and self.period_start_date is None:
+            raise ValueError("period_start_date cannot be cleared")
         if (
             self.period_end_date is not None
             and self.period_start_date is not None
