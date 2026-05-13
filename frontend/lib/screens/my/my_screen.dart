@@ -127,7 +127,7 @@ class MyScreen extends StatelessWidget {
                         iconBg: const Color(0xFFFFDAD5),
                         title: '생리 주기 기록',
                         subtitle: cycle == null
-                            ? '최근 생리 시작일을 추가하거나 워치와 동기화해요'
+                            ? '최근 생리 시작일을 추가하거나 건강 데이터에서 불러와요'
                             : '최근 생리 시작일 ${_formatShortDate(cycle.lastPeriodStart)} · 평균 주기 ${cycleProvider.calculatedCycleLength}일',
                         onTap: () => Navigator.push(
                           context,
@@ -182,9 +182,17 @@ class MyScreen extends StatelessWidget {
                                     selected: true,
                                   ),
                                 ),
-                                const TriggerChip(
-                                  label: '+ 추가',
-                                  color: AppColors.primary,
+                                GestureDetector(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const MyTriggersScreen(),
+                                    ),
+                                  ),
+                                  child: const TriggerChip(
+                                    label: '+ 추가',
+                                    color: AppColors.primary,
+                                  ),
                                 ),
                               ],
                             ),
@@ -219,9 +227,7 @@ class MyScreen extends StatelessWidget {
                         iconColor: const Color(0xFF9888A0),
                         iconBg: const Color(0xFFF2DCF3),
                         title: 'Galaxy Watch',
-                        subtitle: '연결되어 있어요',
-                        subtitleColor: const Color(0xFF94D0BC),
-                        showDot: true,
+                        subtitle: '연결 상태를 확인해요',
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -450,8 +456,6 @@ class _MenuCard extends StatelessWidget {
   final Color iconBg;
   final String title;
   final String subtitle;
-  final Color subtitleColor;
-  final bool showDot;
   final VoidCallback onTap;
 
   const _MenuCard({
@@ -461,8 +465,6 @@ class _MenuCard extends StatelessWidget {
     required this.iconBg,
     required this.title,
     required this.subtitle,
-    this.subtitleColor = const Color(0xFFC0B0C0),
-    this.showDot = false,
     required this.onTap,
   });
 
@@ -490,28 +492,12 @@ class _MenuCard extends StatelessWidget {
                 children: [
                   Text(title, style: AppTextStyles.cardTitle),
                   const SizedBox(height: AppSpacing.xs),
-                  Row(
-                    children: [
-                      if (showDot)
-                        Container(
-                          width: 6,
-                          height: 6,
-                          margin: const EdgeInsets.only(right: 4),
-                          decoration: BoxDecoration(
-                            color: subtitleColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      Flexible(
-                        child: Text(
-                          subtitle,
-                          style: AppTextStyles.caption.copyWith(
-                            color: subtitleColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    subtitle,
+                    style: AppTextStyles.caption.copyWith(
+                      color: const Color(0xFFC0B0C0),
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

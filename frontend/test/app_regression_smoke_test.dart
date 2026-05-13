@@ -402,6 +402,36 @@ void main() {
     expect(data.homeProvider.currentCycle!.lastPeriodStart, watchStart);
   });
 
+  testWidgets('my cycle health sync accepts ongoing period without end date', (
+    tester,
+  ) async {
+    final data = _SmokeData(
+      authStatus: AuthStatus.authenticated,
+      watchSyncOpenEnded: true,
+    );
+    await data.load();
+
+    await tester.pumpWidget(
+      _SmokeApp(data: data, child: const MyCycleScreen()),
+    );
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    final now = DateTime.now();
+    final watchStart = DateTime(now.year, now.month, now.day - 10);
+
+    await tester.tap(find.text('동기화하기'));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(find.text('건강 데이터에서 주기 기록을 불러왔어요.'), findsOneWidget);
+    expect(find.text(koFullDate(watchStart)), findsOneWidget);
+    expect(find.text('선택할 수 있어요'), findsOneWidget);
+    expect(data.cycleProvider.currentCycle!.lastPeriodStart, watchStart);
+    expect(data.cycleProvider.currentCycle!.periodEndDate, isNull);
+    expect(data.cycleProvider.currentCycle!.periodOngoing, isTrue);
+  });
+
   testWidgets('my cycle watch sync failure keeps form values', (tester) async {
     final data = _SmokeData(
       authStatus: AuthStatus.authenticated,
@@ -948,6 +978,7 @@ class _SmokeData {
     AppUser? user,
     bool failCycleSave = false,
     bool failWatchSync = false,
+    bool watchSyncOpenEnded = false,
   }) {
     final now = DateTime.now();
     _cycle = Cycle(
@@ -1002,7 +1033,10 @@ class _SmokeData {
     eventsProvider = EventsProvider(eventsApi: eventsApi);
     cycleProvider = CycleProvider(
       cyclesApi: cyclesApi,
-      watchCycleService: _FakeWatchCycleService(hasData: !failWatchSync),
+      watchCycleService: _FakeWatchCycleService(
+        hasData: !failWatchSync,
+        openEnded: watchSyncOpenEnded,
+      ),
       cycleOngoingStore: cycleOngoingStore,
     );
     settingsProvider = SettingsProvider(settingsApi: settingsApi);
@@ -1329,8 +1363,9 @@ class _FakeCycleOngoingStore extends CycleOngoingStore {
 
 class _FakeWatchCycleService extends WatchCycleService {
   final bool hasData;
+  final bool openEnded;
 
-  const _FakeWatchCycleService({required this.hasData});
+  const _FakeWatchCycleService({required this.hasData, this.openEnded = false});
 
   @override
   Future<WatchCycleData?> getLatestCycleData() async {
@@ -1339,7 +1374,7 @@ class _FakeWatchCycleService extends WatchCycleService {
     final now = DateTime.now();
     return WatchCycleData(
       periodStart: DateTime(now.year, now.month, now.day - 10),
-      periodEnd: DateTime(now.year, now.month, now.day - 6),
+      periodEnd: openEnded ? null : DateTime(now.year, now.month, now.day - 6),
       estimatedCycleLength: 28,
     );
   }

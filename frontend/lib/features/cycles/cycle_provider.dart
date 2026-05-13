@@ -70,8 +70,7 @@ class CycleProvider extends ChangeNotifier {
       ]);
       final serverCycle = results[0] as Cycle?;
       if (serverCycle != null && serverCycle.id.isNotEmpty) {
-        // Server is source of truth; reset the local cache so a stale
-        // local 'ongoing' value cannot drift away from server state.
+
         await cycleOngoingStore.setOngoing(
           serverCycle.id,
           serverCycle.periodOngoing && serverCycle.periodEndDate == null,
@@ -169,7 +168,7 @@ class CycleProvider extends ChangeNotifier {
   Future<WatchCycleData?> latestGalaxyWatchCycleData() async {
     try {
       final data = await watchCycleService.getLatestCycleData();
-      if (data == null || data.periodEnd == null) {
+      if (data == null) {
         _setHealthSyncError(HealthConnectFailureReason.noData);
         return null;
       }
@@ -219,6 +218,7 @@ class CycleProvider extends ChangeNotifier {
       lastPeriodStart: data.periodStart,
       periodEndDate: data.periodEnd,
       cycleLength: data.estimatedCycleLength,
+      periodOngoing: data.periodEnd == null,
     );
   }
 

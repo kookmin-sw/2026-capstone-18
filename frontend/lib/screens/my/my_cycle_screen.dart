@@ -294,7 +294,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
 
       if (!mounted) return;
 
-      if (data == null || data.periodEnd == null) {
+      if (data == null) {
         setState(() {
           periodStart = previousStart;
           periodEnd = previousEnd;
@@ -314,8 +314,8 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
 
       setState(() {
         periodStart = _dateOnly(data.periodStart);
-        periodEnd = _dateOnly(data.periodEnd!);
-        _periodOngoing = false;
+        periodEnd = data.periodEnd == null ? null : _dateOnly(data.periodEnd!);
+        _periodOngoing = data.periodEnd == null;
         _syncingCycle = false;
       });
 
