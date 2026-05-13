@@ -114,7 +114,7 @@ class ReportDetailScreen extends StatelessWidget {
                         children: [
                           _MetricCard(
                             label: '기록',
-                            value: '${detail.totalEvents}',
+                            value: '${detail.totalEvents}건',
                           ),
                           const SizedBox(width: 8),
                           _MetricCard(

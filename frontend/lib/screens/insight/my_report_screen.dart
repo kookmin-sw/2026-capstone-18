@@ -149,7 +149,7 @@ class _MyReportScreenState extends State<MyReportScreen> {
                             children: [
                               _MetricCard(
                                 label: '전체 기록',
-                                value: '${report.totalEvents}',
+                                value: '${report.totalEvents}건',
                               ),
                               const SizedBox(width: 10),
                               _MetricCard(

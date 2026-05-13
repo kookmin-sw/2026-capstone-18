@@ -127,7 +127,7 @@ class AccountSecurityScreen extends StatelessWidget {
               _GlassCard(
                 child: _DangerRow(
                   title: '계정 삭제',
-                  subtitle: '삭제된 계정은 다시 복구할 수 없어요',
+                  subtitle: '삭제 요청 후 30일 안에 취소할 수 있어요',
                   onTap: () {
                     Navigator.push(
                       context,

@@ -181,7 +181,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               const SizedBox(height: 24),
 
               GestureDetector(
-                onTap: _requestDeletion,
+                onTap: agreed ? _requestDeletion : null,
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
