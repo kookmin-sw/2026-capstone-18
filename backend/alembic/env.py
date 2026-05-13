@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -10,7 +11,6 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from app.config import get_settings
 from app.db.base import Base
 
 # Import models so Base.metadata sees them for autogenerate
@@ -27,9 +27,12 @@ from app.models import (  # noqa: F401
 # Alembic Config object provides access to values within the .ini file in use
 config = context.config
 
-# Inject DATABASE_URL from settings into the alembic config
-settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Inject DATABASE_URL into the alembic config.
+# Read directly from the environment so this file does not trigger
+# the full Settings validation (Supabase keys, OAuth, etc.) — which
+# is unnecessary for migrations and breaks CI/local runs that only
+# set DATABASE_URL.
+config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
