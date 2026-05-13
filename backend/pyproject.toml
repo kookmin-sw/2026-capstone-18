@@ -30,6 +30,7 @@ opentelemetry-instrumentation-sqlalchemy = "^0.49b0"
 opentelemetry-sdk-extension-aws = "^2.0.2"
 prometheus-fastapi-instrumentator = "^7.1.0"
 sentry-sdk = {extras = ["fastapi"], version = "^2.20.0"}
+urllib3 = ">=2.7.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.15.12"
