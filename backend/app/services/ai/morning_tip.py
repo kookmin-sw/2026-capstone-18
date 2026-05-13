@@ -200,6 +200,7 @@ async def _gather_context(
                 today=today,
                 period_start_date=latest_cycle.period_start_date,
                 cycle_length_days=length,
+                is_period_ongoing=latest_cycle.is_period_ongoing,
             )
 
     patterns_resp = await compute_patterns(
