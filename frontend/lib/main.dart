@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -25,32 +26,50 @@ import 'features/insight/insight_provider.dart';
 import 'features/notifications/notification_service.dart';
 import 'features/notifications/notifications_api.dart';
 import 'features/privacy/data/privacy_api.dart';
+import 'features/realtime/realtime_service.dart';
 import 'features/settings/data/settings_api.dart';
 import 'features/settings/settings_provider.dart';
 import 'features/sleep/data/sleep_api.dart';
 import 'features/sleep/sleep_provider.dart';
 import 'features/triggers/data/categories_api.dart';
 import 'features/triggers/triggers_provider.dart';
+import 'screens/home/events_log_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/home/stress_log_screen.dart';
 import 'screens/insight/insight_screen.dart';
 import 'screens/my/my_screen.dart';
 
-const SystemUiOverlayStyle _lumaSystemUiOverlayStyle =
-    SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      systemNavigationBarColor: AppColors.background,
-      systemNavigationBarDividerColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-      systemNavigationBarIconBrightness: Brightness.dark,
-      systemStatusBarContrastEnforced: false,
-      systemNavigationBarContrastEnforced: false,
-    );
+const SystemUiOverlayStyle _lumaSystemUiOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  systemNavigationBarColor: AppColors.background,
+  systemNavigationBarDividerColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.dark,
+  statusBarBrightness: Brightness.light,
+  systemNavigationBarIconBrightness: Brightness.dark,
+  systemStatusBarContrastEnforced: false,
+  systemNavigationBarContrastEnforced: false,
+);
+
+final GlobalKey<NavigatorState> lumaNavigatorKey = GlobalKey<NavigatorState>();
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+    }
+  } catch (_) {
+    return;
+  }
+
+  await NotificationService.showRemoteMessageNotification(message);
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _configureSystemBars();
   await _initializeFirebase();
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   runApp(const LumaApp());
 }
 
@@ -90,6 +109,7 @@ class _LumaAppState extends State<LumaApp> {
   late final NotificationsApi _notificationsApi;
   late final NotificationService _notificationService;
   late final AiInsightsApi _aiInsightsApi;
+  late final RealtimeService _realtimeService;
 
   @override
   void initState() {
@@ -109,6 +129,14 @@ class _LumaAppState extends State<LumaApp> {
       notificationsApi: _notificationsApi,
     );
     _aiInsightsApi = AiInsightsApi(apiClient: _apiClient);
+    _realtimeService = RealtimeService(tokenStorage: _tokenStorage);
+  }
+
+  @override
+  void dispose() {
+    unawaited(_notificationService.dispose());
+    unawaited(_realtimeService.disconnect());
+    super.dispose();
   }
 
   @override
@@ -157,8 +185,10 @@ class _LumaAppState extends State<LumaApp> {
         ),
         Provider<PrivacyApi>.value(value: _privacyApi),
         Provider<NotificationService>.value(value: _notificationService),
+        Provider<RealtimeService>.value(value: _realtimeService),
       ],
       child: MaterialApp(
+        navigatorKey: lumaNavigatorKey,
         title: 'Luma',
         debugShowCheckedModeBanner: false,
         color: AppColors.background,
@@ -188,6 +218,9 @@ class _AuthGate extends StatefulWidget {
 class _AuthGateState extends State<_AuthGate> {
   AuthStatus? _lastStatus;
   String? _fcmRegisteredUserId;
+  String? _realtimeConnectedUserId;
+  String? _notificationHandlingUserId;
+  String? _pendingNotificationEventId;
 
   @override
   Widget build(BuildContext context) {
@@ -205,8 +238,11 @@ class _AuthGateState extends State<_AuthGate> {
         });
       } else if (status == AuthStatus.unauthenticated) {
         _fcmRegisteredUserId = null;
+        _realtimeConnectedUserId = null;
+        _notificationHandlingUserId = null;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
+          unawaited(_disconnectSessionServices());
           _clearAuthenticatedSessionData();
         });
       }
@@ -242,6 +278,118 @@ class _AuthGateState extends State<_AuthGate> {
     }
 
     await Future.wait(futures);
+
+    if (!mounted) return;
+
+    await _connectRealtimeSession(userId);
+    await _initializeNotificationHandling(userId);
+    await _openPendingNotificationEvent();
+  }
+
+  Future<void> _connectRealtimeSession(String userId) async {
+    if (_realtimeConnectedUserId == userId) return;
+
+    final realtimeService = context.read<RealtimeService>();
+    await realtimeService.disconnect();
+    await realtimeService.connect(
+      onEventMessage: _handleRealtimeEventMessage,
+      onNotification: _showRealtimeNotification,
+    );
+
+    _realtimeConnectedUserId = userId;
+  }
+
+  Future<void> _initializeNotificationHandling(String userId) async {
+    if (_notificationHandlingUserId == userId) return;
+
+    final notificationService = context.read<NotificationService>();
+    await notificationService.initializeMessageHandling(
+      onStressEventTap: _handleStressEventNotificationTap,
+    );
+    _notificationHandlingUserId = userId;
+  }
+
+  Future<void> _disconnectSessionServices() async {
+    final realtimeService = context.read<RealtimeService>();
+    final notificationService = context.read<NotificationService>();
+    await realtimeService.disconnect();
+    await notificationService.dispose();
+  }
+
+  Future<void> _handleRealtimeEventMessage(RealtimeEventMessage message) async {
+    if (!mounted) return;
+
+    final eventsProvider = context.read<EventsProvider>();
+    final homeProvider = context.read<HomeProvider>();
+
+    if (message.type == RealtimeEventType.deleted) {
+      eventsProvider.removeRealtimeEvent(message.id);
+      homeProvider.removeRealtimeEvent(message.id);
+      return;
+    }
+
+    final event = await eventsProvider.fetchAndUpsertEvent(message.id);
+    if (!mounted || event == null) return;
+
+    homeProvider.applyRealtimeEvent(event);
+  }
+
+  void _showRealtimeNotification(String message) {
+    final context = lumaNavigatorKey.currentContext;
+    if (context == null) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _handleStressEventNotificationTap(String eventId) async {
+    if (_lastStatus != AuthStatus.authenticated) {
+      _pendingNotificationEventId = eventId;
+      return;
+    }
+
+    await _openStressEventFromNotification(eventId);
+  }
+
+  Future<void> _openPendingNotificationEvent() async {
+    final eventId = _pendingNotificationEventId;
+    if (eventId == null) return;
+
+    _pendingNotificationEventId = null;
+    await _openStressEventFromNotification(eventId);
+  }
+
+  Future<void> _openStressEventFromNotification(String eventId) async {
+    final navigator = lumaNavigatorKey.currentState;
+    final navigatorContext = lumaNavigatorKey.currentContext;
+    if (navigator == null || navigatorContext == null) {
+      _pendingNotificationEventId = eventId;
+      return;
+    }
+
+    final eventsProvider = navigatorContext.read<EventsProvider>();
+    final homeProvider = navigatorContext.read<HomeProvider>();
+    final event = await eventsProvider.fetchAndUpsertEvent(eventId);
+    if (!mounted) return;
+
+    if (event == null) {
+      navigator.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    homeProvider.applyRealtimeEvent(event);
+    navigator.popUntil((route) => route.isFirst);
+
+    if (!event.logged) {
+      await navigator.push(
+        MaterialPageRoute(builder: (_) => StressLogScreen(sourceEvent: event)),
+      );
+    } else {
+      await navigator.push(
+        MaterialPageRoute(builder: (_) => const EventsLogScreen()),
+      );
+    }
   }
 
   void _clearAuthenticatedSessionData() {

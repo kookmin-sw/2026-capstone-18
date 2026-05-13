@@ -113,11 +113,31 @@ class HomeProvider extends ChangeNotifier {
   }
 
   void applyRealtimeEvent(StressEvent event) {
+    if (!_isToday(event.detectedAt)) {
+      removeRealtimeEvent(event.id);
+      return;
+    }
+
     _todayEvents = [
       event,
       ..._todayEvents.where((item) => item.id != event.id),
     ];
     notifyListeners();
+  }
+
+  void removeRealtimeEvent(String id) {
+    final before = _todayEvents.length;
+    _todayEvents = _todayEvents.where((item) => item.id != id).toList();
+    if (_todayEvents.length != before) {
+      notifyListeners();
+    }
+  }
+
+  bool _isToday(DateTime dateTime) {
+    final now = DateTime.now();
+    return now.year == dateTime.year &&
+        now.month == dateTime.month &&
+        now.day == dateTime.day;
   }
 
   void clearSessionData() {

@@ -79,6 +79,13 @@ class CycleProvider extends ChangeNotifier {
     int? cycleLength,
     int? periodLength,
   }) async {
+    if (periodEndDate != null &&
+        _dateOnly(periodEndDate).isBefore(_dateOnly(lastPeriodStart))) {
+      _errorMessage = '생리 종료일은 시작일보다 빠를 수 없어요.';
+      notifyListeners();
+      return false;
+    }
+
     final resolvedCycleLength = cycleLength ?? calculatedCycleLength;
     final resolvedPeriodLength =
         periodLength ?? _periodLength(lastPeriodStart, periodEndDate);
@@ -94,13 +101,21 @@ class CycleProvider extends ChangeNotifier {
       );
 
       if (_currentCycle != null && _currentCycle!.id.isNotEmpty) {
-        _currentCycle = await cyclesApi.updateCycle(_currentCycle!.id, {
+        final previousCycle = _currentCycle;
+        final savedCycle = await cyclesApi.updateCycle(_currentCycle!.id, {
           'period_start_date': _date(lastPeriodStart),
           'period_end_date': periodEndDate == null
               ? null
               : _date(periodEndDate),
           'cycle_length_days': resolvedCycleLength,
         });
+        if (periodEndDate == null && savedCycle.periodEndDate != null) {
+          _currentCycle = previousCycle;
+          _errorMessage = '생리 종료일을 지우지 못했어요. 다시 시도해 주세요.';
+          notifyListeners();
+          return false;
+        }
+        _currentCycle = savedCycle;
       } else {
         _currentCycle = await cyclesApi.createPeriod(cycle);
       }
@@ -191,8 +206,11 @@ class CycleProvider extends ChangeNotifier {
   }
 
   String _date(DateTime date) {
-    final dateOnly = DateTime(date.year, date.month, date.day);
-    return dateOnly.toIso8601String().split('T').first;
+    return _dateOnly(date).toIso8601String().split('T').first;
+  }
+
+  DateTime _dateOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
   }
 
   void _setHealthSyncError(HealthConnectFailureReason reason) {

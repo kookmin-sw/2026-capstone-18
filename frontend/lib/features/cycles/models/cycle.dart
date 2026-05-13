@@ -1,3 +1,5 @@
+import '../services/cycle_phase_resolver.dart';
+
 class Cycle {
   final String id;
   final DateTime lastPeriodStart;
@@ -76,42 +78,24 @@ class Cycle {
   }
 
   String get phase {
-    if (backendPhase != null && backendPhase!.isNotEmpty) {
-      return _displayPhase(backendPhase!);
-    }
-    final day = cycleDay;
-    if (day <= periodLength) return 'menstrual';
-    if (day <= 13) return 'follicular';
-    if (day <= 16) return 'ovulation';
-    return 'luteal';
+    return _resolvedPhase.phase;
   }
 
   int get cycleDay {
-    if (backendDay != null && backendDay! > 0) return backendDay!;
-    final today = DateTime.now();
-    final dateOnlyToday = DateTime(today.year, today.month, today.day);
-    final dateOnlyStart = DateTime(
-      lastPeriodStart.year,
-      lastPeriodStart.month,
-      lastPeriodStart.day,
+    return _resolvedPhase.day;
+  }
+
+  ResolvedCyclePhase get _resolvedPhase {
+    return CyclePhaseResolver.resolve(
+      periodStart: lastPeriodStart,
+      targetDate: DateTime.now(),
+      cycleLength: cycleLength,
+      periodLength: periodLength,
     );
-    final diff = dateOnlyToday.difference(dateOnlyStart).inDays;
-    return (diff % cycleLength) + 1;
   }
 
   static String _date(DateTime date) {
     final dateOnly = DateTime(date.year, date.month, date.day);
     return dateOnly.toIso8601String().split('T').first;
-  }
-
-  static String _displayPhase(String value) {
-    final normalized = value.trim().toLowerCase();
-    return switch (normalized) {
-      'menstrual' || 'period' || 'period phase' => 'menstrual',
-      'follicular' => 'follicular',
-      'ovulation' || 'ovulatory' => 'ovulation',
-      'luteal' => 'luteal',
-      _ => value,
-    };
   }
 }

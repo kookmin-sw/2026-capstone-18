@@ -251,6 +251,26 @@ class EventsProvider extends ChangeNotifier {
     }
   }
 
+  Future<StressEvent?> fetchAndUpsertEvent(String id) async {
+    final trimmedId = id.trim();
+    if (trimmedId.isEmpty) return null;
+
+    try {
+      final event = await eventsApi.getEvent(trimmedId);
+      upsertRealtimeEvent(event);
+      _errorMessage = null;
+      return event;
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      _errorMessage = '스트레스 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
+      notifyListeners();
+      return null;
+    }
+  }
+
   void addUnloggedDetection({required DateTime detectedAt}) {
     final event = StressEvent(
       id: 'detected-${detectedAt.millisecondsSinceEpoch}',
@@ -276,6 +296,14 @@ class EventsProvider extends ChangeNotifier {
 
     _sortEvents();
     notifyListeners();
+  }
+
+  void removeRealtimeEvent(String id) {
+    final before = _events.length;
+    _events = _events.where((event) => event.id != id).toList();
+    if (_events.length != before) {
+      notifyListeners();
+    }
   }
 
   void clearError() {
