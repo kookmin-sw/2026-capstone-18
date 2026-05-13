@@ -48,7 +48,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
         backgroundColor: const Color(0xFFFFF8FB),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text('삭제 요청을 접수했어요'),
-        content: const Text('계정은 7일 뒤 영구 삭제돼요. 7일 안에 다시 로그인하면 요청을 취소할 수 있어요.'),
+        content: const Text('계정은 30일 뒤 영구 삭제돼요. 30일 안에 다시 로그인하면 요청을 취소할 수 있어요.'),
         actions: [
           TextButton(
             onPressed: () {
@@ -135,9 +135,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               const SizedBox(height: 24),
 
               _WarningCard(
-                title: '7일의 대기 기간이 있어요',
+                title: '30일의 대기 기간이 있어요',
                 body:
-                    '삭제를 요청하면 계정이 삭제 예정 상태가 돼요. 7일 안에 다시 로그인하면 요청을 취소할 수 있어요.',
+                    '삭제를 요청하면 계정이 삭제 예정 상태가 돼요. 30일 안에 다시 로그인하면 요청을 취소할 수 있어요.',
               ),
 
               _WarningCard(
@@ -148,7 +148,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
               _WarningCard(
                 title: '이후에는 되돌릴 수 없어요',
-                body: '7일이 지나 삭제가 완료되면 계정과 데이터는 복구할 수 없어요.',
+                body: '30일이 지나 삭제가 완료되면 계정과 데이터는 복구할 수 없어요.',
               ),
 
               const SizedBox(height: 22),
@@ -169,7 +169,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                       child: Padding(
                         padding: EdgeInsets.only(top: 10),
                         child: Text(
-                          '요청을 취소하지 않으면 7일 뒤 계정이 삭제된다는 것을 이해했어요.',
+                          '요청을 취소하지 않으면 30일 뒤 계정이 삭제된다는 것을 이해했어요.',
                           style: TextStyle(
                             fontSize: 13,
                             height: 1.45,
