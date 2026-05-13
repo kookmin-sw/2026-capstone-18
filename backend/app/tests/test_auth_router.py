@@ -566,7 +566,7 @@ async def test_email_signup_disabled_returns_403(
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture()
 def _reset_limiter() -> None:
     """Reset the in-memory rate-limit storage before each test.
 
@@ -580,6 +580,7 @@ def _reset_limiter() -> None:
 
 @pytest.mark.asyncio
 async def test_anon_signin_rate_limited(
+    _reset_limiter: None,
     db_session: AsyncSession,
     supabase_jwt_secret: str,  # noqa: ARG001
 ) -> None:
@@ -610,6 +611,7 @@ async def test_anon_signin_rate_limited(
 
 @pytest.mark.asyncio
 async def test_email_signup_rate_limited(
+    _reset_limiter: None,
     db_session: AsyncSession,
     supabase_jwt_secret: str,  # noqa: ARG001
 ) -> None:
