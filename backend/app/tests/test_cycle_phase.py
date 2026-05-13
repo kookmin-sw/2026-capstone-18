@@ -77,3 +77,49 @@ def test_compute_phase_irregular_cycle_length_below_minimum() -> None:
     )
     assert phase == "follicular"
     assert day == 10
+
+
+def test_compute_phase_ongoing_forces_menstrual_past_day_five() -> None:
+    """When is_period_ongoing=True, day 8 stays menstrual instead of follicular."""
+    phase, day = compute_phase(
+        today=date(2026, 5, 8),
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        is_period_ongoing=True,
+    )
+    assert phase == "menstrual"
+    assert day == 8
+
+
+def test_compute_phase_ongoing_within_first_five_days_still_menstrual() -> None:
+    phase, day = compute_phase(
+        today=date(2026, 5, 3),
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        is_period_ongoing=True,
+    )
+    assert phase == "menstrual"
+    assert day == 3
+
+
+def test_compute_phase_ongoing_does_not_override_pre_period() -> None:
+    """A future period_start_date stays pre_period regardless of the flag."""
+    phase, day = compute_phase(
+        today=date(2026, 4, 30),
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        is_period_ongoing=True,
+    )
+    assert phase == "pre_period"
+    assert day == 0
+
+
+def test_compute_phase_ongoing_false_unchanged_from_default() -> None:
+    phase, day = compute_phase(
+        today=date(2026, 5, 8),
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        is_period_ongoing=False,
+    )
+    assert phase == "follicular"
+    assert day == 8

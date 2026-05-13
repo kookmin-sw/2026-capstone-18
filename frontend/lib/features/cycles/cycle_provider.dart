@@ -68,7 +68,16 @@ class CycleProvider extends ChangeNotifier {
         cyclesApi.currentCycle(),
         cyclesApi.listCycles(),
       ]);
-      _currentCycle = await cycleOngoingStore.applyTo(results[0] as Cycle?);
+      final serverCycle = results[0] as Cycle?;
+      if (serverCycle != null && serverCycle.id.isNotEmpty) {
+        // Server is source of truth; reset the local cache so a stale
+        // local 'ongoing' value cannot drift away from server state.
+        await cycleOngoingStore.setOngoing(
+          serverCycle.id,
+          serverCycle.periodOngoing && serverCycle.periodEndDate == null,
+        );
+      }
+      _currentCycle = serverCycle;
       _cycleHistory = results[1] as List<Cycle>;
       _syncCurrentCycleIntoHistory();
       _healthSyncFailureReason = null;
@@ -107,6 +116,7 @@ class CycleProvider extends ChangeNotifier {
         cycleLength: resolvedCycleLength,
         periodLength: resolvedPeriodLength,
         notes: _currentCycle?.notes,
+        periodOngoing: shouldMarkOngoing,
       );
 
       if (_currentCycle != null && _currentCycle!.id.isNotEmpty) {
@@ -117,6 +127,7 @@ class CycleProvider extends ChangeNotifier {
               ? null
               : _date(periodEndDate),
           'cycle_length_days': resolvedCycleLength,
+          'is_period_ongoing': shouldMarkOngoing,
         });
         if (periodEndDate == null && savedCycle.periodEndDate != null) {
           _currentCycle = previousCycle;

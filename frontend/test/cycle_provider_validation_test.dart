@@ -151,8 +151,10 @@ void main() {
       cycleOngoingStore: ongoingStore,
     );
 
+    // Server-wins: server returns periodOngoing=false (default), so the
+    // provider resets the local cache and reflects the server value.
     await provider.loadCurrentCycle();
-    expect(provider.currentCycle?.periodOngoing, isTrue);
+    expect(provider.currentCycle?.periodOngoing, isFalse);
 
     final saved = await provider.savePeriod(
       lastPeriodStart: start,
@@ -163,6 +165,68 @@ void main() {
     expect(saved, isTrue);
     expect(await ongoingStore.isOngoing('cycle-1'), isFalse);
     expect(provider.currentCycle?.periodOngoing, isFalse);
+  });
+
+  test('savePeriod sends is_period_ongoing in PATCH payload', () async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day - 5);
+    final cyclesApi = _ValidationCyclesApi(
+      current: Cycle(
+        id: 'cycle-1',
+        lastPeriodStart: start,
+        periodEndDate: null,
+        cycleLength: 28,
+        periodLength: 7,
+        notes: null,
+      ),
+      onSave: (_) {},
+    );
+    final provider = CycleProvider(
+      cyclesApi: cyclesApi,
+      cycleOngoingStore: _FakeCycleOngoingStore(),
+    );
+    await provider.loadCurrentCycle();
+
+    final saved = await provider.savePeriod(
+      lastPeriodStart: start,
+      periodEndDate: null,
+      periodOngoing: true,
+    );
+
+    expect(saved, isTrue);
+    expect(cyclesApi.lastChanges, containsPair('is_period_ongoing', true));
+  });
+
+  test('loadCurrentCycle trusts server is_period_ongoing over local cache',
+      () async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day - 5);
+    // Local cache says ongoing=true, but server returns periodOngoing=false.
+    final ongoingStore = _FakeCycleOngoingStore();
+    await ongoingStore.setOngoing('cycle-1', true);
+    final cyclesApi = _ValidationCyclesApi(
+      current: Cycle(
+        id: 'cycle-1',
+        lastPeriodStart: start,
+        periodEndDate: null,
+        cycleLength: 28,
+        periodLength: 7,
+        notes: null,
+        // periodOngoing defaults to false — server says not ongoing
+      ),
+      onSave: (_) {},
+    );
+    final provider = CycleProvider(
+      cyclesApi: cyclesApi,
+      cycleOngoingStore: ongoingStore,
+    );
+
+    await provider.loadCurrentCycle();
+
+    // Server wins: provider should reflect server's false, not cache's true.
+    expect(provider.currentCycle?.periodOngoing, isFalse);
+    // Local store should have been reset to false.
+    expect(await ongoingStore.isOngoing('cycle-1'), isFalse);
   });
 }
 

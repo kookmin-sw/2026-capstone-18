@@ -155,3 +155,35 @@ async def test_falls_back_when_llm_returns_garbage(
     assert tip.headline
     assert tip.body
     assert tip.context_line is not None
+
+
+@pytest.mark.asyncio
+async def test_morning_tip_phase_respects_is_period_ongoing(
+    db_session: AsyncSession,
+    make_user: Any,
+) -> None:
+    """When is_period_ongoing=True, _gather_context must return phase='menstrual'
+    even when today is past the default menstrual window (day > 5)."""
+    from app.services.ai.morning_tip import _gather_context
+
+    me = await make_user()
+
+    # Set period_start 7 days ago so today is day 8.
+    # Without is_period_ongoing=True, compute_phase would return 'follicular'.
+    today = datetime.now(tz=UTC).date()
+    period_start = today - timedelta(days=7)
+
+    db_session.add(
+        Cycle(
+            user_id=me.id,
+            period_start_date=period_start,
+            cycle_length_days=28,
+            is_period_ongoing=True,
+        )
+    )
+    await db_session.flush()
+
+    ctx = await _gather_context(db_session, user_id=me.id, today=today)
+
+    assert ctx.phase == "menstrual"
+    assert ctx.cycle_day == 8

@@ -48,6 +48,7 @@ async def period_start(
         period_start_date=payload.period_start_date,
         cycle_length_days=payload.cycle_length_days,
         auto_detected=payload.auto_detected,
+        is_period_ongoing=payload.is_period_ongoing,
     )
     db.add(cycle)
     await db.flush()
@@ -92,6 +93,7 @@ async def current_cycle(
         today=_today(),
         period_start_date=row.period_start_date,
         cycle_length_days=(row.cycle_length_days if row.cycle_length_days is not None else 28),
+        is_period_ongoing=row.is_period_ongoing,
     )
     return CurrentCycleResponse(
         cycle=CycleResponse.model_validate(row),
@@ -156,6 +158,19 @@ async def patch_cycle(
         row.period_end_date = payload.period_end_date
     if "cycle_length_days" in fields:
         row.cycle_length_days = payload.cycle_length_days
+    if "is_period_ongoing" in fields and payload.is_period_ongoing is not None:
+        row.is_period_ongoing = payload.is_period_ongoing
+    # Server-side auto-clear: if the resulting row has period_end_date set,
+    # is_period_ongoing must be False — clients don't get to lie about this.
+    if row.period_end_date is not None:
+        row.is_period_ongoing = False
+    # Cross-row guard: refuse to set ongoing=True on a row that still has
+    # period_end_date populated (e.g. patch flipped flag without clearing end).
+    if row.is_period_ongoing and row.period_end_date is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"status": "error", "reason": "period_end_conflict"},
+        )
     row.user_corrected = True
     await db.flush()
     await db.refresh(row)

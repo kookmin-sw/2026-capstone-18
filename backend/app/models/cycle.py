@@ -39,6 +39,11 @@ class Cycle(Base):
     cycle_length_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     auto_detected: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     user_corrected: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_period_ongoing: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

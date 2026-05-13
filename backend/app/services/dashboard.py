@@ -168,6 +168,7 @@ async def _cycle(db: AsyncSession, *, user_id: uuid.UUID) -> DashboardCycle | No
         today=today,
         period_start_date=row.period_start_date,
         cycle_length_days=cycle_length,
+        is_period_ongoing=row.is_period_ongoing,
     )
     days_left = phase_window(phase=phase, day=day, cycle_length_days=cycle_length)
     return DashboardCycle(

@@ -53,6 +53,7 @@ class Cycle {
       notes: source['notes'] as String?,
       backendPhase: json['phase'] as String?,
       backendDay: (json['day'] as num?)?.round(),
+      periodOngoing: source['is_period_ongoing'] as bool? ?? false,
     );
   }
 
@@ -87,6 +88,7 @@ class Cycle {
       'period_start_date': _date(lastPeriodStart),
       'cycle_length_days': cycleLength,
       'auto_detected': false,
+      'is_period_ongoing': periodOngoing,
     };
   }
 
@@ -94,14 +96,6 @@ class Cycle {
     return {
       ...toCreateJson(),
       if (periodEndDate != null) 'period_end_date': _date(periodEndDate!),
-    };
-  }
-
-  Map<String, dynamic> toPatchJson() {
-    return {
-      'period_start_date': _date(lastPeriodStart),
-      if (periodEndDate != null) 'period_end_date': _date(periodEndDate!),
-      'cycle_length_days': cycleLength,
     };
   }
 

@@ -46,3 +46,14 @@ async def test_cycle_user_corrected_default_false(db_session: AsyncSession) -> N
     await db_session.flush()
     assert cycle.user_corrected is False
     assert cycle.cycle_length_days is None
+
+
+@pytest.mark.asyncio
+async def test_cycle_is_period_ongoing_default_false(db_session: AsyncSession) -> None:
+    user = User(supabase_user_id=uuid.uuid4(), anon_id=uuid.uuid4())
+    db_session.add(user)
+    await db_session.flush()
+    cycle = Cycle(user_id=user.id, period_start_date=date(2026, 5, 1))
+    db_session.add(cycle)
+    await db_session.flush()
+    assert cycle.is_period_ongoing is False

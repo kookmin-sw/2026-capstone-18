@@ -246,6 +246,135 @@ async def test_patch_cycle_rejects_clearing_period_start_date(
 
 
 @pytest.mark.asyncio
+async def test_post_period_start_persists_is_period_ongoing(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+    resp = await client.post(
+        "/api/v1/cycles/period-start",
+        headers=auth_headers(str(me.supabase_user_id)),
+        json={"period_start_date": "2026-05-01", "is_period_ongoing": True},
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["is_period_ongoing"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_current_returns_menstrual_when_ongoing(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    me = await make_user()
+    cycle = Cycle(
+        user_id=me.id,
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        is_period_ongoing=True,
+    )
+    db_session.add(cycle)
+    await db_session.flush()
+    from app.cycles import router as cycles_router
+
+    monkeypatch.setattr(cycles_router, "_today", lambda: date(2026, 5, 8))
+    resp = await client.get(
+        "/api/v1/cycles/current",
+        headers=auth_headers(str(me.supabase_user_id)),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["phase"] == "menstrual"
+    assert body["day"] == 8
+    assert body["cycle"]["is_period_ongoing"] is True
+
+
+@pytest.mark.asyncio
+async def test_patch_setting_end_date_auto_clears_ongoing(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+    cycle = Cycle(
+        user_id=me.id,
+        period_start_date=date(2026, 5, 1),
+        is_period_ongoing=True,
+    )
+    db_session.add(cycle)
+    await db_session.flush()
+    resp = await client.patch(
+        f"/api/v1/cycles/{cycle.id}",
+        headers=auth_headers(str(me.supabase_user_id)),
+        json={"period_end_date": "2026-05-06"},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["period_end_date"] == "2026-05-06"
+    assert body["is_period_ongoing"] is False
+
+
+@pytest.mark.asyncio
+async def test_patch_rejects_ongoing_and_end_date_together(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+    cycle = Cycle(user_id=me.id, period_start_date=date(2026, 5, 1))
+    db_session.add(cycle)
+    await db_session.flush()
+    resp = await client.patch(
+        f"/api/v1/cycles/{cycle.id}",
+        headers=auth_headers(str(me.supabase_user_id)),
+        json={
+            "is_period_ongoing": True,
+            "period_end_date": "2026-05-05",
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_patch_flipping_ongoing_true_on_row_with_end_date_auto_clears_due_to_existing_end_date(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+    auth_headers: Any,
+    make_user: Any,
+) -> None:
+    me = await make_user()
+    cycle = Cycle(
+        user_id=me.id,
+        period_start_date=date(2026, 5, 1),
+        period_end_date=date(2026, 5, 5),
+    )
+    db_session.add(cycle)
+    await db_session.flush()
+    resp = await client.patch(
+        f"/api/v1/cycles/{cycle.id}",
+        headers=auth_headers(str(me.supabase_user_id)),
+        json={"is_period_ongoing": True},
+    )
+    # The router applies is_period_ongoing=True, then auto-clears it because
+    # period_end_date is still set on the row. The cross-row guard never fires
+    # (flag was already cleared). Result: 200 with flag silently cleared.
+    assert resp.status_code == 200
+    assert resp.json()["is_period_ongoing"] is False
+    assert resp.json()["period_end_date"] == "2026-05-05"
+
+
+@pytest.mark.asyncio
 async def test_patch_cycle_404s_for_other_user(
     client: AsyncClient,
     db_session: AsyncSession,
