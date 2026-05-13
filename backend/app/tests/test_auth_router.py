@@ -559,3 +559,90 @@ async def test_email_signup_disabled_returns_403(
 
     assert response.status_code == 403
     assert response.json()["reason"] == "signup_disabled"
+
+
+# ---------------------------------------------------------------------------
+# Rate-limiting tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_limiter() -> None:
+    """Reset the in-memory rate-limit storage before each test.
+
+    Without this, counts bleed across tests (all share the same Limiter
+    instance and the same testclient source IP).
+    """
+    from app.auth.limiter import limiter
+
+    limiter.reset()
+
+
+@pytest.mark.asyncio
+async def test_anon_signin_rate_limited(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    """11th request in a minute from the same IP should receive 429."""
+    supabase_id = uuid.uuid4()
+    fake_session = _supabase_session_for(supabase_id, anon=True)
+
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.sign_in_anonymously.return_value = fake_session
+        get_client.return_value = client_mock
+
+        from app.db.dependencies import get_db
+
+        async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                responses = [await http.post("/api/v1/auth/anon") for _ in range(11)]
+        finally:
+            app.dependency_overrides.clear()
+
+    assert responses[-1].status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_email_signup_rate_limited(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    """6th signup request in a minute from the same IP should receive 429."""
+    supabase_id = uuid.uuid4()
+    fake_session = _email_session_for(supabase_id)
+
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.sign_up_with_email.return_value = {"id": str(supabase_id)}
+        client_mock.sign_in_with_password.return_value = fake_session
+        get_client.return_value = client_mock
+
+        from app.db.dependencies import get_db
+
+        async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                responses = [
+                    await http.post(
+                        "/api/v1/auth/email/signup",
+                        json={
+                            "email": f"user{i}@example.com",
+                            "password": "hunter2pw",
+                        },
+                    )
+                    for i in range(6)
+                ]
+        finally:
+            app.dependency_overrides.clear()
+
+    assert responses[-1].status_code == 429

@@ -92,6 +92,16 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+from slowapi import _rate_limit_exceeded_handler  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
+from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
+
+from app.auth.limiter import limiter  # noqa: E402
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+app.add_middleware(SlowAPIMiddleware)
+
 from app.observability.metrics import setup_metrics  # noqa: E402
 
 setup_metrics(app)
