@@ -18,6 +18,7 @@ def compute_phase(
     today: date,
     period_start_date: date,
     cycle_length_days: int,  # noqa: ARG001 — reserved for future use
+    is_period_ongoing: bool = False,
 ) -> PhaseTuple:
     """Return (phase_name, day_of_cycle).
 
@@ -25,10 +26,17 @@ def compute_phase(
     are anchored to canonical day numbers — but is kept as a parameter so the
     router doesn't have to change when we eventually use it (e.g. to detect
     stale records).
+
+    `is_period_ongoing` overrides the day-based phase: while the user has marked
+    their period as still in progress, the phase remains `menstrual` regardless
+    of how many days have passed since `period_start_date`. `pre_period` (today
+    < period_start_date) is unaffected by the flag.
     """
     if today < period_start_date:
         return ("pre_period", 0)
     day = (today - period_start_date).days + 1
+    if is_period_ongoing:
+        return ("menstrual", day)
     if day <= 5:
         return ("menstrual", day)
     if day <= 13:
