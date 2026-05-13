@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../features/auth/auth_provider.dart';
+import '../../features/auth/data/app_user.dart';
 import '../../features/auth/user_display.dart';
 import 'delete_account_screen.dart';
 
@@ -16,10 +17,7 @@ class AccountSecurityScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
 
-    final email = userEmail(user);
-    final emailLabel = email ?? '익명 계정';
-
-    final isAnonymous = email == null;
+    final loginInfo = _loginInfoFor(user);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -66,12 +64,18 @@ class AccountSecurityScreen extends StatelessWidget {
               _GlassCard(
                 child: Column(
                   children: [
-                    _InfoRow(label: '계정', value: emailLabel, onTap: null),
+                    _InfoRow(
+                      label: '계정',
+                      value: loginInfo.accountLabel,
+                      onTap: null,
+                    ),
                     const Divider(color: Color(0x15000000), height: 1),
                     _InfoRow(
                       label: '비밀번호',
-                      value: isAnonymous ? '익명 계정' : '준비 중이에요',
-                      onTap: isAnonymous
+                      value: loginInfo.passwordLabel,
+                      onTap: loginInfo.canChangePassword
+                          ? null
+                          : loginInfo.isAnonymous
                           ? null
                           : () => ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -85,7 +89,7 @@ class AccountSecurityScreen extends StatelessWidget {
                 ),
               ),
 
-              if (isAnonymous) ...[
+              if (loginInfo.isAnonymous) ...[
                 const SizedBox(height: 10),
                 const Text(
                   '익명 계정은 이메일과 비밀번호가 연결되어 있지 않습니다.',
@@ -130,6 +134,62 @@ class AccountSecurityScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+_LoginInfo _loginInfoFor(AppUser? user) {
+  final accountType = _normalizeAccountType(user?.accountType);
+  final email = userEmail(user);
+
+  if (accountType == 'anonymous') {
+    return const _LoginInfo(
+      accountLabel: '익명 계정',
+      passwordLabel: '연결되지 않음',
+      isAnonymous: true,
+    );
+  }
+
+  if (accountType == 'google') {
+    return _LoginInfo(
+      accountLabel: email ?? 'Google 계정',
+      passwordLabel: 'Google 계정으로 로그인',
+    );
+  }
+
+  if (accountType == 'email') {
+    return _LoginInfo(
+      accountLabel: email ?? '계정 정보를 불러올 수 없어요',
+      passwordLabel: '이메일 로그인',
+      canChangePassword: true,
+    );
+  }
+
+  return _LoginInfo(
+    accountLabel: email ?? '계정 정보를 불러올 수 없어요',
+    passwordLabel: '계정 정보를 불러올 수 없어요',
+  );
+}
+
+String? _normalizeAccountType(String? value) {
+  final normalized = value?.trim().toLowerCase();
+  if (normalized == null || normalized.isEmpty) return null;
+  if (normalized == 'anonymous' || normalized == 'anon') return 'anonymous';
+  if (normalized == 'google') return 'google';
+  if (normalized == 'email' || normalized == 'password') return 'email';
+  return null;
+}
+
+class _LoginInfo {
+  final String accountLabel;
+  final String passwordLabel;
+  final bool isAnonymous;
+  final bool canChangePassword;
+
+  const _LoginInfo({
+    required this.accountLabel,
+    required this.passwordLabel,
+    this.isAnonymous = false,
+    this.canChangePassword = false,
+  });
 }
 
 class _InfoRow extends StatelessWidget {

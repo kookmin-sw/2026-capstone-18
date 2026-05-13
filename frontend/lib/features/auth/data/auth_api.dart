@@ -24,7 +24,9 @@ class AuthApi {
 
   Future<AuthTokens> anonymousLogin() async {
     final response = await _apiClient.post('/api/v1/auth/anon', auth: false);
-    return AuthTokens.fromJson(_asMap(response));
+    return AuthTokens.fromJson(
+      _asMap(response),
+    ).copyWith(accountType: 'anonymous');
   }
 
   Future<AuthTokens> googleLogin() async {
@@ -48,7 +50,9 @@ class AuthApi {
         auth: false,
       );
 
-      return AuthTokens.fromJson(_asMap(response));
+      return AuthTokens.fromJson(
+        _asMap(response),
+      ).copyWith(accountType: 'google', email: account.email);
     } on ApiException catch (error) {
       if (_isInvalidGoogleToken(error)) {
         throw ApiException(
@@ -73,7 +77,9 @@ class AuthApi {
         body: {'email': email, 'password': password},
         auth: false,
       );
-      return AuthTokens.fromJson(_asMap(response));
+      return AuthTokens.fromJson(
+        _asMap(response),
+      ).copyWith(accountType: 'email', email: email);
     } on ApiException catch (error) {
       throw _mapEmailAuthError(error, fallback: '로그인하지 못했어요. 잠시 후 다시 시도해 주세요.');
     }
@@ -94,9 +100,14 @@ class AuthApi {
         },
         auth: false,
       );
-      return AuthTokens.fromJson(_asMap(response));
+      return AuthTokens.fromJson(
+        _asMap(response),
+      ).copyWith(accountType: 'email', email: email);
     } on ApiException catch (error) {
-      throw _mapEmailAuthError(error, fallback: '계정을 만들지 못했어요. 잠시 후 다시 시도해 주세요.');
+      throw _mapEmailAuthError(
+        error,
+        fallback: '계정을 만들지 못했어요. 잠시 후 다시 시도해 주세요.',
+      );
     }
   }
 

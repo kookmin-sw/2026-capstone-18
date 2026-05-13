@@ -63,11 +63,33 @@ void main() {
     expect(storage.tokens, isNull);
     expect(storage.nickname, isNull);
   });
+
+  test('keeps email account metadata when me response has no email', () async {
+    final storage = _MemoryTokenStorage();
+    final provider = AuthProvider(
+      authApi: _MemoryAuthApi(),
+      tokenStorage: storage,
+      apiClient: _dummyApiClient(storage),
+    );
+
+    final signedIn = await provider.signInWithEmail(
+      'user@example.com',
+      'hunter2pw',
+    );
+
+    expect(signedIn, isTrue);
+    expect(provider.user?.accountType, 'email');
+    expect(provider.user?.email, 'user@example.com');
+    expect(storage.accountType, 'email');
+    expect(storage.email, 'user@example.com');
+  });
 }
 
 class _MemoryTokenStorage extends SecureTokenStorage {
   AuthTokens? tokens;
   String? nickname;
+  String? accountType;
+  String? email;
 
   _MemoryTokenStorage({this.tokens, this.nickname});
 
@@ -84,8 +106,20 @@ class _MemoryTokenStorage extends SecureTokenStorage {
   Future<String?> readNickname() async => nickname;
 
   @override
+  Future<String?> readAccountType() async => accountType;
+
+  @override
+  Future<String?> readAccountEmail() async => email;
+
+  @override
   Future<void> saveTokens(AuthTokens tokens) async {
     this.tokens = tokens;
+  }
+
+  @override
+  Future<void> saveAccountMetadata({String? accountType, String? email}) async {
+    this.accountType = accountType;
+    this.email = email;
   }
 
   @override
@@ -97,6 +131,8 @@ class _MemoryTokenStorage extends SecureTokenStorage {
   Future<void> clear() async {
     tokens = null;
     nickname = null;
+    accountType = null;
+    email = null;
   }
 }
 
@@ -114,6 +150,16 @@ class _MemoryAuthApi extends AuthApi {
 
   @override
   Future<AppUser> me() async => user;
+
+  @override
+  Future<AuthTokens> emailLogin(String email, String password) async {
+    return AuthTokens(
+      accessToken: 'email-access',
+      refreshToken: 'email-refresh',
+      accountType: 'email',
+      email: email,
+    );
+  }
 
   @override
   Future<AppUser> updateMe(Map<String, dynamic> changes) async {
