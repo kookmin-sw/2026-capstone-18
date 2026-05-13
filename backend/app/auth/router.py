@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.google import GoogleTokenError, verify_google_id_token
 from app.auth.jwt import JWTVerificationError, verify_supabase_jwt
+from app.auth.limiter import limiter
 from app.auth.supabase_client import SupabaseAuthClient, SupabaseAuthError
 from app.config import get_settings
 from app.db.dependencies import get_db
@@ -91,7 +92,9 @@ async def _abandon_anon_user(db: AsyncSession, supabase_user_id: uuid.UUID) -> N
 
 
 @router.post("/anon", response_model=TokenResponse, summary="Issue a JWT for an anonymous user")
+@limiter.limit("10/minute")
 async def sign_in_anonymously(
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
     client = _get_supabase_client()
@@ -128,10 +131,11 @@ async def sign_in_anonymously(
     response_model=TokenResponse,
     summary="Exchange a Google ID token for a Supabase session",
 )
+@limiter.limit("10/minute")
 async def sign_in_with_google(
+    request: Request,
     payload: GoogleSignInRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-    request: Request,
 ) -> TokenResponse:
     try:
         google_claims = await _verify_google_id_token(payload.id_token)
@@ -225,7 +229,9 @@ async def sign_in_with_google(
     response_model=TokenResponse,
     summary="Sign in with email and password",
 )
+@limiter.limit("10/minute")
 async def sign_in_with_email_password(
+    request: Request,
     payload: EmailSignInRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
@@ -257,7 +263,9 @@ async def sign_in_with_email_password(
     response_model=TokenResponse,
     summary="Create a new email/password account",
 )
+@limiter.limit("5/minute")
 async def sign_up_with_email_password(
+    request: Request,
     payload: EmailSignUpRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:

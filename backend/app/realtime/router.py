@@ -1,18 +1,21 @@
 """WebSocket /ws/realtime endpoint.
 
-Auth: JWT in the `token` query parameter (spec §10.5).
-Lifecycle: validate -> resolve User -> register in DB + manager -> loop on
-receive_json -> on each client `ping`, touch heartbeat in DB and reply with
-`system.heartbeat`. On disconnect, unregister from DB + manager.
+Auth: JWT delivered as the first message payload (type="auth"), not in the
+query string, to avoid token leakage in access logs and traces.
+Lifecycle: accept -> wait for auth message (5 s timeout) -> resolve User ->
+register in DB + manager -> loop on receive_json -> on each client `ping`,
+touch heartbeat in DB and reply with `system.heartbeat`. On disconnect,
+unregister from DB + manager.
 """
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,17 +55,28 @@ async def _resolve_user(token: str, db: AsyncSession) -> User | None:
 async def ws_realtime(
     websocket: WebSocket,
     db: Annotated[AsyncSession, Depends(get_db)],
-    token: Annotated[str | None, Query()] = None,
 ) -> None:
+    await websocket.accept()
+
+    try:
+        auth_msg = await asyncio.wait_for(websocket.receive_json(), timeout=5.0)
+    except (TimeoutError, Exception):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    token = (
+        auth_msg.get("token")
+        if isinstance(auth_msg, dict) and auth_msg.get("type") == "auth"
+        else None
+    )
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+
     user = await _resolve_user(token, db)
     if user is None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-
-    await websocket.accept()
 
     settings = get_settings()
     connection_id: uuid.UUID | None = None
