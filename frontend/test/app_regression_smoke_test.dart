@@ -352,15 +352,10 @@ void main() {
     await tester.pumpAndSettle();
     _expectNoFlutterException(tester);
 
-    expect(find.text('삭제 요청을 접수했어요'), findsOneWidget);
     expect(
       find.text('계정 삭제 요청이 접수되었어요. 다시 로그인하면 30일 안에 요청을 취소할 수 있어요.'),
       findsOneWidget,
     );
-
-    await tester.tap(find.widgetWithText(TextButton, '확인'));
-    await tester.pumpAndSettle();
-    _expectNoFlutterException(tester);
 
     expect(data.auth.status, AuthStatus.unauthenticated);
     expect(data.auth.user, isNull);

@@ -43,25 +43,17 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
     if (!mounted) return;
 
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFFFFF8FB),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text('삭제 요청을 접수했어요'),
-        content: const Text('계정 삭제 요청이 접수되었어요. 다시 로그인하면 30일 안에 요청을 취소할 수 있어요.'),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              final authProvider = context.read<AuthProvider>();
-              final navigator = Navigator.of(context, rootNavigator: true);
-              await authProvider.logout();
-              if (!navigator.mounted) return;
-              navigator.popUntil((route) => route.isFirst);
-            },
-            child: const Text('확인', style: TextStyle(color: Color(0xFFB87888))),
-          ),
-        ],
+    final authProvider = context.read<AuthProvider>();
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    await authProvider.logout();
+    if (!navigator.mounted) return;
+
+    navigator.popUntil((route) => route.isFirst);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('계정 삭제 요청이 접수되었어요. 다시 로그인하면 30일 안에 요청을 취소할 수 있어요.'),
       ),
     );
   }
