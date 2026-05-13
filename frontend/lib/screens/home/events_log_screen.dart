@@ -177,7 +177,7 @@ class _EventItem extends StatelessWidget {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              event.logged ? '기록 완료' : '기록 전',
+                              event.logged ? '기록 완료' : '기록 대기 중',
                               style: const TextStyle(
                                 color: Color(0xFF9B7B8B),
                                 fontWeight: FontWeight.w600,
