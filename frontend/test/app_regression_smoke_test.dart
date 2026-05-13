@@ -238,9 +238,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 800));
       _expectNoFlutterException(tester);
-      expect(find.text('Watch'), findsOneWidget);
+      expect(find.text('생체신호 캡처'), findsOneWidget);
       expect(find.text('원시 생체신호 데이터 업로드 동의'), findsOneWidget);
-      expect(find.text('소스'), findsOneWidget);
+      expect(find.text('캡처 방식'), findsOneWidget);
       expect(find.text('지속 시간'), findsOneWidget);
       expect(find.text('캡처 시작'), findsOneWidget);
       await _systemBack(tester);

@@ -45,10 +45,7 @@ class CaptureSummaryScreen extends StatelessWidget {
                     const SizedBox(height: AppSpacing.lg),
                     _SummaryMetric(label: '지속 시간', value: '$mm:$ss'),
                     const SizedBox(height: AppSpacing.lg),
-                    _SummaryMetric(
-                      label: '업로드된 윈도우',
-                      value: '$windowsUploaded',
-                    ),
+                    _SummaryMetric(label: '업로드된 구간', value: '$windowsUploaded'),
                     const SizedBox(height: AppSpacing.lg),
                     _SummaryMetric(label: '대략 데이터 크기', value: '약 $estMb MB'),
                   ],

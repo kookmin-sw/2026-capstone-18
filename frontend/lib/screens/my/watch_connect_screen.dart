@@ -94,7 +94,7 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Watch'),
+        title: const Text('생체신호 캡처'),
       ),
       body: AppGradientBackground(
         child: SingleChildScrollView(
@@ -124,7 +124,7 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                     _InlineMetricRow(
                       items: [
                         _InlineMetricItem(
-                          label: '업로드된 윈도우',
+                          label: '업로드된 구간',
                           value: '${_controller.windowsUploaded}',
                         ),
                         _InlineMetricItem(
@@ -206,7 +206,7 @@ class _WatchConnectScreenState extends State<WatchConnectScreen> {
                   },
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                const _SectionLabel(title: '소스'),
+                const _SectionLabel(title: '캡처 방식'),
                 const SizedBox(height: AppSpacing.sm),
                 Wrap(
                   spacing: AppSpacing.sm,
@@ -688,7 +688,7 @@ class _LiveCaptureViewState extends State<_LiveCaptureView>
                   _StatChip(
                     label: '업로드',
                     value: '${widget.windowsUploaded}',
-                    sub: '윈도우',
+                    sub: '구간',
                   ),
                   const SizedBox(width: AppSpacing.xl),
                   _StatChip(
