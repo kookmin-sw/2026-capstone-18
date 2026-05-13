@@ -41,7 +41,9 @@ import 'package:little_signals/main.dart';
 import 'package:little_signals/screens/home/events_log_screen.dart';
 import 'package:little_signals/screens/home/stress_log_screen.dart';
 import 'package:little_signals/screens/insight/insight_screen.dart';
+import 'package:little_signals/screens/my/account_security_screen.dart';
 import 'package:little_signals/screens/my/change_password_screen.dart';
+import 'package:little_signals/screens/my/delete_account_screen.dart';
 import 'package:little_signals/screens/my/my_cycle_screen.dart';
 import 'package:little_signals/screens/my/my_triggers_screen.dart';
 import 'package:provider/provider.dart';
@@ -298,6 +300,70 @@ void main() {
       data.eventsProvider.todayEvents.where((event) => event.id == 'event-1'),
       isEmpty,
     );
+  });
+
+  testWidgets('google account security password row is informational', (
+    tester,
+  ) async {
+    const googleUser = AppUser(
+      id: 'google-user',
+      email: 'momo@example.com',
+      name: '모모',
+      accountType: 'google',
+      consent: <String, dynamic>{},
+      settings: <String, dynamic>{},
+    );
+    final data = _SmokeData(
+      authStatus: AuthStatus.authenticated,
+      user: googleUser,
+    );
+    await data.load();
+
+    await tester.pumpWidget(
+      _SmokeApp(data: data, child: const AccountSecurityScreen()),
+    );
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(find.text('momo@example.com'), findsOneWidget);
+    expect(find.text('Google 계정으로 로그인'), findsOneWidget);
+    expect(find.text('Google 계정은 Google에서 비밀번호를 관리해요.'), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+
+    await tester.tap(find.text('Google 계정으로 로그인'));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+    expect(find.text('비밀번호 변경은 이메일 로그인 연결 후 사용할 수 있어요.'), findsNothing);
+  });
+
+  testWidgets('delete account success clears session', (tester) async {
+    final data = _SmokeData(authStatus: AuthStatus.authenticated);
+    await data.load();
+
+    await tester.pumpWidget(
+      _SmokeApp(data: data, child: const DeleteAccountScreen()),
+    );
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    await tester.tap(find.byType(Checkbox));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('계정 삭제 요청하기'));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(find.text('삭제 요청을 접수했어요'), findsOneWidget);
+    expect(
+      find.text('계정 삭제 요청이 접수되었어요. 다시 로그인하면 30일 안에 요청을 취소할 수 있어요.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, '확인'));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(data.auth.status, AuthStatus.unauthenticated);
+    expect(data.auth.user, isNull);
   });
 
   testWidgets('password screen smoke test', (tester) async {
@@ -855,6 +921,7 @@ class _SmokeData {
 
   _SmokeData({
     required AuthStatus authStatus,
+    AppUser? user,
     bool failCycleSave = false,
     bool failWatchSync = false,
   }) {
@@ -890,7 +957,7 @@ class _SmokeData {
       ),
     ];
 
-    auth = _FakeAuthProvider(status: authStatus);
+    auth = _FakeAuthProvider(status: authStatus, user: user);
     eventsApi = _FakeEventsApi(_events);
     cyclesApi = _FakeCyclesApi(
       currentCycle: () => _cycle,
@@ -951,9 +1018,9 @@ class _FakeAuthProvider extends AuthProvider {
   String? _message;
   AppUser? _fakeUser;
 
-  _FakeAuthProvider({required AuthStatus status})
+  _FakeAuthProvider({required AuthStatus status, AppUser? user})
     : _status = status,
-      _fakeUser = status == AuthStatus.authenticated ? _user : null,
+      _fakeUser = status == AuthStatus.authenticated ? user ?? _user : null,
       super(
         authApi: AuthApi(apiClient: _dummyApiClient()),
         tokenStorage: SecureTokenStorage(),

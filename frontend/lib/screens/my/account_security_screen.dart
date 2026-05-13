@@ -73,21 +73,23 @@ class AccountSecurityScreen extends StatelessWidget {
                     _InfoRow(
                       label: '비밀번호',
                       value: loginInfo.passwordLabel,
-                      onTap: loginInfo.canChangePassword
-                          ? null
-                          : loginInfo.isAnonymous
-                          ? null
-                          : () => ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  '비밀번호 변경은 이메일 로그인 연결 후 사용할 수 있어요.',
-                                ),
-                              ),
-                            ),
+                      onTap: null,
                     ),
                   ],
                 ),
               ),
+
+              if (loginInfo.passwordHelper != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  loginInfo.passwordHelper!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9888A0),
+                    height: 1.5,
+                  ),
+                ),
+              ],
 
               if (loginInfo.isAnonymous) ...[
                 const SizedBox(height: 10),
@@ -152,6 +154,7 @@ _LoginInfo _loginInfoFor(AppUser? user) {
     return _LoginInfo(
       accountLabel: email ?? 'Google 계정',
       passwordLabel: 'Google 계정으로 로그인',
+      passwordHelper: 'Google 계정은 Google에서 비밀번호를 관리해요.',
     );
   }
 
@@ -159,7 +162,6 @@ _LoginInfo _loginInfoFor(AppUser? user) {
     return _LoginInfo(
       accountLabel: email ?? '계정 정보를 불러올 수 없어요',
       passwordLabel: '이메일 로그인',
-      canChangePassword: true,
     );
   }
 
@@ -181,14 +183,14 @@ String? _normalizeAccountType(String? value) {
 class _LoginInfo {
   final String accountLabel;
   final String passwordLabel;
+  final String? passwordHelper;
   final bool isAnonymous;
-  final bool canChangePassword;
 
   const _LoginInfo({
     required this.accountLabel,
     required this.passwordLabel,
+    this.passwordHelper,
     this.isAnonymous = false,
-    this.canChangePassword = false,
   });
 }
 

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../features/auth/auth_provider.dart';
 import '../../features/privacy/data/privacy_api.dart';
 
 class DeleteAccountScreen extends StatefulWidget {
@@ -48,12 +49,15 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
         backgroundColor: const Color(0xFFFFF8FB),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text('삭제 요청을 접수했어요'),
-        content: const Text('계정은 30일 뒤 영구 삭제돼요. 30일 안에 다시 로그인하면 요청을 취소할 수 있어요.'),
+        content: const Text('계정 삭제 요청이 접수되었어요. 다시 로그인하면 30일 안에 요청을 취소할 수 있어요.'),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
+            onPressed: () async {
+              final authProvider = context.read<AuthProvider>();
+              final navigator = Navigator.of(context, rootNavigator: true);
+              await authProvider.logout();
+              if (!navigator.mounted) return;
+              navigator.popUntil((route) => route.isFirst);
             },
             child: const Text('확인', style: TextStyle(color: Color(0xFFB87888))),
           ),
