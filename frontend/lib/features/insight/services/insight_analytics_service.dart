@@ -162,6 +162,7 @@ class InsightReportViewModel {
   });
 
   bool get hasData => totalEvents > 0;
+  bool get hasPhaseData => phaseDistribution.totalLogs > 0;
 }
 
 class TriggerPhaseDetailViewModel {
@@ -199,7 +200,7 @@ class InsightAnalyticsService {
     final phaseDistribution = _phaseDistribution(rangeEvents, cycles);
     final phaseAverages = phases.map((phase) {
       final phaseEvents = rangeEvents
-          .where((event) => phaseForEvent(event, cycles) == phase)
+          .where((event) => phaseForEventOrNull(event, cycles) == phase)
           .toList();
       return PhaseAverage(
         phase: phase,
@@ -249,7 +250,7 @@ class InsightAnalyticsService {
             .where(
               (event) =>
                   _triggerKey(event.trigger) == _triggerKey(trigger) &&
-                  phaseForEvent(event, cycles) == normalizedPhase,
+                  phaseForEventOrNull(event, cycles) == normalizedPhase,
             )
             .toList()
           ..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
@@ -264,7 +265,7 @@ class InsightAnalyticsService {
             .where(
               (event) =>
                   _triggerKey(event.trigger) == _triggerKey(trigger) &&
-                  phaseForEvent(event, cycles) == itemPhase,
+                  phaseForEventOrNull(event, cycles) == itemPhase,
             )
             .toList();
         return TriggerPhaseCell(
@@ -320,21 +321,22 @@ class InsightAnalyticsService {
   }
 
   String phaseForEvent(StressEvent event, List<Cycle> cycles) {
+    return phaseForEventOrNull(event, cycles) ?? 'unknown';
+  }
+
+  String? phaseForEventOrNull(StressEvent event, List<Cycle> cycles) {
     final day = cycleDayForEvent(event, cycles);
     if (day != null) {
       final cycle = _cycleForDate(event.detectedAt, cycles);
       return _phaseForDay(day, cycle?.periodLength ?? 5);
     }
 
-    final normalized = normalizePhase(event.cyclePhase);
-    if (phases.contains(normalized)) return normalized;
-
-    return 'luteal';
+    return null;
   }
 
   int? cycleDayForEvent(StressEvent event, List<Cycle> cycles) {
     final cycle = _cycleForDate(event.detectedAt, cycles);
-    if (cycle == null) return event.cycleDay > 0 ? event.cycleDay : null;
+    if (cycle == null) return null;
 
     final start = DateTime(
       cycle.lastPeriodStart.year,
@@ -346,8 +348,9 @@ class InsightAnalyticsService {
       event.detectedAt.month,
       event.detectedAt.day,
     );
+    final safeCycleLength = cycle.cycleLength <= 0 ? 28 : cycle.cycleLength;
     final diff = eventDate.difference(start).inDays;
-    return (diff % cycle.cycleLength) + 1;
+    return (diff % safeCycleLength) + 1;
   }
 
   Cycle? _cycleForDate(DateTime date, List<Cycle> cycles) {
@@ -404,7 +407,8 @@ class InsightAnalyticsService {
   ) {
     final counts = {for (final phase in phases) phase: 0};
     for (final event in events) {
-      final phase = phaseForEvent(event, cycles);
+      final phase = phaseForEventOrNull(event, cycles);
+      if (phase == null) continue;
       counts[phase] = (counts[phase] ?? 0) + 1;
     }
 
@@ -446,14 +450,14 @@ class InsightAnalyticsService {
           for (final phase in phases)
             phase: _average(
               monthEvents
-                  .where((event) => phaseForEvent(event, cycles) == phase)
+                  .where((event) => phaseForEventOrNull(event, cycles) == phase)
                   .map((event) => event.stressScore),
             ),
         },
         countByPhase: {
           for (final phase in phases)
             phase: monthEvents
-                .where((event) => phaseForEvent(event, cycles) == phase)
+                .where((event) => phaseForEventOrNull(event, cycles) == phase)
                 .length,
         },
       );
@@ -475,7 +479,7 @@ class InsightAnalyticsService {
                 .where(
                   (event) =>
                       _triggerKey(event.trigger) == trigger &&
-                      phaseForEvent(event, cycles) == phase,
+                      phaseForEventOrNull(event, cycles) == phase,
                 )
                 .length,
             averageStress: _average(
@@ -483,7 +487,7 @@ class InsightAnalyticsService {
                   .where(
                     (event) =>
                         _triggerKey(event.trigger) == trigger &&
-                        phaseForEvent(event, cycles) == phase,
+                        phaseForEventOrNull(event, cycles) == phase,
                   )
                   .map((event) => event.stressScore),
             ),

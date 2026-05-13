@@ -12,6 +12,7 @@ import '../../core/widgets/section_title.dart';
 import '../../features/insight/insight_provider.dart';
 import '../../features/insight/services/insight_analytics_service.dart';
 import '../../features/triggers/triggers_provider.dart';
+import '../my/my_cycle_screen.dart';
 import 'range_report_screen.dart';
 import 'report_detail_screen.dart';
 
@@ -42,6 +43,7 @@ class _MyReportScreenState extends State<MyReportScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<InsightProvider>();
     final report = provider.report;
+    final hasCycleData = provider.cycles.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -164,11 +166,16 @@ class _MyReportScreenState extends State<MyReportScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          _PhaseDistribution(report: report),
+                          if (report.hasPhaseData)
+                            _PhaseDistribution(report: report)
+                          else
+                            _CycleInfoGuideCard(hasCycleData: hasCycleData),
                           const SizedBox(height: 12),
                           _TriggerRanking(report: report),
-                          const SizedBox(height: 12),
-                          _TriggerMatrix(report: report),
+                          if (report.hasPhaseData) ...[
+                            const SizedBox(height: 12),
+                            _TriggerMatrix(report: report),
+                          ],
                         ],
                       ],
                     ),
@@ -178,6 +185,60 @@ class _MyReportScreenState extends State<MyReportScreen> {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CycleInfoGuideCard extends StatelessWidget {
+  final bool hasCycleData;
+
+  const _CycleInfoGuideCard({required this.hasCycleData});
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionTitle(title: '주기 기반 리포트'),
+          const SizedBox(height: 8),
+          Text(
+            hasCycleData
+                ? '선택한 기간에 주기와 연결된 스트레스 기록이 아직 없어요.'
+                : '주기 데이터가 아직 없어요.\n주기 정보를 입력하면 스트레스와 주기의 관계를 볼 수 있어요.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: AppColors.textM,
+            ),
+          ),
+          if (!hasCycleData) ...[
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyCycleScreen(),
+                  ),
+                ),
+                icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                label: const Text(
+                  '주기 기록하기',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

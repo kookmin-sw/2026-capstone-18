@@ -17,6 +17,9 @@ class CycleInsightService {
     final loggedEvents = events
         .where((event) => event.isLoggedWithScore)
         .toList();
+    if (cycles.isEmpty) {
+      return '주기 정보를 입력하면 스트레스와 주기의 관계를 더 정확히 볼 수 있어요.';
+    }
     if (loggedEvents.length < 6) {
       return '기록이 조금 더 쌓이면 사이클별 스트레스 패턴을 알려드릴게요.';
     }

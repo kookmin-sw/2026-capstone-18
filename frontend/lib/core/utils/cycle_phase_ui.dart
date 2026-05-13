@@ -45,6 +45,7 @@ class CyclePhaseUi {
       'follicular' => '난포기',
       'ovulation' => '배란기',
       'luteal' => '황체기',
+      'unknown' => '주기 정보 없음',
       _ => _fallbackLabel.isEmpty ? phase : _fallbackLabel,
     };
   }
@@ -55,6 +56,7 @@ class CyclePhaseUi {
       'follicular' => '난포',
       'ovulation' => '배란',
       'luteal' => '황체',
+      'unknown' => '정보 없음',
       _ => _fallbackLabel.isEmpty ? phase : _fallbackLabel,
     };
   }

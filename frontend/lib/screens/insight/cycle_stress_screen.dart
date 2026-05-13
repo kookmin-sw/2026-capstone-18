@@ -11,6 +11,7 @@ import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../features/insight/insight_provider.dart';
 import '../../features/insight/services/insight_analytics_service.dart';
+import '../my/my_cycle_screen.dart';
 
 class CycleStressScreen extends StatefulWidget {
   const CycleStressScreen({super.key});
@@ -46,6 +47,7 @@ class _CycleStressScreenState extends State<CycleStressScreen> {
       cycles: provider.cycles,
       range: range,
     );
+    final hasCycleData = provider.cycles.isNotEmpty;
     final activePhase = provider.analyticsService.phaseForDate(
       DateTime.now(),
       provider.cycles,
@@ -91,14 +93,18 @@ class _CycleStressScreenState extends State<CycleStressScreen> {
                           _ErrorCard(message: provider.errorMessage!),
                           const SizedBox(height: 14),
                         ],
-                        _PhaseDistributionCard(distribution: distribution),
-                        const SizedBox(height: 16),
-                        _PhaseAveragesCard(
-                          intensities: phaseIntensities,
-                          activePhase: activePhase,
-                        ),
-                        const SizedBox(height: 16),
-                        _InsightCard(message: insightText),
+                        if (!hasCycleData)
+                          const _CycleInfoEmptyState()
+                        else ...[
+                          _PhaseDistributionCard(distribution: distribution),
+                          const SizedBox(height: 16),
+                          _PhaseAveragesCard(
+                            intensities: phaseIntensities,
+                            activePhase: activePhase,
+                          ),
+                          const SizedBox(height: 16),
+                          _InsightCard(message: insightText),
+                        ],
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -228,6 +234,55 @@ class _PhaseDistributionCard extends StatelessWidget {
                 Expanded(child: _PhaseDistributionLegend(distribution)),
               ],
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CycleInfoEmptyState extends StatelessWidget {
+  const _CycleInfoEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('주기 정보가 필요해요', style: AppTextStyles.cardTitle),
+          const SizedBox(height: 8),
+          const Text(
+            '주기 정보를 입력하면 주기와 스트레스의 관계를 볼 수 있어요.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: AppColors.textM,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.surface,
+                elevation: 0,
+                minimumSize: const Size.fromHeight(46),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const MyCycleScreen()),
+              ),
+              icon: const Icon(Icons.calendar_month_outlined, size: 18),
+              label: const Text(
+                '주기 기록하기',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
         ],
       ),
     );

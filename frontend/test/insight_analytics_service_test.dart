@@ -137,6 +137,33 @@ void main() {
     expect(_phase(report, 'ovulation').averageStress, 77);
     expect(report.phaseDistribution.highestDistributionPhase, 'ovulation');
   });
+
+  test('events without cycle data stay out of phase aggregation', () {
+    final noCycleEvent = _event(
+      id: 'no-cycle-event',
+      day: DateTime(2026, 5, 13),
+      score: 55,
+      phase: 'luteal',
+    );
+    final report = service.buildReport(
+      events: [noCycleEvent],
+      cycles: const [],
+      range: _rangeForMonth(2026, 5),
+    );
+
+    expect(report.totalEvents, 1);
+    expect(report.averageStress, 55);
+    expect(report.triggerRanking.single.count, 1);
+    expect(report.phaseDistribution.totalLogs, 0);
+    expect(report.hasPhaseData, isFalse);
+    expect(report.peakStressPhase, isNull);
+    for (final phaseAverage in report.phaseAverages) {
+      expect(phaseAverage.count, 0);
+      expect(phaseAverage.averageStress, 0);
+    }
+    expect(service.phaseForEvent(noCycleEvent, const []), 'unknown');
+    expect(service.cycleDayForEvent(noCycleEvent, const []), isNull);
+  });
 }
 
 InsightDateRange _rangeForMonth(int year, int month) {

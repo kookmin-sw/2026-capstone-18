@@ -3,7 +3,7 @@ import 'package:little_signals/features/cycles/services/cycle_insight_service.da
 import 'package:little_signals/features/events/models/stress_event.dart';
 
 void main() {
-  test('returns fallback when stress records are limited', () {
+  test('returns cycle guide when cycle data is missing', () {
     final service = CycleInsightService();
 
     expect(
@@ -19,11 +19,11 @@ void main() {
         cycles: const [],
         currentPhase: 'luteal',
       ),
-      '기록이 조금 더 쌓이면 사이클별 스트레스 패턴을 알려드릴게요.',
+      '주기 정보를 입력하면 스트레스와 주기의 관계를 더 정확히 볼 수 있어요.',
     );
   });
 
-  test('summarizes stress concentration by cycle phase', () {
+  test('does not summarize phase concentration without cycle data', () {
     final service = CycleInsightService();
     final events = [
       _event(
@@ -70,7 +70,7 @@ void main() {
         cycles: const [],
         currentPhase: 'luteal',
       ),
-      '최근 스트레스 기록의 67%가 황체기에 집중되어 있어요.',
+      '주기 정보를 입력하면 스트레스와 주기의 관계를 더 정확히 볼 수 있어요.',
     );
   });
 }
