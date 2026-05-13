@@ -19,6 +19,7 @@ class CyclePeriodStart(BaseModel):
     period_start_date: date
     cycle_length_days: int | None = Field(default=None, ge=14, le=60)
     auto_detected: bool = False
+    is_period_ongoing: bool = False
 
 
 class CycleUpdate(BaseModel):
@@ -32,6 +33,7 @@ class CycleUpdate(BaseModel):
     period_start_date: date | None = None
     period_end_date: date | None = None
     cycle_length_days: int | None = Field(default=None, ge=14, le=60)
+    is_period_ongoing: bool | None = None
 
     def is_empty(self) -> bool:
         return not self.model_fields_set
@@ -47,6 +49,15 @@ class CycleUpdate(BaseModel):
             and self.period_end_date < self.period_start_date
         ):
             raise ValueError("period_end_date must be >= period_start_date")
+        # is_period_ongoing=True requires period_end_date to be null in this payload.
+        # (The router additionally checks the row's existing end_date — this only
+        # catches the within-payload contradiction.)
+        if (
+            self.is_period_ongoing is True
+            and "period_end_date" in self.model_fields_set
+            and self.period_end_date is not None
+        ):
+            raise ValueError("cannot set is_period_ongoing=true while setting period_end_date")
         return self
 
 
@@ -60,6 +71,7 @@ class CycleResponse(BaseModel):
     cycle_length_days: int | None
     auto_detected: bool
     user_corrected: bool
+    is_period_ongoing: bool
     created_at: datetime
 
 
