@@ -79,23 +79,32 @@ class _StressLogScreenState extends State<StressLogScreen> {
         ? null
         : _noteController.text.trim();
     final eventsProvider = context.read<EventsProvider>();
+    final triggersProvider = context.read<TriggersProvider>();
     final currentCycle = context.read<CycleProvider>().currentCycle;
     final homeProvider = context.read<HomeProvider>();
     final insightProvider = context.read<InsightProvider>();
     final sourceEvent = widget.sourceEvent;
+    final selectedTrigger = _selectedTrigger ?? '';
+    final categoryId = await triggersProvider.ensureCategoryIdForTrigger(
+      selectedTrigger,
+    );
+    if (!mounted) return;
+
     final result = _isEditingLoggedEvent && sourceEvent != null
         ? await eventsProvider.updateEvent(
             event: sourceEvent,
             stressScore: stressScore,
-            trigger: _selectedTrigger ?? '',
+            trigger: selectedTrigger,
             note: note,
+            categoryId: categoryId,
           )
         : await eventsProvider.createEvent(
             stressScore: stressScore,
-            trigger: _selectedTrigger ?? '',
+            trigger: selectedTrigger,
             note: note,
             cyclePhase: currentCycle?.phase,
             cycleDay: currentCycle?.cycleDay,
+            categoryId: categoryId,
             sourceUnloggedEvent: _isFromDetectedStress ? sourceEvent : null,
           );
 

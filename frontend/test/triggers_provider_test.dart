@@ -79,6 +79,36 @@ void main() {
     expect(_labels(provider), ['회사', '대인관계', '가족', '학업', '건강', '운동']);
     expect(_labels(provider).where((label) => label == '업무'), isEmpty);
   });
+
+  test('resolves backend category id for selected trigger label', () async {
+    final provider = TriggersProvider(
+      categoriesApi: _MemoryCategoriesApi([
+        const TriggerCategoryDto(
+          id: 'category-family',
+          name: 'Family',
+          color: Color(0xFF94D0BC),
+          eventCount: 0,
+        ),
+      ]),
+    );
+
+    await provider.load();
+
+    expect(provider.categoryIdForTrigger('Family'), 'category-family');
+    expect(provider.categoryIdForTrigger('가족'), 'category-family');
+  });
+
+  test('creates a backend category id for fallback default trigger', () async {
+    final provider = TriggersProvider(
+      categoriesApi: _MemoryCategoriesApi(const []),
+    );
+
+    await provider.load();
+    final categoryId = await provider.ensureCategoryIdForTrigger('업무');
+
+    expect(categoryId, 'category-1');
+    expect(provider.categoryIdForTrigger('Work'), 'category-1');
+  });
 }
 
 List<String> _labels(TriggersProvider provider) {

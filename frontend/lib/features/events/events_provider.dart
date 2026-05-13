@@ -129,11 +129,13 @@ class EventsProvider extends ChangeNotifier {
     String? note,
     String? cyclePhase,
     int? cycleDay,
+    String? categoryId,
     StressEvent? sourceUnloggedEvent,
   }) async {
     final normalizedTrigger = _normalizeTrigger(trigger);
     final logChips = _logChips(normalizedTrigger);
     final normalizedNote = _normalizeNote(note);
+    final normalizedCategoryId = _normalizeCategoryId(categoryId);
 
     try {
       final savedEvent = sourceUnloggedEvent == null
@@ -150,12 +152,14 @@ class EventsProvider extends ChangeNotifier {
                 cyclePhase: cyclePhase ?? 'unknown',
                 cycleDay: cycleDay ?? 0,
                 notified: false,
+                categoryId: normalizedCategoryId,
               ),
             )
           : await eventsApi.updateEvent(sourceUnloggedEvent.id, {
               'logged': true,
               'mood_chips': const <String>[],
               'log_chips': logChips,
+              'category_id': normalizedCategoryId,
               'user_stress_level': stressScore,
               if (normalizedNote?.isNotEmpty == true)
                 'log_text': normalizedNote,
@@ -165,6 +169,7 @@ class EventsProvider extends ChangeNotifier {
         stressScore: stressScore,
         trigger: normalizedTrigger,
         note: normalizedNote,
+        categoryId: normalizedCategoryId,
       );
 
       _events = [
@@ -192,16 +197,19 @@ class EventsProvider extends ChangeNotifier {
     required int stressScore,
     required String trigger,
     String? note,
+    String? categoryId,
   }) async {
     final normalizedTrigger = _normalizeTrigger(trigger);
     final normalizedNote = _normalizeNote(note);
     final logChips = _logChips(normalizedTrigger);
+    final normalizedCategoryId = _normalizeCategoryId(categoryId);
 
     try {
       final savedEvent = await eventsApi.updateEvent(event.id, {
         'logged': true,
         'mood_chips': const <String>[],
         'log_chips': logChips,
+        'category_id': normalizedCategoryId,
         'user_stress_level': stressScore,
         'log_text': normalizedNote,
       });
@@ -210,6 +218,7 @@ class EventsProvider extends ChangeNotifier {
         stressScore: stressScore,
         trigger: normalizedTrigger,
         note: normalizedNote,
+        categoryId: normalizedCategoryId,
       );
 
       _events = [
@@ -327,9 +336,11 @@ class EventsProvider extends ChangeNotifier {
     required int stressScore,
     required String trigger,
     String? note,
+    String? categoryId,
   }) {
     final normalizedTrigger = _normalizeTrigger(trigger);
     final normalizedNote = _normalizeNote(note);
+    final normalizedCategoryId = _normalizeCategoryId(categoryId);
 
     return StressEvent(
       id: event.id,
@@ -342,12 +353,19 @@ class EventsProvider extends ChangeNotifier {
       logText: normalizedNote,
       notified: event.notified,
       stressScore: stressScore,
+      categoryId: normalizedCategoryId,
       trigger: normalizedTrigger,
       note: normalizedNote,
     );
   }
 
   String _normalizeTrigger(String trigger) => trigger.trim();
+
+  String? _normalizeCategoryId(String? categoryId) {
+    final trimmed = categoryId?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
+  }
 
   String? _normalizeNote(String? note) {
     final trimmed = note?.trim();

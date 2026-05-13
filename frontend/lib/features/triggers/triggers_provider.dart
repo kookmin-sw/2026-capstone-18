@@ -221,6 +221,66 @@ class TriggersProvider extends ChangeNotifier {
     }
   }
 
+  String? categoryIdForTrigger(String? name) {
+    final trimmed = name?.trim();
+    if (trimmed == null || trimmed.isEmpty || _isUnknownTrigger(trimmed)) {
+      return null;
+    }
+    final index = _indexOfTriggerNameIn(_triggers, trimmed);
+    if (index < 0 || index >= _categoryIds.length) return null;
+    final id = _categoryIds[index].trim();
+    return id.isEmpty ? null : id;
+  }
+
+  Future<String?> ensureCategoryIdForTrigger(String? name) async {
+    final trimmed = name?.trim();
+    if (trimmed == null || trimmed.isEmpty || _isUnknownTrigger(trimmed)) {
+      return null;
+    }
+
+    _ensureDefaultTriggers();
+    final existingId = categoryIdForTrigger(trimmed);
+    if (existingId != null) return existingId;
+
+    final index = _indexOfTriggerName(trimmed);
+    if (index < 0 || index >= _triggers.length) return null;
+
+    final trigger = _triggers[index];
+    try {
+      final created = await categoriesApi.createCategory(
+        name: trigger.name,
+        color: trigger.color,
+        sortOrder: index,
+      );
+      final categoryId = created.id.trim();
+      if (categoryId.isEmpty) return null;
+
+      _triggers = [
+        for (var i = 0; i < _triggers.length; i++)
+          if (i == index) _triggerFromCategory(created) else _triggers[i],
+      ];
+      _categoryIds = [
+        for (var i = 0; i < _categoryIds.length; i++)
+          if (i == index) categoryId else _categoryIds[i],
+      ];
+      final defaultKey = _defaultKeyAt(index);
+      if (defaultKey != null) {
+        _editedDefaultTriggers[defaultKey] = _triggerFromCategory(created);
+      }
+      _errorMessage = null;
+      notifyListeners();
+      return categoryId;
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      _errorMessage = '스트레스 요인을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
+      notifyListeners();
+      return null;
+    }
+  }
+
   StressTrigger _triggerFromCategory(TriggerCategoryDto category) {
     return StressTrigger(
       name: category.name,
@@ -325,6 +385,13 @@ class TriggersProvider extends ChangeNotifier {
 
   Set<String> _triggerNameKeys(String value) {
     return {value.trim().toLowerCase(), koTrigger(value).trim().toLowerCase()};
+  }
+
+  bool _isUnknownTrigger(String value) {
+    final normalized = value.trim().toLowerCase();
+    return normalized == 'unknown' ||
+        normalized == 'uncategorized' ||
+        koTrigger(value) == '요인 불명';
   }
 
   String? _defaultKeyAt(int index) {

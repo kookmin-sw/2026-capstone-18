@@ -1144,6 +1144,7 @@ class _FakeEventsApi extends EventsApi {
       logText: normalizedNote,
       notified: event.notified,
       stressScore: event.stressScore,
+      categoryId: event.categoryId,
       trigger: normalizedTrigger,
       note: normalizedNote,
     );
@@ -1184,6 +1185,9 @@ class _FakeEventsApi extends EventsApi {
           : existing.logText,
       notified: existing.notified,
       stressScore: (changes['user_stress_level'] as num?)?.round(),
+      categoryId: changes.containsKey('category_id')
+          ? changes['category_id'] as String?
+          : existing.categoryId,
       trigger: normalizedTrigger,
       note: changes.containsKey('log_text')
           ? changes['log_text'] as String?

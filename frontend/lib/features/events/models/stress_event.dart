@@ -11,6 +11,7 @@ class StressEvent {
   final String? logText;
   final bool notified;
   final int? stressScore;
+  final String? categoryId;
   final String trigger;
   final String? note;
 
@@ -25,6 +26,7 @@ class StressEvent {
     this.logText,
     this.notified = false,
     this.stressScore,
+    this.categoryId,
     required this.trigger,
     required this.note,
   });
@@ -61,6 +63,9 @@ class StressEvent {
       logText: json['log_text'] as String?,
       notified: json['notified'] == true,
       stressScore: logged && rawScore is num ? rawScore.round() : null,
+      categoryId: json['category_id'] == null
+          ? null
+          : '${json['category_id']}'.trim(),
       trigger: chips.isNotEmpty
           ? chips.first
           : moodChips.isNotEmpty
@@ -81,6 +86,8 @@ class StressEvent {
       'detected_at': detectedAt.toUtc().toIso8601String(),
       'model_confidence': logged ? 1 : 0,
       if (stressScore != null) 'user_stress_level': stressScore,
+      if (categoryId?.trim().isNotEmpty == true)
+        'category_id': categoryId!.trim(),
       'mood_chips': const <String>[],
       'logged': logged,
       'log_chips': chips,
@@ -109,6 +116,7 @@ class StressEvent {
     String? logText,
     bool? notified,
     int? stressScore,
+    String? categoryId,
     String? trigger,
     String? note,
   }) {
@@ -123,6 +131,7 @@ class StressEvent {
       logText: logText ?? this.logText,
       notified: notified ?? this.notified,
       stressScore: stressScore ?? this.stressScore,
+      categoryId: categoryId ?? this.categoryId,
       trigger: trigger ?? this.trigger,
       note: note ?? this.note,
     );
