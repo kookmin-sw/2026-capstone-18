@@ -1,3 +1,5 @@
+import 'cycle_phase_ui.dart';
+
 String koTrigger(String value) {
   final normalized = value.trim().toLowerCase();
   return switch (normalized) {
@@ -46,25 +48,11 @@ String rawNickname(String nickname) {
 }
 
 String koPhase(String phase) {
-  final normalized = phase.toLowerCase();
-  if (normalized.contains('menstrual') || normalized.contains('period')) {
-    return '생리기';
-  }
-  if (normalized.contains('follicular')) return '난포기';
-  if (normalized.contains('ovulation')) return '배란기';
-  if (normalized.contains('luteal')) return '황체기';
-  return phase;
+  return CyclePhaseUi.of(phase).label;
 }
 
 String koPhaseShort(String phase) {
-  final normalized = phase.toLowerCase();
-  if (normalized.contains('menstrual') || normalized.contains('period')) {
-    return '생리';
-  }
-  if (normalized.contains('follicular')) return '난포';
-  if (normalized.contains('ovulation')) return '배란';
-  if (normalized.contains('luteal')) return '황체';
-  return phase;
+  return CyclePhaseUi.of(phase).shortLabel;
 }
 
 String koMonthLabel(DateTime date) {

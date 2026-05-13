@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../../core/utils/korean_ui_text.dart';
+import '../../core/utils/cycle_phase_ui.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/soft_primary_button.dart';
@@ -288,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: _MetricCardContent(
                             label: '수면',
                             icon: Icons.nights_stay_rounded,
-                            iconColor: AppColors.phaseOvulation,
+                            iconColor: CyclePhaseUi.of('ovulation').color,
                             value: latestSleep == null
                                 ? '--'
                                 : '${latestSleep.durationHours.toStringAsFixed(1)}시간',
@@ -330,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: _MetricCardContent(
                             label: '기록',
                             icon: Icons.calendar_month_rounded,
-                            iconColor: AppColors.phaseFollicular,
+                            iconColor: CyclePhaseUi.of('follicular').color,
                             value: '$todayLoggedCount',
                             caption: todayLoggedCount > 0
                                 ? '이번 주 $weekCount건'
@@ -348,14 +348,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: _MetricCardContent(
                             label: '주기',
                             icon: Icons.water_drop_outlined,
-                            iconColor: AppColors.phaseMenstrual,
+                            iconColor: CyclePhaseUi.of('menstrual').color,
                             value: cycleDay,
                             caption: hasCycle
                                 ? ''
                                 : '최근 생리 시작일을 추가하거나 워치와 동기화해요',
                             captionColor: hasCycle
-                                ? const Color(0xFFC0B0C0)
-                                : const Color(0xFFB87888),
+                                ? AppColors.textL
+                                : AppColors.primary,
                           ),
                         ),
                       ),
@@ -371,7 +371,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     cycleLength: home.currentCycle!.cycleLength,
                     periodLength: home.currentCycle!.periodLength,
                     phase: cyclePhase,
-                    phaseDescription: _phaseDescription(cyclePhase),
                     daysLeft: daysLeft,
                   )
                 else
@@ -427,25 +426,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return '${date.year}년 ${months[date.month - 1]} ${date.day}일';
-  }
-
-  String _phaseDescription(String phase) {
-    final normalized = phase.toLowerCase();
-
-    if (normalized.contains('period') || normalized.contains('menstrual')) {
-      return '생리가 시작됐어요. 오늘은 몸을 조금 더 편하게 돌봐 주세요.';
-    }
-    if (normalized.contains('follicular')) {
-      return '에너지가 서서히 올라오는 시기예요.';
-    }
-    if (normalized.contains('ovulation')) {
-      return '몸과 마음이 비교적 선명하게 느껴질 수 있어요.';
-    }
-    if (normalized.contains('luteal')) {
-      return '스트레스에 조금 더 민감해질 수 있는 시기예요.';
-    }
-
-    return '주기를 설정하면 내 흐름에 맞춰 보여드릴게요.';
   }
 }
 
@@ -507,7 +487,6 @@ class _CycleProgressCard extends StatelessWidget {
   final int cycleLength;
   final int periodLength;
   final String phase;
-  final String phaseDescription;
   final String daysLeft;
 
   const _CycleProgressCard({
@@ -515,7 +494,6 @@ class _CycleProgressCard extends StatelessWidget {
     required this.cycleLength,
     required this.periodLength,
     required this.phase,
-    required this.phaseDescription,
     required this.daysLeft,
   });
 
@@ -530,6 +508,7 @@ class _CycleProgressCard extends StatelessWidget {
     final markerRatio = safeCycleLength <= 1
         ? 0.0
         : ((safeCycleDay - 1) / (safeCycleLength - 1)).clamp(0.0, 1.0);
+    final phaseUi = CyclePhaseUi.of(phase);
 
     return GlassCard(
       child: Column(
@@ -567,7 +546,7 @@ class _CycleProgressCard extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: _phaseColor(phase).withValues(alpha: 0.6),
+                  color: phaseUi.softBackgroundColor,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -582,7 +561,7 @@ class _CycleProgressCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      koPhase(phase),
+                      phaseUi.label,
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -592,7 +571,7 @@ class _CycleProgressCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      phaseDescription,
+                      phaseUi.description,
                       style: const TextStyle(
                         fontSize: 11,
                         height: 1.35,
@@ -729,37 +708,26 @@ List<_CyclePhaseSegment> _cyclePhaseSegments({
 
   return [
     _CyclePhaseSegment(
-      label: '생리기',
+      label: CyclePhaseUi.of('menstrual').label,
       duration: menstrualLength,
-      color: AppColors.phaseMenstrual,
+      color: CyclePhaseUi.of('menstrual').color,
     ),
     _CyclePhaseSegment(
-      label: '난포기',
+      label: CyclePhaseUi.of('follicular').label,
       duration: follicularLength,
-      color: AppColors.phaseFollicular,
+      color: CyclePhaseUi.of('follicular').color,
     ),
     _CyclePhaseSegment(
-      label: '배란기',
+      label: CyclePhaseUi.of('ovulation').label,
       duration: ovulationLength,
-      color: AppColors.phaseOvulation,
+      color: CyclePhaseUi.of('ovulation').color,
     ),
     _CyclePhaseSegment(
-      label: '황체기',
+      label: CyclePhaseUi.of('luteal').label,
       duration: lutealLength,
-      color: AppColors.phaseLuteal,
+      color: CyclePhaseUi.of('luteal').color,
     ),
   ];
-}
-
-Color _phaseColor(String phase) {
-  final normalized = phase.toLowerCase();
-  if (normalized.contains('period') || normalized.contains('menstrual')) {
-    return AppColors.phaseMenstrual;
-  }
-  if (normalized.contains('follicular')) return AppColors.phaseFollicular;
-  if (normalized.contains('ovulation')) return AppColors.phaseOvulation;
-  if (normalized.contains('luteal')) return AppColors.phaseLuteal;
-  return AppColors.triggerOther;
 }
 
 class _MorningTipCard extends StatefulWidget {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/cycle_phase_ui.dart';
 import '../../core/utils/korean_ui_text.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
@@ -32,7 +33,7 @@ class _InsightScreenState extends State<InsightScreen> {
   }
 
   Color _getPhaseColor(int day) {
-    return _phaseColor(_getPhase(day)).withValues(alpha: 0.45);
+    return CyclePhaseUi.of(_getPhase(day)).color.withValues(alpha: 0.45);
   }
 
   String _topTriggerSummary(TriggerRankingItem? topTrigger) {
@@ -174,22 +175,20 @@ class _InsightScreenState extends State<InsightScreen> {
                                 runSpacing: 6,
                                 children: [
                                   _LegendItem(
-                                    color: const Color(0xFFFFDAD5),
-                                    label: '생리기',
+                                    color: CyclePhaseUi.of('menstrual').color,
+                                    label: CyclePhaseUi.of('menstrual').label,
                                   ),
                                   _LegendItem(
-                                    color: const Color(0xFFF2DCF3),
-                                    label: '난포기',
+                                    color: CyclePhaseUi.of('follicular').color,
+                                    label: CyclePhaseUi.of('follicular').label,
                                   ),
                                   _LegendItem(
-                                    color: const Color(0xFFDDEDF8),
-                                    label: '배란기',
+                                    color: CyclePhaseUi.of('ovulation').color,
+                                    label: CyclePhaseUi.of('ovulation').label,
                                   ),
                                   _LegendItem(
-                                    color: const Color(
-                                      0xFF94D0BC,
-                                    ).withValues(alpha: 0.5),
-                                    label: '황체기',
+                                    color: CyclePhaseUi.of('luteal').color,
+                                    label: CyclePhaseUi.of('luteal').label,
                                   ),
                                 ],
                               ),
@@ -213,12 +212,12 @@ class _InsightScreenState extends State<InsightScreen> {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFDAD5),
+                                  color: CyclePhaseUi.of('menstrual').color,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Icon(
                                   Icons.sync,
-                                  color: Color(0xFFB87888),
+                                  color: AppColors.primary,
                                   size: 20,
                                 ),
                               ),
@@ -232,7 +231,7 @@ class _InsightScreenState extends State<InsightScreen> {
                                     Text(
                                       report.peakStressPhase == null
                                           ? '스트레스 기록이 쌓이면 주기 흐름과 함께 살펴볼 수 있어요.'
-                                          : '${koPhase(report.peakStressPhase!)}에 스트레스가 가장 높았어요.',
+                                          : '${CyclePhaseUi.of(report.peakStressPhase!).label}에 스트레스가 가장 높았어요.',
                                       style: const TextStyle(
                                         fontSize: 12,
                                         color: Color(0xFF9888A0),
@@ -266,12 +265,12 @@ class _InsightScreenState extends State<InsightScreen> {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF2DCF3),
+                                  color: CyclePhaseUi.of('follicular').color,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Icon(
                                   Icons.bar_chart,
-                                  color: Color(0xFF9888A0),
+                                  color: AppColors.textM,
                                   size: 20,
                                 ),
                               ),
@@ -482,16 +481,6 @@ class _InsightScreenState extends State<InsightScreen> {
   bool _isSameMonth(DateTime first, DateTime second) {
     return first.year == second.year && first.month == second.month;
   }
-}
-
-Color _phaseColor(String phase) {
-  return switch (InsightAnalyticsService.normalizePhase(phase)) {
-    'menstrual' => AppColors.phaseMenstrual,
-    'follicular' => AppColors.phaseFollicular,
-    'ovulation' => AppColors.phaseOvulation,
-    'luteal' => AppColors.phaseLuteal,
-    _ => AppColors.triggerOther,
-  };
 }
 
 class _GlassCard extends StatelessWidget {

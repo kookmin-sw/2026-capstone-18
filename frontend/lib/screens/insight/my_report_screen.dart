@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/cycle_phase_ui.dart';
 import '../../core/utils/korean_ui_text.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
@@ -212,7 +213,7 @@ class _PhaseDistribution extends StatelessWidget {
                   SizedBox(
                     width: 82,
                     child: Text(
-                      koPhase(phase.phase),
+                      CyclePhaseUi.of(phase.phase).label,
                       style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFF483848),
@@ -227,7 +228,7 @@ class _PhaseDistribution extends StatelessWidget {
                         minHeight: 8,
                         backgroundColor: const Color(0xFFF5F1F6),
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          _phaseColor(phase.phase),
+                          CyclePhaseUi.of(phase.phase).color,
                         ),
                       ),
                     ),
@@ -455,7 +456,7 @@ class _TriggerMatrix extends StatelessWidget {
                 (phase) => Expanded(
                   child: Center(
                     child: Text(
-                      koPhase(phase),
+                      CyclePhaseUi.of(phase).label,
                       style: const TextStyle(
                         fontSize: 9,
                         color: Color(0xFF9888A0),
@@ -542,11 +543,10 @@ class _TriggerMatrix extends StatelessWidget {
     required int maxCellCount,
     required String phase,
   }) {
-    final phaseBaseColor = _phaseColor(phase);
+    final phaseBaseColor = CyclePhaseUi.of(phase).color;
     if (cellCount == 0 || maxCellCount == 0) {
       return phaseBaseColor.withValues(alpha: 0.12);
     }
-
 
     final intensityRatio = (cellCount / maxCellCount).clamp(0.0, 1.0);
     final cellOpacity = intensityRatio >= 0.5 ? 0.85 : 0.42;
@@ -803,7 +803,6 @@ class _AiReportSkeletonState extends State<_AiReportSkeleton>
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               Container(
                 height: 16,
                 width: double.infinity,
@@ -893,16 +892,6 @@ class _AiReportStateCard extends StatelessWidget {
       ),
     );
   }
-}
-
-Color _phaseColor(String phase) {
-  return switch (InsightAnalyticsService.normalizePhase(phase)) {
-    'menstrual' => AppColors.phaseMenstrual,
-    'follicular' => AppColors.phaseFollicular,
-    'ovulation' => AppColors.phaseOvulation,
-    'luteal' => AppColors.phaseLuteal,
-    _ => AppColors.triggerOther,
-  };
 }
 
 Color _triggerColorFor(String trigger, List<StressTrigger> triggers) {

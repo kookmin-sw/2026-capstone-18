@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/utils/cycle_phase_ui.dart';
 import '../../core/utils/korean_ui_text.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_title.dart';
 import '../../features/insight/insight_provider.dart';
-import '../../features/insight/services/insight_analytics_service.dart';
 
 class ReportDetailScreen extends StatelessWidget {
   final String trigger;
@@ -26,7 +26,7 @@ class ReportDetailScreen extends StatelessWidget {
       trigger: trigger,
       phase: phase,
     );
-    final phaseLabel = koPhase(detail.phase);
+    final phaseLabel = CyclePhaseUi.of(detail.phase).label;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -50,14 +50,14 @@ class ReportDetailScreen extends StatelessWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: _phaseColor(
+                          color: CyclePhaseUi.of(
                             detail.phase,
-                          ).withValues(alpha: 0.42),
+                          ).color.withValues(alpha: 0.42),
                           borderRadius: BorderRadius.circular(22),
                           border: Border.all(
-                            color: _phaseColor(
+                            color: CyclePhaseUi.of(
                               detail.phase,
-                            ).withValues(alpha: 0.7),
+                            ).color.withValues(alpha: 0.7),
                             width: 0.5,
                           ),
                         ),
@@ -153,9 +153,9 @@ class ReportDetailScreen extends StatelessWidget {
                                     ),
                                     decoration: BoxDecoration(
                                       color: active
-                                          ? _phaseColor(
+                                          ? CyclePhaseUi.of(
                                               cell.phase,
-                                            ).withValues(alpha: 0.64)
+                                            ).color.withValues(alpha: 0.64)
                                           : Colors.white.withValues(
                                               alpha: 0.44,
                                             ),
@@ -171,7 +171,7 @@ class ReportDetailScreen extends StatelessWidget {
                                     child: Column(
                                       children: [
                                         Text(
-                                          koPhase(cell.phase),
+                                          CyclePhaseUi.of(cell.phase).label,
                                           style: TextStyle(
                                             fontSize: 9,
                                             fontWeight: active
@@ -389,14 +389,4 @@ class _GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassCard(padding: const EdgeInsets.all(16), child: child);
   }
-}
-
-Color _phaseColor(String phase) {
-  return switch (InsightAnalyticsService.normalizePhase(phase)) {
-    'menstrual' => AppColors.phaseMenstrual,
-    'follicular' => AppColors.phaseFollicular,
-    'ovulation' => AppColors.phaseOvulation,
-    'luteal' => AppColors.phaseLuteal,
-    _ => AppColors.triggerOther,
-  };
 }

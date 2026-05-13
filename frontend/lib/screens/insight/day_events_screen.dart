@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/utils/cycle_phase_ui.dart';
 import '../../core/utils/korean_ui_text.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
@@ -96,6 +97,7 @@ class _EventItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final phaseUi = CyclePhaseUi.of(phase);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -105,8 +107,8 @@ class _EventItem extends StatelessWidget {
             Container(
               width: 10,
               height: 10,
-              decoration: const BoxDecoration(
-                color: Color(0xFFB87888),
+              decoration: BoxDecoration(
+                color: phaseUi.color,
                 shape: BoxShape.circle,
               ),
             ),
@@ -147,15 +149,15 @@ class _EventItem extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFDAD5),
+                        color: phaseUi.softBackgroundColor,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        koPhase(phase),
+                        phaseUi.label,
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFFB87888),
+                          color: AppColors.textB,
                         ),
                       ),
                     ),

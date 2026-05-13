@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/cycle_phase_ui.dart';
 import '../../core/utils/korean_ui_text.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
@@ -450,26 +451,6 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
     return 'luteal';
   }
 
-  String _phaseContext(String phase) {
-    return switch (phase) {
-      'menstrual' => '몸이 예민하게 느껴질 수 있어요. 휴식 신호를 조금 더 자주 확인해요.',
-      'follicular' => '에너지가 서서히 올라오는 시기예요. 가벼운 루틴을 잡기 좋아요.',
-      'ovulation' => '몸의 변화가 선명하게 느껴질 수 있어요. 스트레스 반응도 함께 살펴봐요.',
-      'luteal' => '스트레스에 조금 더 민감해질 수 있어요. 무리하지 않아도 괜찮아요.',
-      _ => '주기 흐름과 스트레스 기록을 함께 살펴볼게요.',
-    };
-  }
-
-  Color _phaseColor(String phase) {
-    return switch (phase) {
-      'menstrual' => AppColors.phaseMenstrual,
-      'follicular' => AppColors.phaseFollicular,
-      'ovulation' => AppColors.phaseOvulation,
-      'luteal' => AppColors.phaseLuteal,
-      _ => AppColors.triggerOther,
-    };
-  }
-
   int _daysUntilNextPeriod(int cycleDay, int cycleLength) {
     final remaining = cycleLength - cycleDay + 1;
     return remaining == cycleLength ? 0 : remaining;
@@ -483,6 +464,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
     final periodLength = periodLengthForCalculation;
     final cycleDay = _cycleDay(cycleLength);
     final currentPhase = _currentPhase(cycleDay, periodLength);
+    final currentPhaseUi = CyclePhaseUi.of(currentPhase);
     final daysUntilNextPeriod = _daysUntilNextPeriod(cycleDay, cycleLength);
     final progress = (cycleDay / cycleLength).clamp(0.0, 1.0);
 
@@ -554,12 +536,12 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
                       const SizedBox(height: 24),
 
                       _PhaseCard(
-                        phase: koPhase(currentPhase),
-                        phaseContext: _phaseContext(currentPhase),
+                        phase: currentPhaseUi.label,
+                        phaseContext: currentPhaseUi.description,
                         cycleDay: cycleDay,
                         daysUntilNextPeriod: daysUntilNextPeriod,
                         progress: progress,
-                        color: _phaseColor(currentPhase),
+                        color: currentPhaseUi.color,
                       ),
 
                       if (_saving) ...[

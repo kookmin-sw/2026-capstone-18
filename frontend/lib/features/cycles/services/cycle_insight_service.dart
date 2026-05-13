@@ -1,4 +1,4 @@
-import '../../../core/utils/korean_ui_text.dart';
+import '../../../core/utils/cycle_phase_ui.dart';
 import '../../events/models/stress_event.dart';
 import '../../insight/services/insight_analytics_service.dart';
 import '../models/cycle.dart';
@@ -36,7 +36,7 @@ class CycleInsightService {
     final concentration = strongestPhase.value / loggedEvents.length;
     if (strongestPhase.value >= 3 && concentration >= 0.45) {
       final percent = (concentration * 100).round();
-      return '최근 스트레스 기록의 $percent%가 ${koPhase(strongestPhase.key)}에 집중되어 있어요.';
+      return '최근 스트레스 기록의 $percent%가 ${CyclePhaseUi.of(strongestPhase.key).label}에 집중되어 있어요.';
     }
 
     final normalizedCurrentPhase = InsightAnalyticsService.normalizePhase(
@@ -52,7 +52,7 @@ class CycleInsightService {
         : otherCounts.reduce((a, b) => a + b) / otherCounts.length;
 
     if (currentCount >= 2 && currentCount >= otherAverage + 2) {
-      return '현재 ${koPhase(normalizedCurrentPhase)}에서 스트레스 기록이 평소보다 조금 많아요.';
+      return '현재 ${CyclePhaseUi.of(normalizedCurrentPhase).label}에서 스트레스 기록이 평소보다 조금 많아요.';
     }
 
     final lutealAverage = _averageStressForPhase(

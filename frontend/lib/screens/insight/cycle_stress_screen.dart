@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/cycle_phase_ui.dart';
 import '../../core/utils/korean_ui_text.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
@@ -199,9 +200,9 @@ class _PhaseDistributionCard extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              _cyclePhaseLabel(
+                              CyclePhaseUi.of(
                                 distribution.highestDistributionPhase,
-                              ),
+                              ).label,
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -251,14 +252,14 @@ class _PhaseDistributionLegend extends StatelessWidget {
                 width: 9,
                 height: 9,
                 decoration: BoxDecoration(
-                  color: _phaseColor(item.phase),
+                  color: CyclePhaseUi.of(item.phase).color,
                   shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _cyclePhaseLabel(item.phase),
+                  CyclePhaseUi.of(item.phase).label,
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -386,7 +387,7 @@ class _PhaseAverageBar extends StatelessWidget {
             height: barHeight,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: _phaseColor(phase),
+              color: CyclePhaseUi.of(phase).color,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(12),
               ),
@@ -405,7 +406,7 @@ class _PhaseAverageBar extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            _cyclePhaseLabel(phase),
+            CyclePhaseUi.of(phase).label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -717,7 +718,7 @@ class _PhaseDonutPainter extends CustomPainter {
     for (final item in items) {
       if (item.phaseLogCount == 0) continue;
       final sweep = (item.phaseLogCount / total) * math.pi * 2;
-      paint.color = _phaseColor(item.phase);
+      paint.color = CyclePhaseUi.of(item.phase).color;
       canvas.drawArc(rect, startAngle, sweep, false, paint);
       startAngle += sweep;
     }
@@ -729,8 +730,6 @@ class _PhaseDonutPainter extends CustomPainter {
   }
 }
 
-const _phases = ['menstrual', 'follicular', 'ovulation', 'luteal'];
-
 List<_PhaseIntensityItem> _phaseIntensities(List<PhaseAverage> averages) {
   final byPhase = {
     for (final item in averages)
@@ -738,7 +737,7 @@ List<_PhaseIntensityItem> _phaseIntensities(List<PhaseAverage> averages) {
   };
 
   return [
-    for (final phase in _phases)
+    for (final phase in CyclePhaseUi.orderedPhases)
       _PhaseIntensityItem(
         phase: phase,
         phaseLogCount: byPhase[phase]?.count ?? 0,
@@ -772,36 +771,16 @@ String _cycleStressInsightMessage({
   final highestDistributionRatio = distribution.highestDistributionRatio;
 
   if (highestDistributionRatio < 40) {
-    return '스트레스 기록은 주기 전반에 비교적 고르게 분포했고, 평균 강도는 ${_cyclePhaseLabel(highestIntensityPhase)}에서 가장 높게 나타났어요.';
+    return '스트레스 기록은 주기 전반에 비교적 고르게 분포했고, 평균 강도는 ${CyclePhaseUi.of(highestIntensityPhase).label}에서 가장 높게 나타났어요.';
   }
 
   if (highestDistributionPhase == highestIntensityPhase) {
-    return '스트레스 기록의 분포와 평균 강도 모두 ${_cyclePhaseLabel(highestDistributionPhase)}에서 가장 높게 나타났어요.';
+    return '스트레스 기록의 분포와 평균 강도 모두 ${CyclePhaseUi.of(highestDistributionPhase).label}에서 가장 높게 나타났어요.';
   }
 
   if (highestDistributionRatio >= 50) {
-    return '스트레스 기록은 ${_cyclePhaseLabel(highestDistributionPhase)}에 가장 많이 분포했고, 평균 강도는 ${_cyclePhaseLabel(highestIntensityPhase)}에서 가장 높게 나타났어요.';
+    return '스트레스 기록은 ${CyclePhaseUi.of(highestDistributionPhase).label}에 가장 많이 분포했고, 평균 강도는 ${CyclePhaseUi.of(highestIntensityPhase).label}에서 가장 높게 나타났어요.';
   }
 
-  return '스트레스 기록은 ${_cyclePhaseLabel(highestDistributionPhase)}에 다소 많이 분포했고, 평균 강도는 ${_cyclePhaseLabel(highestIntensityPhase)}에서 가장 높게 나타났어요.';
-}
-
-Color _phaseColor(String phase) {
-  return switch (InsightAnalyticsService.normalizePhase(phase)) {
-    'menstrual' => AppColors.phaseMenstrual,
-    'follicular' => AppColors.phaseFollicular,
-    'ovulation' => AppColors.phaseOvulation,
-    'luteal' => AppColors.phaseLuteal,
-    _ => AppColors.triggerOther,
-  };
-}
-
-String _cyclePhaseLabel(String phase) {
-  return switch (InsightAnalyticsService.normalizePhase(phase)) {
-    'menstrual' => '생리기',
-    'follicular' => '난포기',
-    'ovulation' => '배란기',
-    'luteal' => '황체기',
-    _ => phase,
-  };
+  return '스트레스 기록은 ${CyclePhaseUi.of(highestDistributionPhase).label}에 다소 많이 분포했고, 평균 강도는 ${CyclePhaseUi.of(highestIntensityPhase).label}에서 가장 높게 나타났어요.';
 }

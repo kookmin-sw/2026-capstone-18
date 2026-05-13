@@ -1,3 +1,4 @@
+import '../../../core/utils/cycle_phase_ui.dart';
 import '../../cycles/models/cycle.dart';
 import '../../events/models/stress_event.dart';
 
@@ -186,7 +187,7 @@ class TriggerPhaseDetailViewModel {
 }
 
 class InsightAnalyticsService {
-  static const phases = ['menstrual', 'follicular', 'ovulation', 'luteal'];
+  static const phases = CyclePhaseUi.orderedPhases;
 
   InsightReportViewModel buildReport({
     required List<StressEvent> events,
@@ -376,34 +377,15 @@ class InsightAnalyticsService {
   }
 
   static String normalizePhase(String phase) {
-    final normalized = phase.trim().toLowerCase();
-    return switch (normalized) {
-      'mens' || 'menstrual' || 'period' || 'period phase' => 'menstrual',
-      'foll' || 'follicular' || 'follicular phase' => 'follicular',
-      'ovul' || 'ovulation' || 'ovulatory' || 'ovulation phase' => 'ovulation',
-      'lut' || 'luteal' || 'luteal phase' => 'luteal',
-      _ => normalized,
-    };
+    return CyclePhaseUi.normalize(phase);
   }
 
   static String phaseLabel(String phase) {
-    return switch (normalizePhase(phase)) {
-      'menstrual' => '생리기',
-      'follicular' => '난포기',
-      'ovulation' => '배란기',
-      'luteal' => '황체기',
-      _ => phase,
-    };
+    return CyclePhaseUi.of(phase).label;
   }
 
   static String phaseShortLabel(String phase) {
-    return switch (normalizePhase(phase)) {
-      'menstrual' => '생리',
-      'follicular' => '난포',
-      'ovulation' => '배란',
-      'luteal' => '황체',
-      _ => phase,
-    };
+    return CyclePhaseUi.of(phase).shortLabel;
   }
 
   List<StressEvent> _eventsInRange(
