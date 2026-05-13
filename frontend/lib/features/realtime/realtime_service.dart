@@ -36,10 +36,10 @@ class RealtimeService {
     final token = await tokenStorage.readAccessToken();
     if (token == null || token.isEmpty) return;
 
-    final uri = Uri.parse(
-      ApiConfig.websocketUrl,
-    ).replace(queryParameters: {'token': token});
+    final uri = Uri.parse(ApiConfig.websocketUrl);
     _channel = WebSocketChannel.connect(uri);
+    await _channel!.ready;
+    _channel!.sink.add(jsonEncode({'type': 'auth', 'token': token}));
     _subscription = _channel!.stream.listen(
       (message) {
         final decoded = jsonDecode('$message') as Map<String, dynamic>;
