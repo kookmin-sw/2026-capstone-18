@@ -236,3 +236,34 @@ async def test_aggregate_ignores_unlogged_user_stress_level(
     assert body.stress is not None
     assert body.stress.source == "model"
     assert body.stress.level == 50  # 0.5 * 100
+
+
+@pytest.mark.asyncio
+async def test_dashboard_phase_respects_is_period_ongoing(
+    db_session: AsyncSession,
+    make_user: Any,
+) -> None:
+    """When is_period_ongoing=True, the cycle phase must be 'menstrual' even
+    when day > 5 (which would normally be 'follicular')."""
+    from app.services.dashboard import compute_dashboard_today
+
+    me = await make_user()
+    today = datetime.now(tz=UTC).date()
+    # Set period_start 7 days ago so today is day 8.  Without the override,
+    # day 8 falls in the follicular phase.
+    period_start = today - timedelta(days=7)
+    db_session.add(
+        Cycle(
+            id=uuid.uuid4(),
+            user_id=me.id,
+            period_start_date=period_start,
+            cycle_length_days=28,
+            is_period_ongoing=True,
+        )
+    )
+    await db_session.flush()
+
+    body = await compute_dashboard_today(db_session, user_id=me.id)
+    assert body.cycle is not None
+    assert body.cycle.phase == "menstrual"
+    assert body.cycle.day == 8
