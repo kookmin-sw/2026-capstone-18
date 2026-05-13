@@ -6,6 +6,7 @@ import '../../core/errors/api_exception.dart';
 import '../consent/data/consent_api.dart';
 import '../cycles/data/cycles_api.dart';
 import '../cycles/models/cycle.dart';
+import '../cycles/services/cycle_ongoing_storage.dart';
 import '../events/data/events_api.dart';
 import '../events/models/stress_event.dart';
 import '../insight/data/ai_insights_api.dart';
@@ -16,6 +17,7 @@ class HomeProvider extends ChangeNotifier {
   final CyclesApi cyclesApi;
   final ConsentApi consentApi;
   final AiInsightsApi aiInsightsApi;
+  final CycleOngoingStore cycleOngoingStore;
 
   bool _loading = false;
   String? _errorMessage;
@@ -29,7 +31,8 @@ class HomeProvider extends ChangeNotifier {
     required this.cyclesApi,
     required this.consentApi,
     required this.aiInsightsApi,
-  });
+    CycleOngoingStore? cycleOngoingStore,
+  }) : cycleOngoingStore = cycleOngoingStore ?? CycleOngoingStorage();
 
   bool get loading => _loading;
   String? get errorMessage => _errorMessage;
@@ -90,7 +93,7 @@ class HomeProvider extends ChangeNotifier {
       events.sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
 
       _todayEvents = events;
-      _currentCycle = results[1] as Cycle?;
+      _currentCycle = await cycleOngoingStore.applyTo(results[1] as Cycle?);
       _consent = results[2] as ConsentState;
     } on ApiException catch (error) {
       _errorMessage = error.message;

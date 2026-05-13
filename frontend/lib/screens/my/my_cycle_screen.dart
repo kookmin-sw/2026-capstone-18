@@ -25,6 +25,7 @@ class MyCycleScreen extends StatefulWidget {
 class _MyCycleScreenState extends State<MyCycleScreen> {
   DateTime periodStart = DateTime.now();
   DateTime? periodEnd;
+  bool _periodOngoing = false;
   bool _saving = false;
   bool _syncingCycle = false;
 
@@ -38,6 +39,8 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
       periodEnd = currentCycle.periodEndDate == null
           ? null
           : _dateOnly(currentCycle.periodEndDate!);
+      _periodOngoing =
+          currentCycle.periodOngoing && currentCycle.periodEndDate == null;
     }
   }
 
@@ -192,6 +195,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
       periodStart = picked;
       if (periodEnd != null && periodEnd!.isBefore(periodStart)) {
         periodEnd = null;
+        _periodOngoing = false;
       }
     });
     await _saveCycle();
@@ -211,6 +215,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
 
     setState(() {
       periodEnd = picked;
+      _periodOngoing = false;
     });
     await _saveCycle();
   }
@@ -218,10 +223,43 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
   Future<void> _clearPeriodEnd() async {
     if (_saving) return;
 
+    final previousEnd = periodEnd;
+    final previousOngoing = _periodOngoing;
+
     setState(() {
       periodEnd = null;
+      _periodOngoing = false;
     });
-    await _saveCycle();
+
+    final saved = await _saveCycle();
+    if (!saved && mounted) {
+      setState(() {
+        periodEnd = previousEnd;
+        _periodOngoing = previousOngoing;
+      });
+    }
+  }
+
+  Future<void> _setPeriodOngoing(bool value) async {
+    if (_saving) return;
+
+    final previousEnd = periodEnd;
+    final previousOngoing = _periodOngoing;
+
+    setState(() {
+      _periodOngoing = value;
+      if (value) {
+        periodEnd = null;
+      }
+    });
+
+    final saved = await _saveCycle();
+    if (!saved && mounted) {
+      setState(() {
+        periodEnd = previousEnd;
+        _periodOngoing = previousOngoing;
+      });
+    }
   }
 
   Future<void> _syncCycleFromGalaxyWatch() async {
@@ -231,6 +269,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final previousStart = periodStart;
     final previousEnd = periodEnd;
+    final previousOngoing = _periodOngoing;
 
     setState(() {
       _syncingCycle = true;
@@ -245,6 +284,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
         setState(() {
           periodStart = previousStart;
           periodEnd = previousEnd;
+          _periodOngoing = previousOngoing;
           _syncingCycle = false;
         });
         if (cycleProvider.healthSyncFailureReason ==
@@ -261,6 +301,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
       setState(() {
         periodStart = _dateOnly(data.periodStart);
         periodEnd = _dateOnly(data.periodEnd!);
+        _periodOngoing = false;
         _syncingCycle = false;
       });
 
@@ -270,6 +311,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
       setState(() {
         periodStart = previousStart;
         periodEnd = previousEnd;
+        _periodOngoing = previousOngoing;
         _syncingCycle = false;
       });
       messenger.showSnackBar(
@@ -316,6 +358,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
         lastPeriodStart: periodStart,
         periodEndDate: periodEnd,
         periodLength: periodLengthForCalculation,
+        periodOngoing: _periodOngoing && periodEnd == null,
       );
 
       if (!mounted) return false;
@@ -389,6 +432,10 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
   }
 
   String _currentPhase(int cycleDay, int periodLength) {
+    if (_periodOngoing && periodEnd == null) {
+      return 'menstrual';
+    }
+
     final effectivePeriodLength = periodEnd == null ? 7 : periodLength;
 
     if (cycleDay <= effectivePeriodLength) {
@@ -482,9 +529,16 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
                       ),
 
                       if (periodEnd == null) ...[
+                        const SizedBox(height: 10),
+                        _OngoingPeriodToggle(
+                          value: _periodOngoing,
+                          onChanged: _saving ? null : _setPeriodOngoing,
+                        ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '생리가 아직 이어지고 있을 수 있어요',
+                        Text(
+                          _periodOngoing
+                              ? '생리가 이어지는 동안에는 생리기로 표시돼요.'
+                              : '종료일을 비워두면 기본 주기 기준으로 단계를 계산해요.',
                           style: AppTextStyles.caption,
                         ),
                       ],
@@ -1105,6 +1159,7 @@ class _DateField extends StatelessWidget {
             ),
             if (onClear != null) ...[
               GestureDetector(
+                key: const ValueKey('period-end-clear-button'),
                 onTap: onClear,
                 child: const Padding(
                   padding: EdgeInsets.all(4),
@@ -1119,6 +1174,79 @@ class _DateField extends StatelessWidget {
               color: Color(0xFFC08A9A),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OngoingPeriodToggle extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  const _OngoingPeriodToggle({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onChanged != null;
+    final foregroundColor = value ? AppColors.primary : AppColors.textM;
+    final backgroundColor = value
+        ? AppColors.primaryLight
+        : Colors.white.withValues(alpha: 0.72);
+
+    return GestureDetector(
+      key: const ValueKey('period-ongoing-toggle'),
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? () => onChanged!(!value) : null,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 160),
+        opacity: enabled ? 1 : 0.62,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: value
+                  ? AppColors.primary.withValues(alpha: 0.24)
+                  : const Color(0xFFF0E1E8),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '아직 생리 중이에요',
+                  style: AppTextStyles.body.copyWith(
+                    color: value ? AppColors.textH : AppColors.textB,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 44,
+                height: 26,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: value ? AppColors.primary : const Color(0xFFEDE3EA),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: value
+                      ? Icon(Icons.check, size: 14, color: foregroundColor)
+                      : null,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -9,6 +9,7 @@ class Cycle {
   final String? notes;
   final String? backendPhase;
   final int? backendDay;
+  final bool periodOngoing;
 
   const Cycle({
     required this.id,
@@ -19,6 +20,7 @@ class Cycle {
     required this.notes,
     this.backendPhase,
     this.backendDay,
+    this.periodOngoing = false,
   });
 
   factory Cycle.fromJson(Map<String, dynamic> json) {
@@ -54,6 +56,32 @@ class Cycle {
     );
   }
 
+  Cycle copyWith({
+    String? id,
+    DateTime? lastPeriodStart,
+    Object? periodEndDate = _sentinel,
+    int? cycleLength,
+    int? periodLength,
+    Object? notes = _sentinel,
+    String? backendPhase,
+    int? backendDay,
+    bool? periodOngoing,
+  }) {
+    return Cycle(
+      id: id ?? this.id,
+      lastPeriodStart: lastPeriodStart ?? this.lastPeriodStart,
+      periodEndDate: periodEndDate == _sentinel
+          ? this.periodEndDate
+          : periodEndDate as DateTime?,
+      cycleLength: cycleLength ?? this.cycleLength,
+      periodLength: periodLength ?? this.periodLength,
+      notes: notes == _sentinel ? this.notes : notes as String?,
+      backendPhase: backendPhase ?? this.backendPhase,
+      backendDay: backendDay ?? this.backendDay,
+      periodOngoing: periodOngoing ?? this.periodOngoing,
+    );
+  }
+
   Map<String, dynamic> toCreateJson() {
     return {
       'period_start_date': _date(lastPeriodStart),
@@ -78,6 +106,10 @@ class Cycle {
   }
 
   String get phase {
+    if (periodOngoing && periodEndDate == null) {
+      return 'menstrual';
+    }
+
     return _resolvedPhase.phase;
   }
 
@@ -99,3 +131,5 @@ class Cycle {
     return dateOnly.toIso8601String().split('T').first;
   }
 }
+
+const Object _sentinel = Object();

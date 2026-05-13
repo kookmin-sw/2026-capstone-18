@@ -19,6 +19,7 @@ import 'package:little_signals/features/cycles/cycle_provider.dart';
 import 'package:little_signals/features/cycles/data/cycles_api.dart';
 import 'package:little_signals/features/cycles/models/cycle.dart';
 import 'package:little_signals/features/cycles/models/watch_cycle_data.dart';
+import 'package:little_signals/features/cycles/services/cycle_ongoing_storage.dart';
 import 'package:little_signals/features/cycles/services/watch_cycle_service.dart';
 import 'package:little_signals/features/events/data/events_api.dart';
 import 'package:little_signals/features/events/events_provider.dart';
@@ -452,6 +453,36 @@ void main() {
     expect(find.text('저장하기'), findsNothing);
   });
 
+  testWidgets('my cycle ongoing period toggle syncs phase with home', (
+    tester,
+  ) async {
+    final data = _SmokeData(authStatus: AuthStatus.authenticated);
+    await data.load();
+
+    await tester.pumpWidget(
+      _SmokeApp(data: data, child: const MyCycleScreen()),
+    );
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    await tester.tap(find.byKey(const ValueKey('period-end-clear-button')));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(find.text('선택할 수 있어요'), findsOneWidget);
+    expect(data.cycleProvider.currentCycle!.periodEndDate, isNull);
+    expect(data.cycleProvider.currentCycle!.periodOngoing, isFalse);
+
+    await tester.tap(find.byKey(const ValueKey('period-ongoing-toggle')));
+    await tester.pumpAndSettle();
+    _expectNoFlutterException(tester);
+
+    expect(find.text('생리가 이어지는 동안에는 생리기로 표시돼요.'), findsOneWidget);
+    expect(data.cycleProvider.currentCycle!.periodOngoing, isTrue);
+    expect(data.cycleProvider.currentCycle!.phase, 'menstrual');
+    expect(data.homeProvider.currentCycle!.phase, 'menstrual');
+  });
+
   testWidgets('my cycle auto-save failure stays on screen with error', (
     tester,
   ) async {
@@ -806,6 +837,7 @@ class _SmokeData {
   late final _FakeSleepApi sleepApi;
   late final _FakeCategoriesApi categoriesApi;
   late final _FakePrivacyApi privacyApi;
+  late final _FakeCycleOngoingStore cycleOngoingStore;
 
   late final EventsProvider eventsProvider;
   late final CycleProvider cycleProvider;
@@ -874,11 +906,13 @@ class _SmokeData {
     sleepApi = _FakeSleepApi(_sleepLogs);
     categoriesApi = _FakeCategoriesApi();
     privacyApi = _FakePrivacyApi();
+    cycleOngoingStore = _FakeCycleOngoingStore();
 
     eventsProvider = EventsProvider(eventsApi: eventsApi);
     cycleProvider = CycleProvider(
       cyclesApi: cyclesApi,
       watchCycleService: _FakeWatchCycleService(hasData: !failWatchSync),
+      cycleOngoingStore: cycleOngoingStore,
     );
     settingsProvider = SettingsProvider(settingsApi: settingsApi);
     consentProvider = ConsentProvider(consentApi: consentApi);
@@ -888,6 +922,7 @@ class _SmokeData {
       cyclesApi: cyclesApi,
       consentApi: consentApi,
       aiInsightsApi: fakeAiInsightsApi,
+      cycleOngoingStore: cycleOngoingStore,
     );
     insightProvider = InsightProvider(
       eventsApi: eventsApi,
@@ -1172,6 +1207,24 @@ class _FakeCyclesApi extends CyclesApi {
     );
     onSave(updated);
     return updated;
+  }
+}
+
+class _FakeCycleOngoingStore extends CycleOngoingStore {
+  final Set<String> _ongoingCycleIds = <String>{};
+
+  @override
+  Future<bool> isOngoing(String cycleId) async {
+    return _ongoingCycleIds.contains(cycleId);
+  }
+
+  @override
+  Future<void> setOngoing(String cycleId, bool ongoing) async {
+    if (ongoing) {
+      _ongoingCycleIds.add(cycleId);
+    } else {
+      _ongoingCycleIds.remove(cycleId);
+    }
   }
 }
 

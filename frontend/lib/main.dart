@@ -18,6 +18,7 @@ import 'features/consent/consent_provider.dart';
 import 'features/consent/data/consent_api.dart';
 import 'features/cycles/cycle_provider.dart';
 import 'features/cycles/data/cycles_api.dart';
+import 'features/cycles/services/cycle_ongoing_storage.dart';
 import 'features/events/data/events_api.dart';
 import 'features/events/events_provider.dart';
 import 'features/home/home_provider.dart';
@@ -110,6 +111,7 @@ class _LumaAppState extends State<LumaApp> {
   late final NotificationService _notificationService;
   late final AiInsightsApi _aiInsightsApi;
   late final RealtimeService _realtimeService;
+  late final CycleOngoingStore _cycleOngoingStore;
 
   @override
   void initState() {
@@ -130,6 +132,7 @@ class _LumaAppState extends State<LumaApp> {
     );
     _aiInsightsApi = AiInsightsApi(apiClient: _apiClient);
     _realtimeService = RealtimeService(tokenStorage: _tokenStorage);
+    _cycleOngoingStore = CycleOngoingStorage();
   }
 
   @override
@@ -154,7 +157,10 @@ class _LumaAppState extends State<LumaApp> {
           create: (_) => EventsProvider(eventsApi: _eventsApi),
         ),
         ChangeNotifierProvider(
-          create: (_) => CycleProvider(cyclesApi: _cyclesApi),
+          create: (_) => CycleProvider(
+            cyclesApi: _cyclesApi,
+            cycleOngoingStore: _cycleOngoingStore,
+          ),
         ),
         ChangeNotifierProvider(
           create: (_) => SettingsProvider(settingsApi: _settingsApi),
@@ -168,6 +174,7 @@ class _LumaAppState extends State<LumaApp> {
             cyclesApi: _cyclesApi,
             consentApi: _consentApi,
             aiInsightsApi: _aiInsightsApi,
+            cycleOngoingStore: _cycleOngoingStore,
           ),
         ),
         ChangeNotifierProvider(

@@ -5,6 +5,7 @@ import 'package:little_signals/core/storage/secure_token_storage.dart';
 import 'package:little_signals/features/cycles/cycle_provider.dart';
 import 'package:little_signals/features/cycles/data/cycles_api.dart';
 import 'package:little_signals/features/cycles/models/cycle.dart';
+import 'package:little_signals/features/cycles/services/cycle_ongoing_storage.dart';
 
 void main() {
   test('invalid period end before start is not saved', () async {
@@ -15,6 +16,7 @@ void main() {
           saveCount++;
         },
       ),
+      cycleOngoingStore: _FakeCycleOngoingStore(),
     );
 
     final saved = await provider.savePeriod(
@@ -42,7 +44,10 @@ void main() {
         savedCycle = cycle;
       },
     );
-    final provider = CycleProvider(cyclesApi: cyclesApi);
+    final provider = CycleProvider(
+      cyclesApi: cyclesApi,
+      cycleOngoingStore: _FakeCycleOngoingStore(),
+    );
     await provider.loadCurrentCycle();
 
     final saved = await provider.savePeriod(
@@ -71,7 +76,10 @@ void main() {
         ignoreNullPeriodEnd: true,
         onSave: (_) {},
       );
-      final provider = CycleProvider(cyclesApi: cyclesApi);
+      final provider = CycleProvider(
+        cyclesApi: cyclesApi,
+        cycleOngoingStore: _FakeCycleOngoingStore(),
+      );
       await provider.loadCurrentCycle();
 
       final saved = await provider.savePeriod(
@@ -85,6 +93,95 @@ void main() {
       expect(provider.errorMessage, '생리 종료일을 지우지 못했어요. 다시 시도해 주세요.');
     },
   );
+
+  test('ongoing period flag is applied to current cycle phase', () async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day - 12);
+    final ongoingStore = _FakeCycleOngoingStore();
+    final cyclesApi = _ValidationCyclesApi(
+      current: Cycle(
+        id: 'cycle-1',
+        lastPeriodStart: start,
+        periodEndDate: null,
+        cycleLength: 28,
+        periodLength: 7,
+        notes: null,
+      ),
+      onSave: (_) {},
+    );
+    final provider = CycleProvider(
+      cyclesApi: cyclesApi,
+      cycleOngoingStore: ongoingStore,
+    );
+
+    await provider.loadCurrentCycle();
+    expect(provider.currentCycle?.periodOngoing, isFalse);
+    expect(provider.currentCycle?.phase, isNot('menstrual'));
+
+    final saved = await provider.savePeriod(
+      lastPeriodStart: start,
+      periodEndDate: null,
+      periodOngoing: true,
+    );
+
+    expect(saved, isTrue);
+    expect(await ongoingStore.isOngoing('cycle-1'), isTrue);
+    expect(provider.currentCycle?.periodOngoing, isTrue);
+    expect(provider.currentCycle?.phase, 'menstrual');
+  });
+
+  test('setting period end clears ongoing period flag', () async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day - 12);
+    final ongoingStore = _FakeCycleOngoingStore();
+    await ongoingStore.setOngoing('cycle-1', true);
+    final cyclesApi = _ValidationCyclesApi(
+      current: Cycle(
+        id: 'cycle-1',
+        lastPeriodStart: start,
+        periodEndDate: null,
+        cycleLength: 28,
+        periodLength: 7,
+        notes: null,
+      ),
+      onSave: (_) {},
+    );
+    final provider = CycleProvider(
+      cyclesApi: cyclesApi,
+      cycleOngoingStore: ongoingStore,
+    );
+
+    await provider.loadCurrentCycle();
+    expect(provider.currentCycle?.periodOngoing, isTrue);
+
+    final saved = await provider.savePeriod(
+      lastPeriodStart: start,
+      periodEndDate: DateTime(now.year, now.month, now.day - 8),
+      periodOngoing: true,
+    );
+
+    expect(saved, isTrue);
+    expect(await ongoingStore.isOngoing('cycle-1'), isFalse);
+    expect(provider.currentCycle?.periodOngoing, isFalse);
+  });
+}
+
+class _FakeCycleOngoingStore extends CycleOngoingStore {
+  final Set<String> _ongoingCycleIds = <String>{};
+
+  @override
+  Future<bool> isOngoing(String cycleId) async {
+    return _ongoingCycleIds.contains(cycleId);
+  }
+
+  @override
+  Future<void> setOngoing(String cycleId, bool ongoing) async {
+    if (ongoing) {
+      _ongoingCycleIds.add(cycleId);
+    } else {
+      _ongoingCycleIds.remove(cycleId);
+    }
+  }
 }
 
 class _ValidationCyclesApi extends CyclesApi {

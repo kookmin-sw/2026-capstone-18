@@ -5,11 +5,13 @@ import '../health/health_connect_exception.dart';
 import 'data/cycles_api.dart';
 import 'models/cycle.dart';
 import 'models/watch_cycle_data.dart';
+import 'services/cycle_ongoing_storage.dart';
 import 'services/watch_cycle_service.dart';
 
 class CycleProvider extends ChangeNotifier {
   final CyclesApi cyclesApi;
   final WatchCycleService watchCycleService;
+  final CycleOngoingStore cycleOngoingStore;
 
   bool _loading = false;
   String? _errorMessage;
@@ -17,8 +19,12 @@ class CycleProvider extends ChangeNotifier {
   Cycle? _currentCycle;
   List<Cycle> _cycleHistory = [];
 
-  CycleProvider({required this.cyclesApi, WatchCycleService? watchCycleService})
-    : watchCycleService = watchCycleService ?? const WatchCycleService();
+  CycleProvider({
+    required this.cyclesApi,
+    WatchCycleService? watchCycleService,
+    CycleOngoingStore? cycleOngoingStore,
+  }) : watchCycleService = watchCycleService ?? const WatchCycleService(),
+       cycleOngoingStore = cycleOngoingStore ?? CycleOngoingStorage();
 
   bool get loading => _loading;
   String? get errorMessage => _errorMessage;
@@ -62,8 +68,9 @@ class CycleProvider extends ChangeNotifier {
         cyclesApi.currentCycle(),
         cyclesApi.listCycles(),
       ]);
-      _currentCycle = results[0] as Cycle?;
+      _currentCycle = await cycleOngoingStore.applyTo(results[0] as Cycle?);
       _cycleHistory = results[1] as List<Cycle>;
+      _syncCurrentCycleIntoHistory();
       _healthSyncFailureReason = null;
     } on ApiException catch (error) {
       _errorMessage = error.message;
@@ -78,6 +85,7 @@ class CycleProvider extends ChangeNotifier {
     DateTime? periodEndDate,
     int? cycleLength,
     int? periodLength,
+    bool periodOngoing = false,
   }) async {
     if (periodEndDate != null &&
         _dateOnly(periodEndDate).isBefore(_dateOnly(lastPeriodStart))) {
@@ -86,6 +94,7 @@ class CycleProvider extends ChangeNotifier {
       return false;
     }
 
+    final shouldMarkOngoing = periodOngoing && periodEndDate == null;
     final resolvedCycleLength = cycleLength ?? calculatedCycleLength;
     final resolvedPeriodLength =
         periodLength ?? _periodLength(lastPeriodStart, periodEndDate);
@@ -115,11 +124,26 @@ class CycleProvider extends ChangeNotifier {
           notifyListeners();
           return false;
         }
-        _currentCycle = savedCycle;
+        await cycleOngoingStore.setOngoing(
+          savedCycle.id,
+          shouldMarkOngoing && savedCycle.periodEndDate == null,
+        );
+        _currentCycle = savedCycle.copyWith(
+          periodOngoing: shouldMarkOngoing && savedCycle.periodEndDate == null,
+        );
       } else {
-        _currentCycle = await cyclesApi.createPeriod(cycle);
+        final createdCycle = await cyclesApi.createPeriod(cycle);
+        await cycleOngoingStore.setOngoing(
+          createdCycle.id,
+          shouldMarkOngoing && createdCycle.periodEndDate == null,
+        );
+        _currentCycle = createdCycle.copyWith(
+          periodOngoing:
+              shouldMarkOngoing && createdCycle.periodEndDate == null,
+        );
       }
       _cycleHistory = await cyclesApi.listCycles();
+      _syncCurrentCycleIntoHistory();
       _errorMessage = null;
       _healthSyncFailureReason = null;
       notifyListeners();
@@ -207,6 +231,15 @@ class CycleProvider extends ChangeNotifier {
 
   String _date(DateTime date) {
     return _dateOnly(date).toIso8601String().split('T').first;
+  }
+
+  void _syncCurrentCycleIntoHistory() {
+    final current = _currentCycle;
+    if (current == null || current.id.isEmpty) return;
+
+    _cycleHistory = _cycleHistory
+        .map((cycle) => cycle.id == current.id ? current : cycle)
+        .toList();
   }
 
   DateTime _dateOnly(DateTime date) {
