@@ -111,15 +111,16 @@ class InsightProvider extends ChangeNotifier {
               .where((event) => event.isLoggedWithScore)
               .toList()
             ..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
-      final currentCycle = await cycleOngoingStore.applyTo(
-        results[1] as Cycle?,
-      );
-      final history = await Future.wait(
-        (results[2] as List<Cycle>).map(cycleOngoingStore.applyTo),
-      );
+      final currentCycle = results[1] as Cycle?;
+      if (currentCycle != null && currentCycle.id.isNotEmpty) {
+        await cycleOngoingStore.setOngoing(
+          currentCycle.id,
+          currentCycle.periodOngoing && currentCycle.periodEndDate == null,
+        );
+      }
       _cycles = _mergeCycles(
         currentCycle: currentCycle,
-        history: history.whereType<Cycle>().toList(),
+        history: results[2] as List<Cycle>,
       );
       _rangeCache.clear();
       _ensureSelectedRange();

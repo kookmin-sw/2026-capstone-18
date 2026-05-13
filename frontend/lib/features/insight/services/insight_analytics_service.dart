@@ -303,6 +303,9 @@ class InsightAnalyticsService {
   String? phaseForDate(DateTime date, List<Cycle> cycles) {
     final cycle = _cycleForDate(date, cycles);
     if (cycle == null) return null;
+    if (_isDateInCurrentOngoingPeriod(date, cycle)) {
+      return 'menstrual';
+    }
 
     final start = DateTime(
       cycle.lastPeriodStart.year,
@@ -328,6 +331,10 @@ class InsightAnalyticsService {
     final day = cycleDayForEvent(event, cycles);
     if (day != null) {
       final cycle = _cycleForDate(event.detectedAt, cycles);
+      if (cycle != null &&
+          _isDateInCurrentOngoingPeriod(event.detectedAt, cycle)) {
+        return 'menstrual';
+      }
       return _phaseForDay(day, cycle?.periodLength ?? 5);
     }
 
@@ -370,6 +377,21 @@ class InsightAnalyticsService {
     }
 
     return null;
+  }
+
+  bool _isDateInCurrentOngoingPeriod(DateTime date, Cycle cycle) {
+    if (!cycle.periodOngoing || cycle.periodEndDate != null) return false;
+
+    final target = DateTime(date.year, date.month, date.day);
+    final start = DateTime(
+      cycle.lastPeriodStart.year,
+      cycle.lastPeriodStart.month,
+      cycle.lastPeriodStart.day,
+    );
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+
+    return !target.isBefore(start) && !target.isAfter(todayOnly);
   }
 
   String _phaseForDay(int day, int periodLength) {

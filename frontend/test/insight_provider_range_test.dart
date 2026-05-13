@@ -4,6 +4,7 @@ import 'package:little_signals/core/network/api_client.dart';
 import 'package:little_signals/core/storage/secure_token_storage.dart';
 import 'package:little_signals/features/cycles/data/cycles_api.dart';
 import 'package:little_signals/features/cycles/models/cycle.dart';
+import 'package:little_signals/features/cycles/services/cycle_ongoing_storage.dart';
 import 'package:little_signals/features/events/data/events_api.dart';
 import 'package:little_signals/features/events/models/stress_event.dart';
 import 'package:little_signals/features/insight/data/ai_insights_api.dart';
@@ -13,8 +14,6 @@ import 'package:little_signals/features/insight/data/range_report.dart';
 import 'package:little_signals/features/insight/insight_provider.dart';
 
 void main() {
-  // A fixed event so the provider has at least one month of data and can build
-  // a valid selectedRange without crashing.
   final baseEvent = StressEvent(
     id: 'e1',
     detectedAt: DateTime(2026, 4, 1),
@@ -33,7 +32,6 @@ void main() {
     generatedAt: DateTime(2026, 5, 1),
   );
 
-  /// Builds a provider whose range is April 2026 (single month).
   InsightProvider buildProvider({
     required _FakeAiInsightsApi aiApi,
     bool throwOnList = false,
@@ -52,7 +50,6 @@ void main() {
         final aiApi = _FakeAiInsightsApi(report: stubReport);
         final provider = buildProvider(aiApi: aiApi);
 
-        // Populate events so selectedRange is valid.
         await provider.refresh();
 
         await provider.loadRangeReport();
@@ -76,7 +73,6 @@ void main() {
         await provider.loadRangeReport();
         expect(aiApi.getRangeReportCallCount, equals(1));
 
-        // refresh() should clear the cache.
         await provider.refresh();
         await provider.loadRangeReport();
 
@@ -116,11 +112,48 @@ void main() {
       },
     );
   });
-}
 
-// ---------------------------------------------------------------------------
-// Fakes
-// ---------------------------------------------------------------------------
+  test('refresh keeps backend is_period_ongoing as server truth', () async {
+    final now = DateTime.now();
+    final cycle = Cycle(
+      id: 'cycle-ongoing',
+      lastPeriodStart: DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(const Duration(days: 13)),
+      periodEndDate: null,
+      cycleLength: 28,
+      periodLength: 5,
+      notes: null,
+      periodOngoing: true,
+    );
+    final event = StressEvent(
+      id: 'event-ongoing',
+      detectedAt: now,
+      logged: true,
+      stressScore: 64,
+      trigger: 'work',
+      note: null,
+    );
+    final ongoingStore = _FakeCycleOngoingStore();
+    final provider = InsightProvider(
+      eventsApi: _FakeEventsApi([event]),
+      cyclesApi: _FakeCyclesApi(current: cycle, history: [cycle]),
+      aiInsightsApi: _FakeAiInsightsApi(report: null),
+      cycleOngoingStore: ongoingStore,
+    );
+
+    await provider.refresh();
+
+    expect(provider.cycles.single.periodOngoing, isTrue);
+    expect(await ongoingStore.isOngoing('cycle-ongoing'), isTrue);
+    expect(
+      provider.report.phaseDistribution.highestDistributionPhase,
+      'menstrual',
+    );
+  });
+}
 
 class _FakeEventsApi extends EventsApi {
   final List<StressEvent> _events;
@@ -145,14 +178,35 @@ class _FakeEventsApi extends EventsApi {
 }
 
 class _FakeCyclesApi extends CyclesApi {
-  _FakeCyclesApi()
+  final Cycle? current;
+  final List<Cycle> history;
+
+  _FakeCyclesApi({this.current, this.history = const []})
     : super(apiClient: ApiClient(tokenStorage: SecureTokenStorage()));
 
   @override
-  Future<Cycle?> currentCycle() async => null;
+  Future<Cycle?> currentCycle() async => current;
 
   @override
-  Future<List<Cycle>> listCycles() async => const [];
+  Future<List<Cycle>> listCycles() async => history;
+}
+
+class _FakeCycleOngoingStore extends CycleOngoingStore {
+  final Set<String> _ongoingCycleIds = <String>{};
+
+  @override
+  Future<bool> isOngoing(String cycleId) async {
+    return _ongoingCycleIds.contains(cycleId);
+  }
+
+  @override
+  Future<void> setOngoing(String cycleId, bool ongoing) async {
+    if (ongoing) {
+      _ongoingCycleIds.add(cycleId);
+    } else {
+      _ongoingCycleIds.remove(cycleId);
+    }
+  }
 }
 
 class _FakeAiInsightsApi extends AiInsightsApi {

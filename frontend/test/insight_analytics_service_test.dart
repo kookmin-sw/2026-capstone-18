@@ -138,6 +138,46 @@ void main() {
     expect(report.phaseDistribution.highestDistributionPhase, 'ovulation');
   });
 
+  test(
+    'current ongoing cycle classifies current period events as menstrual',
+    () {
+      final today = DateTime.now();
+      final currentCycle = Cycle(
+        id: 'current-ongoing-cycle',
+        lastPeriodStart: DateTime(
+          today.year,
+          today.month,
+          today.day,
+        ).subtract(const Duration(days: 13)),
+        periodEndDate: null,
+        cycleLength: 28,
+        periodLength: 5,
+        notes: null,
+        periodOngoing: true,
+      );
+      final todayEvent = _event(
+        id: 'ongoing-today-event',
+        day: today,
+        score: 77,
+        phase: 'unknown',
+      );
+      final report = service.buildReport(
+        events: [todayEvent],
+        cycles: [currentCycle],
+        range: InsightDateRange(
+          start: DateTime(today.year, today.month),
+          endExclusive: DateTime(today.year, today.month + 1),
+          monthCount: 1,
+        ),
+      );
+
+      expect(_phase(report, 'menstrual').count, 1);
+      expect(_phase(report, 'menstrual').averageStress, 77);
+      expect(report.phaseDistribution.highestDistributionPhase, 'menstrual');
+      expect(service.phaseForDate(today, [currentCycle]), 'menstrual');
+    },
+  );
+
   test('events without cycle data stay out of phase aggregation', () {
     final noCycleEvent = _event(
       id: 'no-cycle-event',
