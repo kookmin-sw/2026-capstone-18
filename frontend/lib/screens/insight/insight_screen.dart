@@ -9,6 +9,7 @@ import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_title.dart';
 import '../../features/insight/insight_provider.dart';
+import '../../features/insight/services/insight_calendar_phase_resolver.dart';
 import '../../features/insight/services/insight_analytics_service.dart';
 import 'day_events_screen.dart';
 import 'cycle_stress_screen.dart';
@@ -24,17 +25,6 @@ class InsightScreen extends StatefulWidget {
 class _InsightScreenState extends State<InsightScreen> {
   DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   int? _selectedDay;
-
-  String _getPhase(int day) {
-    if (day <= 5) return 'menstrual';
-    if (day <= 13) return 'follicular';
-    if (day <= 16) return 'ovulation';
-    return 'luteal';
-  }
-
-  Color _getPhaseColor(int day) {
-    return CyclePhaseUi.of(_getPhase(day)).color.withValues(alpha: 0.45);
-  }
 
   String _topTriggerSummary(TriggerRankingItem? topTrigger) {
     if (topTrigger == null) {
@@ -332,7 +322,7 @@ class _InsightScreenState extends State<InsightScreen> {
       final date = DateTime(focusedMonth.year, focusedMonth.month, day);
       final dayEvents = insight.eventsForDay(date);
       final hasLoggedEvents = dayEvents.isNotEmpty;
-      final phaseColor = _getPhaseColor(day);
+      final phaseColor = _calendarDayColor(date, insight);
 
       cells.add(
         GestureDetector(
@@ -395,6 +385,18 @@ class _InsightScreenState extends State<InsightScreen> {
       childAspectRatio: 1,
       children: cells,
     );
+  }
+
+  Color _calendarDayColor(DateTime date, InsightProvider insight) {
+    final phase = InsightCalendarPhaseResolver.phaseForDate(
+      date: date,
+      cycles: insight.cycles,
+    );
+    if (phase == null) {
+      return AppColors.textL.withValues(alpha: 0.14);
+    }
+
+    return CyclePhaseUi.of(phase).color.withValues(alpha: 0.45);
   }
 
   DateTime _earliestCalendarMonth(InsightProvider insight) {

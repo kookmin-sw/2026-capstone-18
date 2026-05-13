@@ -990,6 +990,7 @@ class _SmokeData {
       eventsApi: eventsApi,
       cyclesApi: cyclesApi,
       aiInsightsApi: fakeAiInsightsApi,
+      cycleOngoingStore: cycleOngoingStore,
     );
     triggersProvider = TriggersProvider(categoriesApi: categoriesApi);
     sleepProvider = SleepProvider(sleepApi: sleepApi);

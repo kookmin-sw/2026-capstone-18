@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/errors/api_exception.dart';
 import '../cycles/data/cycles_api.dart';
 import '../cycles/models/cycle.dart';
+import '../cycles/services/cycle_ongoing_storage.dart';
 import '../events/data/events_api.dart';
 import '../events/models/stress_event.dart';
 import 'data/ai_insights_api.dart';
@@ -18,6 +19,7 @@ class InsightProvider extends ChangeNotifier {
   final CyclesApi cyclesApi;
   final AiInsightsApi aiInsightsApi;
   final InsightAnalyticsService analyticsService;
+  final CycleOngoingStore cycleOngoingStore;
 
   bool _loading = false;
   String? _errorMessage;
@@ -35,8 +37,10 @@ class InsightProvider extends ChangeNotifier {
     required this.eventsApi,
     required this.cyclesApi,
     required this.aiInsightsApi,
+    CycleOngoingStore? cycleOngoingStore,
     InsightAnalyticsService? analyticsService,
-  }) : analyticsService = analyticsService ?? InsightAnalyticsService();
+  }) : analyticsService = analyticsService ?? InsightAnalyticsService(),
+       cycleOngoingStore = cycleOngoingStore ?? CycleOngoingStorage();
 
   bool get loading => _loading;
   String? get errorMessage => _errorMessage;
@@ -107,9 +111,15 @@ class InsightProvider extends ChangeNotifier {
               .where((event) => event.isLoggedWithScore)
               .toList()
             ..sort((a, b) => b.detectedAt.compareTo(a.detectedAt));
+      final currentCycle = await cycleOngoingStore.applyTo(
+        results[1] as Cycle?,
+      );
+      final history = await Future.wait(
+        (results[2] as List<Cycle>).map(cycleOngoingStore.applyTo),
+      );
       _cycles = _mergeCycles(
-        currentCycle: results[1] as Cycle?,
-        history: results[2] as List<Cycle>,
+        currentCycle: currentCycle,
+        history: history.whereType<Cycle>().toList(),
       );
       _rangeCache.clear();
       _ensureSelectedRange();

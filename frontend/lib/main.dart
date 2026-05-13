@@ -182,6 +182,7 @@ class _LumaAppState extends State<LumaApp> {
             eventsApi: _eventsApi,
             cyclesApi: _cyclesApi,
             aiInsightsApi: _aiInsightsApi,
+            cycleOngoingStore: _cycleOngoingStore,
           ),
         ),
         ChangeNotifierProvider(
