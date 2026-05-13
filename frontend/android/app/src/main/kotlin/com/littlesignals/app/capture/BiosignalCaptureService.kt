@@ -111,7 +111,7 @@ class BiosignalCaptureService : Service() {
                 },
             )
 
-            val uploader = WindowUploader(client, backendBase, accessToken)
+            val uploader = WindowUploader(client, backendBase, accessToken, KeystoreBlobCipher())
             val windowHr    = mutableListOf<ScalarSample>()
             val windowPpg   = mutableListOf<ScalarSample>()
             val windowEda   = mutableListOf<ScalarSample>()

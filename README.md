@@ -276,7 +276,8 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 
 - **블롭 바이트는 백엔드를 거치지 않습니다** — 폰이 presigned URL로 S3에 직접 PUT (`generate_presigned_url("put_object", ServerSideEncryption="aws:kms")`).
 - **백엔드가 영속화하는 메타데이터**: `RawBiosignalUpload` 행은 `s3_object_key`, `signal_type`, `recorded_at`, `uploaded_at`, `expires_at`만 저장합니다. 요청 페이로드의 `byte_size`·`content_hash`는 검증용이며 DB에는 저장되지 않습니다.
-- **현재 저장 시 암호화**: SSE-KMS (AWS 관리 키 `aws/s3`). 다이어그램의 클라이언트 측 사용자 보유 DEK 암호화는 §2.1의 약속을 코드 수준으로 끌어올리기 위한 후속 작업이며, 현재 코드베이스에는 `libsodium`/`AES`/`NaCl` 의존성이 없습니다.
+- **암호화 (이중 방어)**: ① 클라이언트가 AES-256-GCM으로 블롭을 암호화 — 키는 Android Keystore에 보관되어 디바이스 밖으로 나가지 않습니다 ([BlobCipher.kt](frontend/android/app/src/main/kotlin/com/littlesignals/app/capture/BlobCipher.kt), [KeystoreBlobCipher.kt](frontend/android/app/src/main/kotlin/com/littlesignals/app/capture/KeystoreBlobCipher.kt)). ② 백엔드의 presigned URL이 `ServerSideEncryption=aws:kms`를 강제하므로 S3는 받은 사이퍼텍스트를 다시 SSE-KMS로 감쌉니다. 두 계층이 동시에 뚫리지 않는 한 원시 생체신호는 평문으로 복원되지 않습니다.
+- **디바이스 종속 트레이드오프**: 마스터 키는 단일 디바이스 설치에 묶입니다. 앱을 재설치하거나 디바이스를 초기화하면 이전 S3 블롭은 영구적으로 복호화 불가가 되며, 이는 §2.1 약속의 의도된 결과입니다.
 - **자동 만료 + 감사**: `recorded_at + 365일`. EventBridge Scheduler가 6시간 주기로 만료/동의 철회 행을 골라 S3 `delete_object`·DB row 삭제·`audit_log` 기록까지 한 번에 처리합니다 ([backend/app/jobs/purge_biosignals.py](backend/app/jobs/purge_biosignals.py)).
 
 ### 2.2 기술 스택
@@ -311,7 +312,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 | ECR (lifecycle policy 포함) | 컨테이너 이미지 레지스트리, 미사용 태그 자동 정리 |
 | RDS Postgres 15 | 관계형 데이터(`stress_events`, `cycles`, `raw_biosignal_uploads` 등) |
 | S3 `sync` (Seoul, SSE, versioning, lifecycle) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`) |
-| S3 `biosignals` (Seoul, SSE, versioning, lifecycle) | 옵트인 원시 생체신호 — 사용자 보유 키로 암호화, 서버 복호화 불가 |
+| S3 `biosignals` (Seoul, SSE-KMS, versioning, lifecycle) | 옵트인 원시 생체신호 — 디바이스 Keystore의 AES-256-GCM으로 클라이언트 측 암호화된 사이퍼텍스트만 저장 (서버 복호화 불가), S3에서 SSE-KMS로 이중 보호 |
 | EventBridge Scheduler + ECS RunTask | `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 · `weekly_reports` 토 17:00 UTC (= 일 02:00 KST, §2.8) |
 | AWS Bedrock (Anthropic Claude Haiku 4.5) | 패턴 팁 + 주간 리포트 생성, IAM에서 Haiku 4.5 인퍼런스 프로파일 + 그 하부 foundation-model에만 `InvokeModel` 허용 (§2.8) |
 | SQS DLQ + CloudWatch Metric Alarm | 스케줄러 실패 격리 + DLQ depth 알람 |
@@ -322,7 +323,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 
 ### 2.4 데이터 모델 (요약)
 
-`users`, `user_settings`, `stress_events`(하이퍼테이블, `detected_at`), `cycles`, `raw_biosignal_uploads`(하이퍼테이블, `recorded_at`, 옵트인), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `audit_log`(append-only, `(action, occurred_at)` 인덱스). 본문 자유 텍스트는 클라이언트 측에서 암호화된 상태로 저장되며, 원시 생체신호는 사용자 보유 키로 암호화된 후 S3에 업로드되어 서버는 복호화할 수 없습니다.
+`users`, `user_settings`, `stress_events`(하이퍼테이블, `detected_at`), `cycles`, `raw_biosignal_uploads`(하이퍼테이블, `recorded_at`, 옵트인), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `audit_log`(append-only, `(action, occurred_at)` 인덱스). 본문 자유 텍스트와 원시 생체신호는 클라이언트(Android Keystore 보관 AES-256-GCM 키)로 암호화된 사이퍼텍스트 상태로 S3에 저장되며 서버는 복호화할 수 없습니다.
 
 ### 2.5 API 요약
 
