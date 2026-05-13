@@ -30,6 +30,12 @@ class MyScreen extends StatelessWidget {
     final editableNickname = rawNickname(user?.name ?? '');
     final accountType = user?.accountType ?? 'anonymous';
     final cycle = cycleProvider.currentCycle;
+    void openMyTriggers() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MyTriggersScreen()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -157,12 +163,7 @@ class MyScreen extends StatelessWidget {
                                 ),
                                 const Spacer(),
                                 GestureDetector(
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const MyTriggersScreen(),
-                                    ),
-                                  ),
+                                  onTap: openMyTriggers,
                                   child: const Icon(
                                     Icons.chevron_right,
                                     color: Color(0xFFC0B0C0),
@@ -180,15 +181,11 @@ class MyScreen extends StatelessWidget {
                                     label: koTrigger(trigger.name),
                                     color: trigger.color,
                                     selected: true,
+                                    onTap: openMyTriggers,
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const MyTriggersScreen(),
-                                    ),
-                                  ),
+                                  onTap: openMyTriggers,
                                   child: const TriggerChip(
                                     label: '+ 추가',
                                     color: AppColors.primary,

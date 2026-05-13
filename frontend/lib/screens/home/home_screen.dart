@@ -352,7 +352,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             value: cycleDay,
                             caption: hasCycle
                                 ? ''
-                                : '최근 생리 시작일을 추가하거나 워치와 동기화해요',
+                                : '최근 생리 시작일을 추가하거나 건강 데이터에서 불러와요',
                             captionColor: hasCycle
                                 ? AppColors.textL
                                 : AppColors.primary,
@@ -387,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           SizedBox(height: 10),
                           Text(
-                            '최근 생리 시작일을 추가하거나 워치와 동기화하면 주기 흐름을 더 부드럽게 살펴볼 수 있어요.',
+                            '최근 생리 시작일을 추가하거나 건강 데이터에서 불러와요',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 13,
