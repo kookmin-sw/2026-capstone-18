@@ -10,6 +10,8 @@ import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_title.dart';
 import '../../core/widgets/soft_primary_button.dart';
 import '../../features/cycles/cycle_provider.dart';
+import '../../features/health/health_connect_exception.dart';
+import '../../features/health/health_connect_permission_sheet.dart';
 import '../../features/home/home_provider.dart';
 import '../../features/insight/insight_provider.dart';
 
@@ -245,6 +247,11 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
           periodEnd = previousEnd;
           _syncingCycle = false;
         });
+        if (cycleProvider.healthSyncFailureReason ==
+            HealthConnectFailureReason.permissionDenied) {
+          await _requestCyclePermissionAndRetry();
+          return;
+        }
         final message =
             cycleProvider.errorMessage ?? '주기 데이터를 동기화하지 못했어요. 다시 시도해 주세요.';
         messenger.showSnackBar(SnackBar(content: Text(message)));
@@ -257,7 +264,7 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
         _syncingCycle = false;
       });
 
-      await _saveCycle(successMessage: 'Galaxy Watch에서 주기 데이터를 불러와 저장했어요.');
+      await _saveCycle(successMessage: '건강 데이터에서 주기 기록을 불러왔어요.');
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -267,6 +274,27 @@ class _MyCycleScreenState extends State<MyCycleScreen> {
       });
       messenger.showSnackBar(
         const SnackBar(content: Text('주기 데이터를 동기화하지 못했어요. 다시 시도해 주세요.')),
+      );
+    }
+  }
+
+  Future<void> _requestCyclePermissionAndRetry() async {
+    final shouldRequest = await showHealthConnectPermissionSheet(context);
+    if (!mounted || !shouldRequest) return;
+
+    final cycleProvider = context.read<CycleProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final granted = await cycleProvider.requestHealthConnectPermission();
+
+    if (!mounted) return;
+
+    if (granted) {
+      await _syncCycleFromGalaxyWatch();
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(cycleProvider.errorMessage ?? '건강 데이터 접근 권한이 필요해요.'),
+        ),
       );
     }
   }
@@ -1123,7 +1151,7 @@ class _WatchSyncSection extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: const Icon(
-              Icons.watch_outlined,
+              Icons.favorite_border_rounded,
               size: 20,
               color: Color(0xFFB87888),
             ),
@@ -1133,10 +1161,10 @@ class _WatchSyncSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Galaxy Watch와 동기화', style: AppTextStyles.cardTitle),
+                const Text('건강 데이터와 동기화', style: AppTextStyles.cardTitle),
                 const SizedBox(height: 5),
                 const Text(
-                  'Galaxy Watch의 생리 주기 흐름을 불러와요.',
+                  'Health Connect의 생리 주기 기록을 불러와요.',
                   style: AppTextStyles.caption,
                 ),
                 const SizedBox(height: 12),

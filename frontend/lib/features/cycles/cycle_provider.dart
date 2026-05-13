@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/errors/api_exception.dart';
+import '../health/health_connect_exception.dart';
 import 'data/cycles_api.dart';
 import 'models/cycle.dart';
 import 'models/watch_cycle_data.dart';
@@ -12,6 +13,7 @@ class CycleProvider extends ChangeNotifier {
 
   bool _loading = false;
   String? _errorMessage;
+  HealthConnectFailureReason? _healthSyncFailureReason;
   Cycle? _currentCycle;
   List<Cycle> _cycleHistory = [];
 
@@ -20,6 +22,8 @@ class CycleProvider extends ChangeNotifier {
 
   bool get loading => _loading;
   String? get errorMessage => _errorMessage;
+  HealthConnectFailureReason? get healthSyncFailureReason =>
+      _healthSyncFailureReason;
   Cycle? get currentCycle => _currentCycle;
   List<Cycle> get cycleHistory => List.unmodifiable(_cycleHistory);
   bool get hasCycleLengthHistory => _cycleIntervals().isNotEmpty;
@@ -60,6 +64,7 @@ class CycleProvider extends ChangeNotifier {
       ]);
       _currentCycle = results[0] as Cycle?;
       _cycleHistory = results[1] as List<Cycle>;
+      _healthSyncFailureReason = null;
     } on ApiException catch (error) {
       _errorMessage = error.message;
     }
@@ -101,6 +106,7 @@ class CycleProvider extends ChangeNotifier {
       }
       _cycleHistory = await cyclesApi.listCycles();
       _errorMessage = null;
+      _healthSyncFailureReason = null;
       notifyListeners();
       return true;
     } on ApiException catch (error) {
@@ -114,15 +120,41 @@ class CycleProvider extends ChangeNotifier {
     try {
       final data = await watchCycleService.getLatestCycleData();
       if (data == null || data.periodEnd == null) {
-        _errorMessage = '주기 데이터를 동기화하지 못했어요. 다시 시도해 주세요.';
+        _setHealthSyncError(HealthConnectFailureReason.noData);
         return null;
       }
 
       _errorMessage = null;
+      _healthSyncFailureReason = null;
       return data;
-    } catch (_) {
-      _errorMessage = '주기 데이터를 동기화하지 못했어요. 다시 시도해 주세요.';
+    } on HealthConnectException catch (error) {
+      _setHealthSyncError(error.reason);
       return null;
+    } catch (_) {
+      _setHealthSyncError(HealthConnectFailureReason.nativeError);
+      return null;
+    }
+  }
+
+  Future<bool> requestHealthConnectPermission() async {
+    try {
+      final granted = await watchCycleService.requestPermission();
+      if (granted) {
+        _errorMessage = null;
+        _healthSyncFailureReason = null;
+      } else {
+        _setHealthSyncError(HealthConnectFailureReason.permissionDenied);
+      }
+      notifyListeners();
+      return granted;
+    } on HealthConnectException catch (error) {
+      _setHealthSyncError(error.reason);
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _setHealthSyncError(HealthConnectFailureReason.nativeError);
+      notifyListeners();
+      return false;
     }
   }
 
@@ -163,9 +195,21 @@ class CycleProvider extends ChangeNotifier {
     return dateOnly.toIso8601String().split('T').first;
   }
 
+  void _setHealthSyncError(HealthConnectFailureReason reason) {
+    _healthSyncFailureReason = reason;
+    _errorMessage = switch (reason) {
+      HealthConnectFailureReason.permissionDenied => '건강 데이터 접근 권한이 필요해요.',
+      HealthConnectFailureReason.noData => '불러올 주기 기록이 아직 없어요. 수동으로 입력해 주세요.',
+      HealthConnectFailureReason.unavailable => '이 기기에서는 건강 데이터 연동을 사용할 수 없어요.',
+      HealthConnectFailureReason.nativeError =>
+        '주기 데이터를 동기화하지 못했어요. 다시 시도해 주세요.',
+    };
+  }
+
   void clearSessionData() {
     _loading = false;
     _errorMessage = null;
+    _healthSyncFailureReason = null;
     _currentCycle = null;
     _cycleHistory = [];
     notifyListeners();

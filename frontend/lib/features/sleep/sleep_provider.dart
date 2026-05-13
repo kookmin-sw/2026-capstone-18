@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/errors/api_exception.dart';
+import '../health/health_connect_exception.dart';
 import 'data/sleep_api.dart';
 import 'models/sleep_log.dart';
 import 'services/watch_sleep_service.dart';
@@ -11,6 +12,7 @@ class SleepProvider extends ChangeNotifier {
 
   bool _loading = false;
   String? _errorMessage;
+  HealthConnectFailureReason? _healthSyncFailureReason;
   SleepLog? _latestLog;
   List<SleepLog> _history = [];
 
@@ -22,6 +24,9 @@ class SleepProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   String? get message => _errorMessage;
+
+  HealthConnectFailureReason? get healthSyncFailureReason =>
+      _healthSyncFailureReason;
 
   SleepLog? get latestLog => _latestLog;
 
@@ -52,6 +57,7 @@ class SleepProvider extends ChangeNotifier {
         await sleepApi.listSleepLogs(start: start, end: end),
       );
       _latestLog = _firstOrNull(_history);
+      _healthSyncFailureReason = null;
     } on ApiException catch (error) {
       _errorMessage = error.message;
     }
@@ -64,6 +70,7 @@ class SleepProvider extends ChangeNotifier {
     try {
       _latestLog = await sleepApi.getLatestSleepLog();
       _errorMessage = null;
+      _healthSyncFailureReason = null;
     } on ApiException catch (error) {
       _errorMessage = error.message;
     }
@@ -80,6 +87,7 @@ class SleepProvider extends ChangeNotifier {
       _latestLog = _firstOrNull(_history);
 
       _errorMessage = null;
+      _healthSyncFailureReason = null;
     } on ApiException catch (error) {
       _errorMessage = error.message;
     }
@@ -104,6 +112,7 @@ class SleepProvider extends ChangeNotifier {
 
       _upsert(saved);
       _errorMessage = null;
+      _healthSyncFailureReason = null;
 
       notifyListeners();
       return true;
@@ -121,6 +130,7 @@ class SleepProvider extends ChangeNotifier {
 
       _upsert(saved);
       _errorMessage = null;
+      _healthSyncFailureReason = null;
 
       notifyListeners();
       return true;
@@ -141,6 +151,7 @@ class SleepProvider extends ChangeNotifier {
       _latestLog = _firstOrNull(_sortedByLatest(_history));
 
       _errorMessage = null;
+      _healthSyncFailureReason = null;
 
       notifyListeners();
       return true;
@@ -157,7 +168,7 @@ class SleepProvider extends ChangeNotifier {
       final data = await watchSleepService.getLatestSleepData();
 
       if (data == null) {
-        _errorMessage = '수면 데이터를 동기화하지 못했어요. 다시 시도해 주세요.';
+        _setHealthSyncError(HealthConnectFailureReason.noData);
         notifyListeners();
         return false;
       }
@@ -167,11 +178,48 @@ class SleepProvider extends ChangeNotifier {
         wokeUpAt: data.wokeUpAt,
         endedOn: data.endedOn,
       );
+    } on HealthConnectException catch (error) {
+      _setHealthSyncError(error.reason);
+      notifyListeners();
+      return false;
     } catch (_) {
-      _errorMessage = '수면 데이터를 동기화하지 못했어요. 다시 시도해 주세요.';
+      _setHealthSyncError(HealthConnectFailureReason.nativeError);
       notifyListeners();
       return false;
     }
+  }
+
+  Future<bool> requestHealthConnectPermission() async {
+    try {
+      final granted = await watchSleepService.requestPermission();
+      if (granted) {
+        _errorMessage = null;
+        _healthSyncFailureReason = null;
+      } else {
+        _setHealthSyncError(HealthConnectFailureReason.permissionDenied);
+      }
+      notifyListeners();
+      return granted;
+    } on HealthConnectException catch (error) {
+      _setHealthSyncError(error.reason);
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _setHealthSyncError(HealthConnectFailureReason.nativeError);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void _setHealthSyncError(HealthConnectFailureReason reason) {
+    _healthSyncFailureReason = reason;
+    _errorMessage = switch (reason) {
+      HealthConnectFailureReason.permissionDenied => '건강 데이터 접근 권한이 필요해요.',
+      HealthConnectFailureReason.noData => '불러올 수면 기록이 아직 없어요.',
+      HealthConnectFailureReason.unavailable => '이 기기에서는 건강 데이터 연동을 사용할 수 없어요.',
+      HealthConnectFailureReason.nativeError =>
+        '수면 데이터를 동기화하지 못했어요. 다시 시도해 주세요.',
+    };
   }
 
   void _upsert(SleepLog sleepLog) {
@@ -195,6 +243,7 @@ class SleepProvider extends ChangeNotifier {
   void clearSessionData() {
     _loading = false;
     _errorMessage = null;
+    _healthSyncFailureReason = null;
     _latestLog = null;
     _history = [];
     notifyListeners();

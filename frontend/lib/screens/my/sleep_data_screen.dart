@@ -8,6 +8,8 @@ import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_title.dart';
 import '../../core/widgets/soft_primary_button.dart';
+import '../../features/health/health_connect_exception.dart';
+import '../../features/health/health_connect_permission_sheet.dart';
 import '../../features/sleep/models/sleep_log.dart';
 import '../../features/sleep/services/sleep_insight_service.dart';
 import '../../features/sleep/sleep_provider.dart';
@@ -65,6 +67,14 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
         messenger.showSnackBar(
           const SnackBar(content: Text('건강 데이터에서 수면 기록을 불러왔어요.')),
         );
+      } else if (sleepProvider.healthSyncFailureReason ==
+          HealthConnectFailureReason.permissionDenied) {
+        if (mounted) {
+          setState(() {
+            _syncingSleep = false;
+          });
+        }
+        await _requestSleepPermissionAndRetry();
       } else {
         messenger.showSnackBar(
           SnackBar(
@@ -80,6 +90,27 @@ class _SleepDataScreenState extends State<SleepDataScreen> {
           _syncingSleep = false;
         });
       }
+    }
+  }
+
+  Future<void> _requestSleepPermissionAndRetry() async {
+    final shouldRequest = await showHealthConnectPermissionSheet(context);
+    if (!mounted || !shouldRequest) return;
+
+    final sleepProvider = context.read<SleepProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final granted = await sleepProvider.requestHealthConnectPermission();
+
+    if (!mounted) return;
+
+    if (granted) {
+      await _syncSleepFromHealthData();
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(sleepProvider.errorMessage ?? '건강 데이터 접근 권한이 필요해요.'),
+        ),
+      );
     }
   }
 

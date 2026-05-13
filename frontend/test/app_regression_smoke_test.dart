@@ -328,7 +328,7 @@ void main() {
     await tester.pumpAndSettle();
     _expectNoFlutterException(tester);
 
-    expect(find.text('Galaxy Watch에서 주기 데이터를 불러와 저장했어요.'), findsOneWidget);
+    expect(find.text('건강 데이터에서 주기 기록을 불러왔어요.'), findsOneWidget);
     expect(find.text(koFullDate(watchStart)), findsOneWidget);
     expect(find.text(koFullDate(watchEnd)), findsOneWidget);
     expect(data.cycleProvider.currentCycle!.lastPeriodStart, watchStart);
@@ -355,7 +355,7 @@ void main() {
     await tester.pumpAndSettle();
     _expectNoFlutterException(tester);
 
-    expect(find.text('주기 데이터를 동기화하지 못했어요. 다시 시도해 주세요.'), findsOneWidget);
+    expect(find.text('불러올 주기 기록이 아직 없어요. 수동으로 입력해 주세요.'), findsOneWidget);
     expect(find.text(koFullDate(initialStart)), findsOneWidget);
     expect(find.text(koFullDate(initialEnd)), findsOneWidget);
   });
@@ -381,7 +381,7 @@ void main() {
     await tester.ensureVisible(cycleMenuIcon.first);
     await tester.tap(cycleMenuIcon.first);
     await tester.pumpAndSettle();
-    expect(find.text('Galaxy Watch와 동기화'), findsOneWidget);
+    expect(find.text('건강 데이터와 동기화'), findsOneWidget);
 
     final initialStart = data.cycleProvider.currentCycle!.lastPeriodStart;
     final updatedStart = _differentVisibleCycleDate(initialStart);
@@ -402,7 +402,7 @@ void main() {
     _expectNoFlutterException(tester);
 
     expect(find.text('주기 기록이 저장되었어요.'), findsOneWidget);
-    expect(find.text('Galaxy Watch와 동기화'), findsOneWidget);
+    expect(find.text('건강 데이터와 동기화'), findsOneWidget);
     expect(find.text('저장하기'), findsNothing);
     expect(data.cycleProvider.currentCycle!.lastPeriodStart, updatedStart);
     expect(data.homeProvider.currentCycle!.lastPeriodStart, updatedStart);
@@ -483,7 +483,7 @@ void main() {
     await tester.pumpAndSettle();
     _expectNoFlutterException(tester);
 
-    expect(find.text('Galaxy Watch와 동기화'), findsOneWidget);
+    expect(find.text('건강 데이터와 동기화'), findsOneWidget);
     expect(find.text('생리 주기 정보를 저장하지 못했어요.'), findsOneWidget);
     expect(find.text('저장하기'), findsNothing);
     expect(data.cycleProvider.currentCycle!.lastPeriodStart, initialStart);

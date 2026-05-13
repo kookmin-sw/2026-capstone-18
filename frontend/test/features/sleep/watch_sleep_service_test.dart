@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:little_signals/features/health/health_connect_exception.dart';
 import 'package:little_signals/features/sleep/services/watch_sleep_service.dart';
 
 void main() {
@@ -15,14 +16,14 @@ void main() {
   test('returns WatchSleepData mapped from channel response', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      expect(call.method, 'getLatestSleepData');
-      return {
-        'fell_asleep_at_ms': 1700000000000,
-        'woke_up_at_ms': 1700028800000,
-        'ended_on_ms': 1700028800000,
-        'source': 'Galaxy Watch',
-      };
-    });
+          expect(call.method, 'getLatestSleepData');
+          return {
+            'fell_asleep_at_ms': 1700000000000,
+            'woke_up_at_ms': 1700028800000,
+            'ended_on_ms': 1700028800000,
+            'source': 'Galaxy Watch',
+          };
+        });
 
     final result = await const WatchSleepService().getLatestSleepData();
     expect(result, isNotNull);
@@ -38,5 +39,35 @@ void main() {
 
     final result = await const WatchSleepService().getLatestSleepData();
     expect(result, isNull);
+  });
+
+  test('maps native failure reasons from platform errors', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          throw PlatformException(code: 'permission_denied');
+        });
+
+    await expectLater(
+      const WatchSleepService().getLatestSleepData(),
+      throwsA(
+        isA<HealthConnectException>().having(
+          (error) => error.reason,
+          'reason',
+          HealthConnectFailureReason.permissionDenied,
+        ),
+      ),
+    );
+  });
+
+  test('requests sleep permission through health channel', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          expect(call.method, 'requestHealthPermissions');
+          expect(call.arguments, {'kind': 'sleep'});
+          return {'granted': true};
+        });
+
+    final result = await const WatchSleepService().requestPermission();
+    expect(result, isTrue);
   });
 }
