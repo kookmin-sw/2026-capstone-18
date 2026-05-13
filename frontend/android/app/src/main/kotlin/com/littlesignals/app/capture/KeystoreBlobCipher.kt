@@ -2,6 +2,7 @@ package com.littlesignals.app.capture
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import java.security.KeyStore
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -22,23 +23,41 @@ class KeystoreBlobCipher(
     companion object {
         const val ALIAS = "little_signals_biosignal_v1"
         private const val PROVIDER = "AndroidKeyStore"
+        private const val KEY_SIZE_BITS = 256
 
+        @Synchronized
         private fun loadOrCreateKey(): SecretKey {
             val ks = KeyStore.getInstance(PROVIDER).apply { load(null) }
-            (ks.getEntry(ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+            val existing = ks.getEntry(ALIAS, null)
+            if (existing != null) {
+                return (existing as? KeyStore.SecretKeyEntry)?.secretKey
+                    ?: throw IllegalStateException(
+                        "AndroidKeyStore alias '$ALIAS' is occupied by a non-SecretKey entry",
+                    )
+            }
+            return generateKey(strongBox = true)
+                ?: generateKey(strongBox = false)
+                ?: error("AndroidKeyStore key generation failed for alias '$ALIAS'")
+        }
+
+        private fun generateKey(strongBox: Boolean): SecretKey? {
             val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, PROVIDER)
-            gen.init(
-                KeyGenParameterSpec.Builder(
-                    ALIAS,
-                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-                )
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(256)
-                    .setRandomizedEncryptionRequired(true)
-                    .build(),
+            val spec = KeyGenParameterSpec.Builder(
+                ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
             )
-            return gen.generateKey()
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(KEY_SIZE_BITS)
+                .setRandomizedEncryptionRequired(true)
+                .apply { if (strongBox) setIsStrongBoxBacked(true) }
+                .build()
+            return try {
+                gen.init(spec)
+                gen.generateKey()
+            } catch (_: StrongBoxUnavailableException) {
+                null
+            }
         }
     }
 }
