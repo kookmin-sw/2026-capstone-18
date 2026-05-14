@@ -13,7 +13,7 @@
 | App framework | Flutter / Dart |
 | State management | Provider |
 | Backend communication | REST API client layer |
-| Push registration | Firebase Messaging / FCM |
+| Push infrastructure | Firebase Messaging / FCM token registration + unregister |
 | Auth frontend flow | Anonymous auth, Google Sign-In frontend flow |
 | Health data import | Android Health Connect via MethodChannel |
 | Native bridge | MethodChannel / EventChannel |
@@ -58,13 +58,13 @@ frontend/
 - AI selected-period report card/detail UI
 - Profile / nickname editing
 - Notification permission
-- FCM device token registration
+- FCM device token registration/unregister infrastructure
 - WebSocket realtime event handling
 - Watch / biosignal capture UI
 - Raw biosignal consent toggle
 - Capture source picker
 - Capture status / summary screen
-- Phone-side native ONNX stress detection prototype
+- Phone-side native ONNX stress detection path
 - AES-GCM encrypted raw biosignal window upload
 - Korean UI copy polish
 - Regression smoke tests
@@ -82,13 +82,15 @@ Frontend에서 사용하는 주요 backend API는 다음과 같습니다.
 | Trigger/category | `/api/v1/categories` |
 | Consent | `/api/v1/consent` |
 | Sleep logs | `/api/v1/sleep-logs/latest`, `/api/v1/sleep-logs` |
-| FCM device token | `/api/v1/devices/fcm-token` |
+| FCM device token | `POST /api/v1/devices/fcm-token`, `DELETE /api/v1/devices/fcm-token` |
 | AI selected-period report | `/api/v1/reports/range` |
 | Realtime events | `WSS /ws/realtime` |
 | Biosignal batch metadata | `/api/v1/sync/biosignals/batch` |
-| Raw biosignal object upload | presigned S3 PUT upload flow |
+| Raw biosignal object upload | encrypted ciphertext via presigned S3 PUT upload flow |
 
 `/ws/realtime`은 backend-to-Flutter realtime channel입니다. Client는 WebSocket 연결 후 첫 JSON message로 `{"type":"auth","token":"..."}`를 전송합니다. Watch-to-phone communication은 WebSocket이 아니라 Wear Data Layer를 사용합니다.
+
+FCM은 현재 device token registration, logout/account-switch unregister, foreground/background notification entry path를 위한 push infrastructure로 연결되어 있습니다. 전체 알림 제품 로직(그룹핑, retry policy, notification preference/cooldown UX 전체)을 production-complete notification system으로 주장하지 않습니다.
 
 ## Health Connect Import
 
@@ -102,7 +104,7 @@ Sleep/Cycle sync UX는 Health Connect import flow입니다. Galaxy Watch raw bio
 
 ## Native Capture Infrastructure
 
-Luma frontend에는 wearable-oriented biosignal capture infrastructure가 포함되어 있습니다. 이 범위는 raw biosignal capture/upload UX와 phone-side native integration을 설명합니다.
+Luma frontend에는 wearable-oriented biosignal capture infrastructure가 포함되어 있습니다. 이 범위는 raw biosignal capture/upload UX, Watch-to-phone Wear Data Layer streaming, phone-side native ONNX inference path를 설명합니다.
 
 - Flutter `BiosignalCaptureService`
   - `MethodChannel('littlesignals/capture')`
@@ -129,7 +131,7 @@ Luma frontend에는 wearable-oriented biosignal capture infrastructure가 포함
   - `/api/v1/sync/biosignals/batch` 호출
   - backend가 반환한 presigned S3 PUT URL로 ciphertext payload 업로드
 
-이 capture path는 capstone demo를 위한 wearable-oriented prototype pipeline입니다. Sleep/Cycle Health Connect import와 섞지 않습니다.
+이 capture path는 capstone demo에서 보여줄 수 있는 wearable-oriented capture/inference/upload pipeline입니다. Watch는 sensor/streaming node이고, Android phone native layer가 inference/upload node입니다. Sleep/Cycle Health Connect import와 섞지 않습니다.
 
 ```mermaid
 flowchart LR

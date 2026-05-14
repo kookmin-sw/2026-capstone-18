@@ -160,7 +160,7 @@ Watch는 sensor node입니다. Phone native layer가 inference node입니다. Ba
 - `/api/v1/consent`
 - `/api/v1/sleep-logs/latest`
 - `/api/v1/sleep-logs`
-- `/api/v1/devices/fcm-token`
+- `/api/v1/devices/fcm-token` registration/unregister
 - `/api/v1/reports/range`
 - `/api/v1/sync/biosignals/batch`
 - `/ws/realtime`
@@ -225,10 +225,11 @@ Flutter maps native errors to product copy:
 
 Watch/Biosignal capture는 Health Connect import와 별도입니다.
 
-구현된 phone-side native infrastructure:
+구현된 Watch/phone native capture pipeline:
 
 - Android foreground capture service
 - Wear Data Layer start/stop/sample/end messages
+- Watch-side `RemoteCaptureService`, `WatchControlListener`, `WearPhoneSender`
 - Watch source and synthetic source
 - Sample buffering
 - 300초 buffer 기반 phone-side ONNX inference
@@ -237,9 +238,9 @@ Watch/Biosignal capture는 Health Connect import와 별도입니다.
 - 1분 raw window upload
 - Android Keystore-backed AES-GCM encryption
 - `/api/v1/sync/biosignals/batch`
-- presigned S3 PUT upload
+- presigned S3 PUT upload of encrypted ciphertext
 
-이 기능은 wearable-oriented realtime stress detection prototype입니다. 발표에서는 “prototype / infrastructure implemented”로 설명하고, “production-ready clinical detector”처럼 표현하지 않습니다.
+이 기능은 wearable-oriented realtime stress detection pipeline입니다. 발표에서는 “Watch-to-phone biosignal streaming과 phone-side ONNX inference path가 구현되어 있습니다” 또는 “wearable realtime stress event pipeline implemented”로 설명할 수 있습니다. 다만 clinical/production reliability가 검증된 완성형 detector처럼 표현하지 않습니다.
 
 ---
 
@@ -258,7 +259,7 @@ Backend -> Flutter foreground
   WebSocket /ws/realtime
 
 Backend -> Device background
-  FCM data message + local notification
+  FCM token / push notification infrastructure
 
 Sleep/Cycle import
   Health Connect MethodChannel, not realtime
@@ -278,6 +279,8 @@ Frontend handles:
 
 수신한 realtime envelope에 event id만 있으면 frontend는 backend에서 event detail을 fetch하고 provider state에 반영합니다.
 
+FCM은 device token registration, logout/account-switch unregister, background push entry path를 위한 infrastructure로 연결되어 있습니다. 다만 notification grouping, retry policy, user preference/cooldown UX까지 포함한 production-complete notification product layer로 표현하지 않습니다.
+
 ---
 
 ## Demo-safe Wording
@@ -286,10 +289,11 @@ Frontend handles:
 
 - “Health Connect 기반 수면/주기 import가 구현되어 있습니다.”
 - “Galaxy Watch는 sensor node, Android phone native layer는 inference node입니다.”
-- “Wear Data Layer 기반 watch-to-phone biosignal streaming infrastructure가 구현되어 있습니다.”
+- “Wear Data Layer 기반 watch-to-phone biosignal streaming이 구현되어 있습니다.”
 - “Phone-side ONNX inference path와 stress event creation path가 구현되어 있습니다.”
 - “Raw biosignal upload payload는 Android Keystore 기반 AES-GCM으로 암호화됩니다.”
 - “Backend realtime은 `/ws/realtime`, background notification은 FCM을 사용합니다.”
+- “FCM token registration/unregister와 push notification infrastructure가 구현되어 있습니다.”
 
 피해야 할 표현:
 
@@ -298,3 +302,4 @@ Frontend handles:
 - “모든 free-text user data가 client-side encrypted입니다.”
 - “완성된 production wearable stress detector입니다.”
 - “FCM notification이 항상 realtime으로 보장됩니다.”
+- “완성형 production notification product layer가 모두 구현되어 있습니다.”
