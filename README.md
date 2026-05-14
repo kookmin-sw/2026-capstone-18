@@ -379,6 +379,10 @@ poetry run mypy app/
 
 ### 2.7 스테이징 배포
 
+기본 배포 경로는 GitHub Actions 워크플로 [`deploy-staging.yml`](.github/workflows/deploy-staging.yml) (OIDC → ECR buildx push → Alembic 일회성 태스크 → ECS 롤링 디플로이 → `make smoke-staging`). `master` 머지 또는 `workflow_dispatch`로 트리거됩니다.
+
+아래 명령은 **최초 부트스트랩 또는 인프라/시크릿 변경 시의 수동 경로**입니다 (워크플로가 ECR 푸시 + Alembic + ECS 업데이트만 담당하므로, Terraform이나 시크릿 회전은 여전히 수동):
+
 ```bash
 cd backend
 AWS_PROFILE=little-signals-staging ./scripts/bootstrap-terraform-state.sh
