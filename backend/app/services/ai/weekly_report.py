@@ -83,6 +83,7 @@ class WeeklyReportGenerator:
                 CycleSnapshot(
                     period_start_date=c.period_start_date,
                     cycle_length_days=c.cycle_length_days or 28,
+                    is_period_ongoing=c.is_period_ongoing,
                 )
                 for c in cycles_rows
             ]
