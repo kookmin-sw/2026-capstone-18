@@ -17,6 +17,7 @@ from app.services.cycle_phase import compute_phase
 class CycleSnapshot:
     period_start_date: date
     cycle_length_days: int
+    is_period_ongoing: bool = False
 
 
 PhaseTuple = tuple[str, int]
@@ -47,6 +48,7 @@ def classify(*, cycles: list[CycleSnapshot]) -> Callable[[datetime], PhaseTuple]
                     today=target,
                     period_start_date=cyc.period_start_date,
                     cycle_length_days=length,
+                    is_period_ongoing=cyc.is_period_ongoing,
                 )
         return ("pre_period", 0)
 

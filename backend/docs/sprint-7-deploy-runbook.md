@@ -83,3 +83,34 @@ aws scheduler update-schedule \
 If the audit_log table itself is the problem, the migration is reversible
 via `alembic downgrade -1`. Hard-deletes already executed are not
 recoverable.
+
+---
+
+## Before any demo — pre-warm AI report cache
+
+`/reports/range` and `/reports/weekly` call AWS Bedrock at request time on
+the first viewer query for any (user, range) tuple. To avoid live-Bedrock
+surprises during a presentation, pre-populate the cache before going on
+stage:
+
+```bash
+export DEMO_USER_ID=<users.id-uuid>
+cd backend && make prewarm-demo
+```
+
+Verify rows exist for the demo user before the demo:
+
+```sql
+SELECT period_start, period_end, generated_at
+FROM range_reports
+WHERE user_id = '<DEMO_USER_ID>'
+ORDER BY generated_at DESC LIMIT 5;
+
+SELECT week_start, generated_at
+FROM weekly_reports
+WHERE user_id = '<DEMO_USER_ID>'
+ORDER BY generated_at DESC LIMIT 3;
+```
+
+If rows are missing, Bedrock is unreachable or `ai_features_enabled` is
+`false`. Debug before the demo, not during it.

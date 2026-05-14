@@ -8,7 +8,8 @@ TEST_DATABASE_URL ?= postgresql+asyncpg://little_signals:dev_only_password@local
 
 .PHONY: help install run test test-fast lint format typecheck migrate migrate-test migrate-staging \
         db-up db-down db-logs check clean \
-        docker-build ecr-login ecr-push smoke-staging smoke-sprint-8a _require-ecr-url
+        docker-build ecr-login ecr-push smoke-staging smoke-sprint-8a _require-ecr-url \
+        prewarm-demo
 
 help:  ## Show this help.
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -92,3 +93,9 @@ smoke-staging:  ## Check staging health and DB readiness.
 
 smoke-sprint-8a:  ## Run sprint-8a observability smoke against staging.
 	./scripts/sprint-8a-smoke.sh
+
+prewarm-demo:  ## Pre-generate AI range/weekly reports for demo user (DEMO_USER_ID required).
+	@if [ -z "$$DEMO_USER_ID" ]; then \
+		echo "DEMO_USER_ID not set — export it before running (e.g. export DEMO_USER_ID=<user-uuid>)"; exit 2; \
+	fi
+	PYTHONPATH=. poetry run python scripts/prewarm_demo_reports.py

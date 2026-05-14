@@ -14,5 +14,9 @@ class NotificationsApi {
   }
 
   Future<void> unregisterDeviceToken(String token) async {
+    await _apiClient.delete(
+      '/api/v1/devices/fcm-token',
+      body: {'token': token},
+    );
   }
 }
