@@ -41,7 +41,9 @@ check: lint typecheck test  ## Run lint + typecheck + tests. Mirrors CI.
 migrate:  ## Apply Alembic migrations to the dev DB.
 	DATABASE_URL="$(DATABASE_URL)" poetry run alembic upgrade head
 
-migrate-test:  ## Apply Alembic migrations to the test DB.
+migrate-test:  ## Apply Alembic migrations to the test DB (creates the DB first if it does not exist).
+	@psql "postgresql://little_signals:dev_only_password@localhost:5432/postgres" -tAc "SELECT 1 FROM pg_database WHERE datname='little_signals_test'" | grep -q 1 \
+	  || psql "postgresql://little_signals:dev_only_password@localhost:5432/postgres" -c "CREATE DATABASE little_signals_test"
 	DATABASE_URL="$(TEST_DATABASE_URL)" poetry run alembic upgrade head
 
 migrate-staging:  ## Run staging migrations via the existing run-staging-migration.sh.

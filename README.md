@@ -163,7 +163,7 @@
 | 하드웨어 | Android 폰 (Galaxy Z Flip 5 등) | Flutter 앱 실기기 테스트 | Frontend | — |
 | SDK | Samsung Health Sensor SDK 1.4.1 (`samsung-health-sensor-api-1.4.1.aar`) | Watch 센서 채널 접근 | Watch | 저장소에 포함 |
 
-각 도구의 정확한 버전 핀은 `backend/pyproject.toml`, `backend/infra/versions.tf`, `frontend/pubspec.yaml`, `watch/sensor-capture/build.gradle.kts`에서 확인합니다.
+각 도구의 정확한 버전 핀은 `backend/pyproject.toml`, `backend/infra/main.tf` (`terraform { required_version = ">= 1.7.0" }`), `frontend/pubspec.yaml`, `watch/sensor-capture/build.gradle.kts`에서 확인합니다.
 
 ---
 
@@ -307,7 +307,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 | :--- | :--- |
 | VPC (퍼블릭/프라이빗 서브넷, IGW, NAT Gateway, EIP) | 3-AZ 네트워킹 (각 AZ에 퍼블릭/프라이빗 서브넷 1개씩), 단일 NAT GW로 비용 최적화, 프라이빗 서브넷에서 ECS·RDS 가동 |
 | 보안 그룹 (`alb`, `ecs`, `rds`) | ALB→ECS→RDS 단방향 트래픽 경계 |
-| Application Load Balancer | `/api/v1/*`, `/ws/realtime`, `/admin/*` 라우팅 (HTTP→HTTPS 리다이렉트) |
+| Application Load Balancer | HTTPS(443) 단일 default forward → `backend` target group, HTTP(80)→HTTPS(443) 301 리다이렉트 (`backend/infra/alb.tf`). 경로 기반 라우팅은 ML 데모(`/api/v1/ml-demo/*` → `ml_demo` target group, `backend/infra/ml_demo.tf`)만 별도 listener rule로 분리 |
 | ACM 인증서 + Route53 | `api-staging.friendlykr.com` TLS, DNS 검증 자동화, A 레코드 자동 등록 |
 | ECS Fargate (desired_count = 1, 512 CPU / 1024 MiB) + ECS Cluster | FastAPI 애플리케이션 + WebSocket 호스팅 (오토스케일링 미설정 — 베타 코호트 100명 규모에 맞춘 단일 태스크) |
 | ECS Task Definition (`backend`, `cron`) | 서비스 컨테이너와 EventBridge가 호출하는 일회성 잡 컨테이너 분리 |
