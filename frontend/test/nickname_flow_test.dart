@@ -64,6 +64,52 @@ void main() {
     expect(storage.nickname, isNull);
   });
 
+  test('logout unregisters device before clearing stored tokens', () async {
+    final calls = <String>[];
+    final storage = _MemoryTokenStorage(
+      tokens: const AuthTokens(accessToken: 'access', refreshToken: 'refresh'),
+      nickname: 'ava',
+    );
+    final provider = AuthProvider(
+      authApi: _MemoryAuthApi(
+        onLogout: () => calls.add('logout:${storage.tokens?.accessToken}'),
+      ),
+      tokenStorage: storage,
+      apiClient: _dummyApiClient(storage),
+      onBeforeSessionClear: () async {
+        calls.add('unregister:${storage.tokens?.accessToken}');
+      },
+    );
+
+    await provider.bootstrap();
+    await provider.logout();
+
+    expect(calls, <String>['unregister:access', 'logout:access']);
+    expect(storage.tokens, isNull);
+  });
+
+  test('logout still clears session when device unregister fails', () async {
+    final storage = _MemoryTokenStorage(
+      tokens: const AuthTokens(accessToken: 'access', refreshToken: 'refresh'),
+      nickname: 'ava',
+    );
+    final provider = AuthProvider(
+      authApi: _MemoryAuthApi(),
+      tokenStorage: storage,
+      apiClient: _dummyApiClient(storage),
+      onBeforeSessionClear: () async {
+        throw StateError('fcm unavailable');
+      },
+    );
+
+    await provider.bootstrap();
+    await provider.logout();
+
+    expect(provider.status, AuthStatus.unauthenticated);
+    expect(provider.user, isNull);
+    expect(storage.tokens, isNull);
+  });
+
   test('keeps email account metadata when me response has no email', () async {
     final storage = _MemoryTokenStorage();
     final provider = AuthProvider(
@@ -145,8 +191,9 @@ class _MemoryAuthApi extends AuthApi {
     consent: <String, dynamic>{},
     settings: <String, dynamic>{},
   );
+  final void Function()? onLogout;
 
-  _MemoryAuthApi() : super(apiClient: _dummyApiClient());
+  _MemoryAuthApi({this.onLogout}) : super(apiClient: _dummyApiClient());
 
   @override
   Future<AppUser> me() async => user;
@@ -168,7 +215,9 @@ class _MemoryAuthApi extends AuthApi {
   }
 
   @override
-  Future<void> logout() async {}
+  Future<void> logout() async {
+    onLogout?.call();
+  }
 }
 
 ApiClient _dummyApiClient([SecureTokenStorage? storage]) {

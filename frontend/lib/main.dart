@@ -151,6 +151,7 @@ class _LumaAppState extends State<LumaApp> {
             authApi: _authApi,
             tokenStorage: _tokenStorage,
             apiClient: _apiClient,
+            onBeforeSessionClear: _notificationService.unregisterCurrentDevice,
           )..bootstrap(),
         ),
         ChangeNotifierProvider(

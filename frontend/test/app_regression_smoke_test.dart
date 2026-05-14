@@ -1153,7 +1153,7 @@ class _FakeAuthProvider extends AuthProvider {
   }
 
   @override
-  Future<void> logout() async {
+  Future<void> logout({bool runBeforeSessionClear = true}) async {
     _status = AuthStatus.unauthenticated;
     _fakeUser = null;
     notifyListeners();

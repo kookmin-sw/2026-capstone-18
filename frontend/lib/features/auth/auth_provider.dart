@@ -15,6 +15,7 @@ class AuthProvider extends ChangeNotifier {
   final AuthApi authApi;
   final SecureTokenStorage tokenStorage;
   final ApiClient apiClient;
+  final Future<void> Function()? onBeforeSessionClear;
 
   AuthStatus _status = AuthStatus.checking;
   AppUser? _user;
@@ -27,6 +28,7 @@ class AuthProvider extends ChangeNotifier {
     required this.authApi,
     required this.tokenStorage,
     required this.apiClient,
+    this.onBeforeSessionClear,
   }) {
     apiClient.onUnauthorized = _handleUnauthorized;
   }
@@ -367,7 +369,11 @@ class AuthProvider extends ChangeNotifier {
     return true;
   }
 
-  Future<void> logout() async {
+  Future<void> logout({bool runBeforeSessionClear = true}) async {
+    if (runBeforeSessionClear) {
+      await _runBeforeSessionClear();
+    }
+
     try {
       await authApi.logout();
     } catch (error, stackTrace) {
@@ -387,6 +393,18 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _handleUnauthorized() async {
     await _clearSession();
+  }
+
+  Future<void> _runBeforeSessionClear() async {
+    final beforeClear = onBeforeSessionClear;
+    if (beforeClear == null) return;
+
+    try {
+      await beforeClear();
+    } catch (error, stackTrace) {
+      debugPrint('AUTH pre-clear cleanup skipped: $error');
+      debugPrint('$stackTrace');
+    }
   }
 
   Future<void> _clearSession() async {

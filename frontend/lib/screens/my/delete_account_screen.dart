@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/widgets/app_gradient_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../features/auth/auth_provider.dart';
+import '../../features/notifications/notification_service.dart';
 import '../../features/privacy/data/privacy_api.dart';
 
 class DeleteAccountScreen extends StatefulWidget {
@@ -28,9 +29,17 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
     }
     if (submitting) return;
 
+    final notificationService = context.read<NotificationService?>();
+    final privacyApi = context.read<PrivacyApi>();
+
     setState(() => submitting = true);
     try {
-      await context.read<PrivacyApi>().deleteAccount();
+      try {
+        await notificationService?.unregisterCurrentDevice();
+      } catch (_) {
+
+      }
+      await privacyApi.deleteAccount();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -47,7 +56,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
     final navigator = Navigator.of(context, rootNavigator: true);
     final messenger = ScaffoldMessenger.of(context);
 
-    await authProvider.logout();
+    await authProvider.logout(runBeforeSessionClear: false);
     if (!navigator.mounted) return;
 
     navigator.popUntil((route) => route.isFirst);
