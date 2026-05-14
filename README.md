@@ -360,7 +360,7 @@ make migrate                # alembic upgrade head
 poetry run uvicorn app.main:app --reload
 ```
 
-기본 접속: Postgres `localhost:5432` (`little_signals` / `dev_only_password` / `little_signals_dev`), Adminer `http://localhost:8080`. 5432 포트 충돌 시 Homebrew Postgres를 일시 중지하세요(`brew services stop postgresql@15`).
+기본 접속: Postgres `localhost:5432` (`little_signals` / `dev_only_password` / `little_signals_dev`), Adminer `http://localhost:8080`. 5432 포트 충돌 시 호스트의 Postgres를 일시 중지하세요 (Homebrew: `brew services stop postgresql@15` / `postgresql@14` / `postgresql`, Linux systemd: `sudo systemctl stop postgresql`).
 
 테스트:
 
@@ -515,7 +515,7 @@ ValueKey.EdaSet.SKIN_CONDUCTANCE          // EDA 값
 ValueKey.AccelerometerSet.ACCELEROMETER_X // x/y/z 동일
 ```
 
-v1 모델이 필요로 하는 4개 채널(연속 PPG, 심박+IBI, 연속 EDA, 연속 가속도)이 모두 연속 이벤트 스트림으로 제공됨을 실제 워치에서 검증 완료했습니다. 일부 상수명은 SDK 마이너 버전에 따라 변동(`HEART_RATE` ↔ `HEART_RATE_VALUE`, `RESISTANCE` ↔ `SCL` 등)되므로, IDE 자동완성으로 매칭되는 상수를 선택해 `ChannelRecorder.kt`에 반영합니다. 채널 계약(BPM/IBI 리스트/상태 코드/x·y·z)은 안정적이며 필드명만 달라집니다.
+v1 모델이 필요로 하는 4개 채널(연속 PPG, 심박+IBI, 연속 EDA, 연속 가속도)이 모두 연속 이벤트 스트림으로 제공됨을 실제 워치에서 검증 완료했습니다. 현재 `ChannelRecorder.kt`(`watch/sensor-capture/app/src/main/kotlin/com/littlesignals/capture/ChannelRecorder.kt`)에서 실제로 사용하는 상수는 `ValueKey.HeartRateSet.{HEART_RATE, HEART_RATE_STATUS, IBI_LIST}`, `ValueKey.PpgGreenSet.{PPG_GREEN, STATUS}`, `ValueKey.EdaSet.SKIN_CONDUCTANCE`, `ValueKey.AccelerometerSet.{ACCELEROMETER_X, ACCELEROMETER_Y, ACCELEROMETER_Z}` 입니다. SDK 마이너 버전 업그레이드 시 상수명이 바뀔 수 있으므로(예: `SKIN_CONDUCTANCE`가 과거 `RESISTANCE`로 노출됐던 시기 존재), 채널 계약(BPM/IBI 리스트/상태 코드/x·y·z)은 안정적임을 전제로 IDE 자동완성으로 매칭되는 상수를 다시 선택해 반영합니다.
 
 ### 3.3 출력 레이아웃
 
@@ -557,7 +557,7 @@ adb exec-out run-as com.littlesignals.capture cat \
 
 unzip -l ${SESSION}.zip
 unzip -p ${SESSION}.zip metadata.json | jq .
-unzip -p ${SESSION}.zip ppg_green.csv | wc -l   # 10분 ≈ 15,000 행
+unzip -p ${SESSION}.zip ppg_green.csv | wc -l   # 25Hz × 600s + 헤더 1행 = 15,001
 ```
 
 루팅되지 않은 워치에서는 `adb pull /data/data/...`가 실패하므로, 디버그 빌드의 `run-as ... cat` 패턴이 표준입니다. 행이 0이거나 값이 전부 0/-1이면 권한 거부 또는 착용 불량을 의심하고 `adb logcat | grep -i capture`로 확인 후 재시도합니다.
@@ -723,14 +723,19 @@ Frontend는 staging backend와 다음 API 흐름을 사용합니다.
 
 | 기능 | API |
 | :--- | :--- |
-| User profile | `GET /api/v1/me`, `PATCH /api/v1/me` |
+| Auth | `POST /api/v1/auth/anon`, `POST /api/v1/auth/google`, `POST /api/v1/auth/email/login`, `POST /api/v1/auth/email/signup`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, `POST /api/v1/auth/password/forgot`, `POST /api/v1/auth/password/reset` |
+| User profile | `GET /api/v1/me`, `PATCH /api/v1/me`, `DELETE /api/v1/account`, `POST /api/v1/account/restore` |
 | Stress events | `GET /api/v1/events`, `POST /api/v1/events`, `PATCH /api/v1/events/{id}`, `DELETE /api/v1/events/{id}` |
 | Cycle | `GET /api/v1/cycles/current`, `GET /api/v1/cycles/history`, `POST /api/v1/cycles/period-start`, `PATCH /api/v1/cycles/{id}` |
 | Trigger/category | `GET /api/v1/categories`, `POST /api/v1/categories`, `PATCH /api/v1/categories/{id}`, `DELETE /api/v1/categories/{id}` |
+| Dashboard | `GET /api/v1/dashboard/today` |
+| Insights | `GET /api/v1/insights/calendar`, `/trends`, `/phase-averages`, `/heatmap`, `/patterns`, `/morning-tip`, `/tips/{pattern_key}` |
+| Reports | `GET /api/v1/reports/weekly`, `GET /api/v1/reports/range?frm={YYYY-MM-DD}&to={YYYY-MM-DD}`, `GET /api/v1/reports/drilldown` |
 | Consent | `GET /api/v1/consent`, `PATCH /api/v1/consent` |
+| Settings | `GET /api/v1/settings`, `PATCH /api/v1/settings` |
 | Sleep logs | `GET /api/v1/sleep-logs/latest`, `GET /api/v1/sleep-logs`, `POST /api/v1/sleep-logs`, `PATCH /api/v1/sleep-logs/{id}`, `DELETE /api/v1/sleep-logs/{id}` |
 | Device token | `POST /api/v1/devices/fcm-token`, `DELETE /api/v1/devices/fcm-token` |
-| AI selected-period report | `GET /api/v1/reports/range?frm={YYYY-MM-DD}&to={YYYY-MM-DD}` |
+| Realtime fan-out | `WSS /ws/realtime` (auth: 첫 JSON 메시지 `{type:"auth", token:"<jwt>"}`, 5초 타임아웃) |
 | Raw biosignal sync | `POST /api/v1/sync/biosignals/batch`, presigned S3 `PUT` upload flow |
 
 Stress, cycle, sleep, trigger, profile, consent, report data는 feature별 API adapter에서 domain model로 변환된 뒤 Provider를 통해 화면에 전달됩니다. Raw biosignal upload는 Android native `WindowUploader`가 batch metadata를 backend에 등록하고, backend가 반환한 presigned S3 PUT URL로 채널별 payload를 업로드하는 구조입니다.
