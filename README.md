@@ -388,12 +388,12 @@ AWS_PROFILE=little-signals-staging terraform init -backend-config=backend.hcl
 AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
 cd ..
 AWS_PROFILE=little-signals-staging make ecr-login
-AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.7.0
+AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.8.0
 cd infra
 ECR_URL="$(AWS_PROFILE=little-signals-staging terraform output -raw ecr_repository_url)"
 AWS_PROFILE=little-signals-staging terraform apply \
   -var-file=staging.tfvars \
-  -var "container_image=$ECR_URL:0.7.0"
+  -var "container_image=$ECR_URL:0.8.0"
 cd ..
 AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
 make smoke-staging
