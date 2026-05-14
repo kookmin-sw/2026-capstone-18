@@ -323,7 +323,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 
 ### 2.4 데이터 모델 (요약)
 
-`users`, `user_settings`, `stress_events`(일반 Postgres table, `detected_at` 인덱스), `cycles`, `raw_biosignal_uploads`(옵트인, `recorded_at` 인덱스), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `audit_log`(append-only, `(action, occurred_at)` 인덱스). 원시 생체신호 업로드 payload는 클라이언트(Android Keystore 보관 AES-256-GCM 키)에서 암호화된 뒤 S3에 저장되며 서버는 해당 raw biosignal payload를 복호화할 수 없습니다. 스트레스 메모/자유 텍스트는 별도 client-side text encryption layer가 구현되기 전까지 일반 backend application data로 취급합니다.
+`users`, `user_settings`, `stress_events`(하이퍼테이블, `detected_at`), `cycles`, `raw_biosignal_uploads`(하이퍼테이블, `recorded_at`, 옵트인), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `audit_log`(append-only, `(action, occurred_at)` 인덱스). 본문 자유 텍스트와 원시 생체신호는 클라이언트(Android Keystore 보관 AES-256-GCM 키)로 암호화된 사이퍼텍스트 상태로 S3에 저장되며 서버는 복호화할 수 없습니다.
 
 ### 2.5 API 요약
 
@@ -336,7 +336,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 - `sync/{upload,download}` — 옵트인 암호화 백업
 - `sync/biosignals` — 옵트인 원시 생체신호 업로드
 - `devices/fcm-token` — FCM 토큰 등록
-- `ws/realtime` — Backend ↔ Flutter foreground realtime channel (first-message JWT auth)
+- `ws/realtime` — Watch ↔ Phone 실시간 채널 (JWT in query)
 - `insights/tips/{pattern_key}` — Bedrock(Haiku 4.5) 기반 패턴 카드 팁, 24h 캐시 (§2.8)
 - `reports/weekly` — 주간 잡이 미리 생성한 한국어 리포트 조회 (§2.8)
 
@@ -559,9 +559,9 @@ unzip -p ${SESSION}.zip ppg_green.csv | wc -l   # 10분 ≈ 15,000 행
 
 ### 4.1 Frontend 개요
 
-`frontend/`는 Luma의 Flutter 기반 Android 모바일 애플리케이션입니다. 사용자가 직접 만나는 presentation layer로서 스트레스 기록, 생리 주기 맥락 기반 인사이트, 수면 데이터 화면, Health Connect 기반 수면/주기 불러오기, 선택 기간 AI 리포트, 알림 등록, 원시 생체신호 캡처 UX를 담당합니다.
+`frontend/`는 Luma의 Flutter 기반 Android 모바일 애플리케이션입니다. 사용자가 직접 만나는 presentation layer로서 스트레스 기록, 생리 주기 맥락 기반 인사이트, 수면 데이터 화면, 선택 기간 AI 리포트, 알림 등록, 원시 생체신호 캡처 UX를 담당합니다.
 
-앱은 staging FastAPI backend와 REST API로 통신하며, 화면 상태는 Provider 기반으로 관리됩니다. 사용자는 Auth 화면에서 진입한 뒤 Home dashboard를 중심으로 스트레스 기록, My Cycle, Sleep Data, Insight, Profile, Watch/Biosignal Capture 화면을 오갑니다. 사용자-facing copy는 한국어 서비스 tone을 유지하고, Health Connect import와 raw biosignal capture를 별도 flow로 분리해 표현합니다.
+앱은 staging FastAPI backend와 REST API로 통신하며, 화면 상태는 Provider 기반으로 관리됩니다. 사용자는 Auth 화면에서 진입한 뒤 Home dashboard를 중심으로 스트레스 기록, My Cycle, Sleep Data, Insight, Profile, Watch/Biosignal Capture 화면을 오갑니다. UI copy는 한국어 사용 맥락에 맞춰 부드럽고 부담이 적은 tone을 유지합니다.
 
 ### 4.2 설계 목표
 
@@ -573,16 +573,13 @@ Frontend는 사용자의 기록 부담을 낮추고, 민감한 건강 맥락을 
 2. **Cycle-aware insight visualization**
    스트레스 기록은 생리 주기 정보와 함께 해석됩니다. Home의 cycle card, My Cycle auto-save, Insight calendar, report UI는 사용자가 주기 단계와 스트레스 패턴을 함께 볼 수 있도록 구성되어 있습니다.
 
-3. **Health Connect 기반 수면/주기 import**
-   Sleep과 My Cycle 화면은 Android Health Connect 권한 요청, 데이터 읽기, backend 저장, provider refresh 흐름을 제공합니다. 이 flow는 Watch raw signal capture와 분리되어 있으며 사용자가 직접 실행하는 import 동작입니다.
-
-4. **Staging backend 기반 실사용 flow**
+3. **Staging backend 기반 실사용 flow**
    Auth, profile, events, cycles, categories, consent, sleep logs, selected-period AI reports, device token registration, biosignal sync metadata가 staging API client layer를 통해 호출됩니다.
 
-5. **Biosignal capture/upload UX**
-   Watch/Biosignal 화면은 raw biosignal consent, capture source 선택, duration 선택, live status, upload window count, summary screen을 제공합니다. Flutter UI는 Android native capture layer와 MethodChannel/EventChannel로 연결되며, Android native layer는 Wear Data Layer, synthetic source, phone-side ONNX inference, encrypted raw window upload를 처리합니다.
+4. **Biosignal capture/upload UX**
+   Watch/Biosignal 화면은 raw biosignal consent, capture source 선택, duration 선택, live status, upload window count, summary screen을 제공합니다. Flutter UI는 Android native capture layer와 MethodChannel/EventChannel로 연결됩니다.
 
-6. **Korean UI copy 중심의 interaction**
+5. **Korean UI copy 중심의 interaction**
    nickname, trigger, cycle, sleep, notification, privacy copy는 한국어 서비스 tone에 맞춰 정리되어 있으며, 사용자-facing label과 backend/raw data를 분리하는 formatter를 사용합니다.
 
 ### 4.3 기술 스택
@@ -594,9 +591,8 @@ Frontend는 사용자의 기록 부담을 낮추고, 민감한 건강 맥락을 
 | Backend communication | REST API client layer |
 | Auth frontend flow | Anonymous auth, Google Sign-In frontend flow |
 | Push registration | Firebase Messaging / FCM device token registration |
-| Health data import | Android Health Connect via MethodChannel |
 | Native bridge | MethodChannel / EventChannel |
-| Android native integration | Kotlin, Android foreground service, ONNX Runtime |
+| Android native integration | Kotlin, Android foreground service |
 | Wear communication boundary | Wear Data Layer |
 | Android package | `com.littlesignals.app` |
 | Testing | Flutter tests, regression smoke tests, Android/Kotlin unit tests |
@@ -616,8 +612,6 @@ Frontend는 사용자의 기록 부담을 낮추고, 민감한 건강 맥락을 
 * Cycle current/history/create/update flow
 * My Cycle auto-save UX
 * Sleep log display states
-* Health Connect sleep import
-* Health Connect cycle import
 * Insight calendar / report UI
 * AI selected-period report card/detail UI
 * Profile / nickname editing
@@ -640,8 +634,7 @@ Frontend는 shared core layer, feature layer, screen layer, native capture layer
 * `lib/screens/`는 실제 화면 composition을 담당합니다. Home, Insight, My/Profile, Stress Log, My Cycle, Sleep Data, Watch/Biosignal Capture 화면이 Provider state를 소비합니다.
 * Provider는 화면 상태와 사용자 action을 조율합니다. 예를 들어 `EventsProvider`는 stress event create/edit flow를 관리하고, `CycleProvider`는 cycle save/update와 My Cycle auto-save를 담당하며, `InsightProvider`는 event/cycle data와 selected-period report를 조합합니다.
 * `features/*/data` API layer는 backend endpoint와 JSON mapping을 캡슐화합니다. UI는 HTTP path나 backend response shape를 직접 다루지 않고 provider를 통해 domain state를 읽습니다.
-* Health Connect layer는 `littlesignals/health` MethodChannel을 통해 SleepSessionRecord와 MenstruationPeriodRecord를 읽고, 기존 Sleep/Cycle provider save flow로 연결합니다.
-* Native capture layer는 `features/biosignals/`의 Flutter bridge와 `android/app/src/main/kotlin/com/littlesignals/app/capture/` 및 `inference/`의 Android service/controller/uploader/inference code로 구성됩니다. Flutter는 capture command와 status stream을 다루고, Android는 foreground capture session, Wear Data Layer messaging, sample buffering, phone-side ONNX inference, encrypted upload window 생성, presigned S3 PUT upload를 처리합니다.
+* Native capture layer는 `features/biosignals/`의 Flutter bridge와 `android/app/src/main/kotlin/com/littlesignals/app/capture/`의 Android service/controller/uploader로 구성됩니다. Flutter는 capture command와 status stream을 다루고, Android는 foreground capture session, Wear Data Layer messaging, sample buffering, upload window 생성, presigned S3 PUT upload를 처리합니다.
 
 ### 4.6 사용자 흐름
 
@@ -672,7 +665,6 @@ flowchart TD
 
     H --> H1["Empty state"]
     H --> H2["Latest/history sleep state"]
-    H --> H3["Health Connect import"]
 
     I --> I1["Insight calendar"]
     I --> I2["Cycle x stress report"]
@@ -698,10 +690,6 @@ flowchart LR
     DataAPI --> Provider
     Provider --> UI
 
-    UI --> HealthBridge["Health Connect MethodChannel<br/>littlesignals/health"]
-    HealthBridge --> HealthConnect["Android Health Connect<br/>SleepSessionRecord / MenstruationPeriodRecord"]
-    HealthConnect --> Provider
-
     UI --> CaptureController["BiosignalCaptureController"]
     CaptureController --> Channels["MethodChannel / EventChannel"]
     Channels --> ForegroundService["Android foreground service"]
@@ -710,10 +698,8 @@ flowchart LR
     Source --> Synthetic["SyntheticSampleSource"]
     Wear --> Receiver["WatchSampleReceiver"]
     Receiver --> WatchBuffer["WatchSourceController"]
-    Synthetic --> Inference["Phone-side ONNX inference"]
-    WatchBuffer --> Inference
-    Inference --> StressEvent["POST /api/v1/events<br/>when detection triggers"]
-    Inference --> Uploader["WindowUploader<br/>AES-GCM encrypted windows"]
+    Synthetic --> Uploader["WindowUploader"]
+    WatchBuffer --> Uploader
     Uploader --> Batch["POST /api/v1/sync/biosignals/batch"]
     Batch --> Backend
     Backend --> Presigned["Presigned S3 PUT URL"]
@@ -735,13 +721,12 @@ Frontend는 staging backend와 다음 API 흐름을 사용합니다.
 | Device token | `POST /api/v1/devices/fcm-token` |
 | AI selected-period report | `GET /api/v1/reports/range?frm={YYYY-MM-DD}&to={YYYY-MM-DD}` |
 | Raw biosignal sync | `POST /api/v1/sync/biosignals/batch`, presigned S3 `PUT` upload flow |
-| Realtime events | `WSS /ws/realtime` after first-message auth |
 
-Stress, cycle, sleep, trigger, profile, consent, report data는 feature별 API adapter에서 domain model로 변환된 뒤 Provider를 통해 화면에 전달됩니다. Realtime event는 backend WebSocket에서 `events.created`, `events.updated`, `events.deleted` envelope로 수신되며, frontend는 event id를 기준으로 최신 event를 fetch해 provider state에 반영합니다. Raw biosignal upload는 Android native `WindowUploader`가 채널별 payload를 AES-GCM으로 암호화한 뒤 batch metadata를 backend에 등록하고, backend가 반환한 presigned S3 PUT URL로 ciphertext payload를 업로드하는 구조입니다.
+Stress, cycle, sleep, trigger, profile, consent, report data는 feature별 API adapter에서 domain model로 변환된 뒤 Provider를 통해 화면에 전달됩니다. Raw biosignal upload는 Android native `WindowUploader`가 batch metadata를 backend에 등록하고, backend가 반환한 presigned S3 PUT URL로 채널별 payload를 업로드하는 구조입니다.
 
 ### 4.9 Native Capture Integration
 
-Watch/Biosignal capture 화면은 phone-side raw biosignal capture/upload 및 stress detection prototype infrastructure와 연결되어 있습니다. 이 flow는 Health Connect sleep/cycle import와 별개입니다.
+Watch/Biosignal capture 화면은 phone-side raw biosignal capture/upload infrastructure와 연결되어 있습니다.
 
 * Flutter `BiosignalCaptureService`는 `MethodChannel('littlesignals/capture')`로 `start`, `stop`, `isWatchConnected` command를 호출합니다.
 * Flutter `BiosignalCaptureService`는 `EventChannel('littlesignals/capture/status')`로 capture state, elapsed seconds, uploaded window count, error state를 수신합니다.
@@ -751,11 +736,10 @@ Watch/Biosignal capture 화면은 phone-side raw biosignal capture/upload 및 st
 * `WatchSampleReceiver`는 `/biosignals/samples`, `/biosignals/end` message를 수신합니다.
 * `WatchSourceController`는 HR, PPG, EDA, accelerometer sample batch를 buffer에 모읍니다.
 * `SyntheticSampleSource`는 capture/upload plumbing을 확인할 수 있는 synthetic sample source를 제공합니다.
-* `StreamingInferenceCoordinator`와 `StressPipeline`은 300초 buffer 기반 phone-side ONNX inference를 수행하고, detection decision이 발생하면 backend stress event를 생성합니다.
-* `WindowUploader`는 1분 단위 window를 만들고 `hrv`, `ppg`, `eda`, `accel` payload를 Android Keystore 기반 AES-GCM으로 암호화한 뒤 backend batch registration 및 presigned S3 PUT upload flow로 보냅니다.
+* `WindowUploader`는 1분 단위 window를 만들고 `hrv`, `ppg`, `eda`, `accel` payload를 backend batch registration 및 presigned S3 PUT upload flow로 보냅니다.
 * Capture session이 끝나면 Flutter는 elapsed time, uploaded window count, estimated data size를 summary screen에 표시합니다.
 
-이 섹션의 범위는 wearable-oriented raw biosignal capture/upload 및 phone-side stress detection prototype입니다. 실사용 수준의 임상 감지 시스템이 아니라 capstone demo를 위한 native integration pipeline으로 설명하는 것이 정확합니다.
+이 섹션의 범위는 wearable-oriented raw biosignal capture/upload infrastructure이며, app의 stress/cycle/sleep 기록 UX와 병렬로 동작하는 capture/upload 경로를 다룹니다.
 
 ### 4.10 Notification Flow
 
@@ -765,10 +749,6 @@ Watch/Biosignal capture 화면은 phone-side raw biosignal capture/upload 및 st
 * Firebase Messaging permission prompt 결과를 확인한 뒤 FCM token을 가져옵니다.
 * token이 존재하면 `NotificationsApi.registerDeviceToken()`이 `/api/v1/devices/fcm-token`으로 `token`, `platform: android`를 전송합니다.
 * Notification copy는 OS locale에 맞춰 Korean/English text를 제공하며, 권한 안내와 fallback notification 문구를 분리해 관리합니다.
-* Backend에서 `events.created` realtime envelope가 FCM data payload로 도착하면 frontend는 local notification을 표시합니다.
-* Notification tap은 event id를 기준으로 backend에서 event를 fetch하고, unlogged event라면 기존 stress log completion flow로 연결합니다.
-
-Foreground 상태에서는 backend WebSocket `/ws/realtime`이 우선 사용됩니다. WebSocket은 URL query가 아니라 연결 직후 첫 JSON message로 JWT를 전달하는 방식입니다. Background 상태에서는 FCM이 사용자-visible notification fallback 역할을 합니다.
 
 ### 4.11 Frontend 실행과 테스트
 
