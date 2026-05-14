@@ -648,3 +648,156 @@ async def test_email_signup_rate_limited(
             app.dependency_overrides.clear()
 
     assert responses[-1].status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_password_forgot_returns_200_for_known_email(
+    db_session: AsyncSession,  # noqa: ARG001
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.request_password_recovery.return_value = 200
+        get_client.return_value = client_mock
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post(
+                "/api/v1/auth/password/forgot",
+                json={"email": "user@example.com"},
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_password_forgot_returns_200_for_unknown_email(
+    db_session: AsyncSession,  # noqa: ARG001
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    """No account-enumeration: Supabase 404 must still produce 200."""
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.request_password_recovery.return_value = 404
+        get_client.return_value = client_mock
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post(
+                "/api/v1/auth/password/forgot",
+                json={"email": "ghost@example.com"},
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_password_forgot_returns_200_when_supabase_unavailable(
+    db_session: AsyncSession,  # noqa: ARG001
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    """Even on a 5xx from Supabase, user sees 200; ops sees a WARN log."""
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.request_password_recovery.return_value = 503
+        get_client.return_value = client_mock
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post(
+                "/api/v1/auth/password/forgot",
+                json={"email": "user@example.com"},
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_password_reset_with_valid_otp_returns_session(
+    db_session: AsyncSession,
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    supabase_id = uuid.uuid4()
+    fake_session = _email_session_for(supabase_id)
+
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.verify_recovery_otp_and_set_password.return_value = fake_session
+        get_client.return_value = client_mock
+
+        from app.db.dependencies import get_db
+
+        async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                response = await http.post(
+                    "/api/v1/auth/password/reset",
+                    json={
+                        "email": "user@example.com",
+                        "otp": "123456",
+                        "new_password": "newpassword99",
+                    },
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["access_token"] == "at"
+
+
+@pytest.mark.asyncio
+async def test_password_reset_with_invalid_otp_returns_401(
+    db_session: AsyncSession,  # noqa: ARG001
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    with patch("app.auth.router._get_supabase_client") as get_client:
+        client_mock = AsyncMock()
+        client_mock.verify_recovery_otp_and_set_password.side_effect = SupabaseAuthError(
+            401, {"msg": "invalid token"}
+        )
+        get_client.return_value = client_mock
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.post(
+                "/api/v1/auth/password/reset",
+                json={
+                    "email": "user@example.com",
+                    "otp": "999999",
+                    "new_password": "newpassword99",
+                },
+            )
+
+    assert response.status_code == 401
+    assert response.json()["reason"] == "invalid_otp"
+
+
+@pytest.mark.asyncio
+async def test_password_reset_rejects_weak_new_password_with_422(
+    db_session: AsyncSession,  # noqa: ARG001
+    supabase_jwt_secret: str,  # noqa: ARG001
+) -> None:
+    """Pydantic min_length blocks weak passwords before Supabase is called.
+    422 response must not leak the rejected password value."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as http:
+        response = await http.post(
+            "/api/v1/auth/password/reset",
+            json={
+                "email": "user@example.com",
+                "otp": "123456",
+                "new_password": "QQQQQ",  # 5 chars — below min_length=8
+            },
+        )
+
+    assert response.status_code == 422
+    # The exception handler envelope strips input values; rejected password
+    # value must not appear anywhere in the response body.
+    assert "QQQQQ" not in response.text
