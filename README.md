@@ -310,29 +310,29 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 | Application Load Balancer | HTTPS(443) 단일 default forward → `backend` target group, HTTP(80)→HTTPS(443) 301 리다이렉트 (`backend/infra/alb.tf`). 경로 기반 라우팅은 ML 데모(`/api/v1/ml-demo/*` → `ml_demo` target group, `backend/infra/ml_demo.tf`)만 별도 listener rule로 분리 |
 | ACM 인증서 + Route53 | `api-staging.friendlykr.com` TLS, DNS 검증 자동화, A 레코드 자동 등록 |
 | ECS Fargate (desired_count = 1, 512 CPU / 1024 MiB) + ECS Cluster | FastAPI 애플리케이션 + WebSocket 호스팅 (오토스케일링 미설정 — 베타 코호트 100명 규모에 맞춘 단일 태스크) |
-| ECS Task Definition (`backend`, `cron`) | 서비스 컨테이너와 EventBridge가 호출하는 일회성 잡 컨테이너 분리 |
+| ECS Task Definition (`backend`, `cron`, `ml-demo`) | 서비스 컨테이너 · EventBridge가 호출하는 일회성 잡 컨테이너 · `/api/v1/ml-demo/*` 데모 서비스 (`backend/infra/ml_demo.tf`) 분리 |
 | IAM Role (`ecs_execution`, `ecs_task`, `scheduler`) | 시크릿 풀링 / 런타임 권한 / 스케줄러의 `RunTask` + `PassRole` |
 | ECR (lifecycle policy 포함) | 컨테이너 이미지 레지스트리, 미사용 태그 자동 정리 |
 | RDS Postgres 15 | 관계형 데이터(`stress_events`, `cycles`, `raw_biosignal_uploads` 등) |
-| S3 `sync` (Seoul, SSE, versioning, lifecycle) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`) |
+| S3 `sync` (Seoul, SSE-KMS, versioning, abort-MPU 라이프사이클) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`). 객체 만료 정책 없음 — 사용자가 `DELETE /api/v1/sync`로 초기화 |
 | S3 `biosignals` (Seoul, SSE-KMS, versioning, lifecycle) | 옵트인 원시 생체신호 — 디바이스 Keystore의 AES-256-GCM으로 클라이언트 측 암호화된 사이퍼텍스트만 저장 (서버 복호화 불가), S3에서 SSE-KMS로 이중 보호 |
 | EventBridge Scheduler + ECS RunTask | 6개 스케줄 (`backend/infra/scheduler.tf`): `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 (`cron(15 */6 * * ? *)`, 매시각 15분) · `weekly_reports` 토 17:00 UTC (= 일 02:00 KST, §2.8) · `prewarm_range_reports` 매일 18:00 UTC (= 03:00 KST, AI 리포트 캐시 사전 워밍) · `send_morning_tips` 매일 22:00 UTC (= 07:00 KST, 아침 푸시) · `send_sleep_nudges` 매일 02:00 UTC (= 11:00 KST, 수면 기록 리마인더) |
 | AWS Bedrock (Anthropic Claude Haiku 4.5) | 패턴 팁 + 주간 리포트 생성, IAM에서 Haiku 4.5 인퍼런스 프로파일 + 그 하부 foundation-model에만 `InvokeModel` 허용 (§2.8) |
 | SQS DLQ + CloudWatch Metric Alarm | 스케줄러 실패 격리 + DLQ depth 알람 |
-| CloudWatch Log Groups (`backend`, `cron`) | structlog JSON 로그 수집 |
-| Secrets Manager (`supabase`, `firebase`) | Supabase 서비스 키 / Firebase Admin 자격증명 |
+| CloudWatch Log Groups (`backend`, `cron`, `otel_collector`, `ml_demo`) | structlog JSON 로그 수집 (`backend`·`cron`) + OTel 콜렉터 로그 + ML 데모 서비스 로그 |
+| Secrets Manager (`supabase`, `firebase`, `sentry`) | Supabase 서비스 키 / Firebase Admin 자격증명 / Sentry DSN (`backend/infra/secrets.tf`) |
 
 전체 정의는 [`backend/infra/`](backend/infra/) — `networking.tf`, `alb.tf`, `ecs.tf`, `ecr.tf`, `rds.tf`, `s3.tf`, `scheduler.tf`, `secrets.tf`.
 
 ### 2.4 데이터 모델 (요약)
 
-`users`, `user_settings`, `stress_events`(append-only, 복합 PK `(id, detected_at)`), `cycles`, `sleep_logs`, `trigger_categories`, `raw_biosignal_uploads`(복합 PK `(id, recorded_at)`, 옵트인), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `pattern_tips`(24h 캐시, `(user_id, pattern_key)` 유니크 — §2.8), `weekly_reports`(주간 잡 출력, `(user_id, week_start)` 유니크 — §2.8), `range_reports`(기간 선택 AI 리포트 캐시, `(user_id, frm, to)` 유니크 — §2.8), `audit_log`(append-only, `(action, occurred_at)` 인덱스). `stress_events`와 `raw_biosignal_uploads`는 TimescaleDB hypertable로 계획했으나 AWS RDS의 timescaledb 지원 종료로 plain Postgres 테이블로 유지합니다(`backend/app/models/stress_event.py:4-5`). 원시 생체신호 업로드는 사용자 동의가 있을 때만 수행되며, 클라이언트(Android Keystore 보관 AES-256-GCM 키)가 암호화한 ciphertext 상태로 S3에 저장됩니다. `stress_events.log_text` 같은 자유 텍스트 메모는 현재 Postgres에 저장되며, 원시 생체신호 암호화 경로와 별도로 취급됩니다.
+`users`, `user_settings`, `stress_events`(append-only, 복합 PK `(id, detected_at)`), `cycles`, `sleep_logs`, `trigger_categories`, `raw_biosignal_uploads`(복합 PK `(id, recorded_at)`, 옵트인), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `pattern_tips`(24h 캐시, `(user_id, pattern_key)` 유니크 — §2.8), `weekly_reports`(주간 잡 출력, `(user_id, week_start)` 유니크 — §2.8), `range_reports`(기간 선택 AI 리포트 캐시, `(user_id, period_start, period_end)` 유니크 — §2.8; `frm`/`to`는 API 쿼리스트링 이름), `audit_log`(append-only, `(action, occurred_at)` 인덱스). `stress_events`와 `raw_biosignal_uploads`는 TimescaleDB hypertable로 계획했으나 AWS RDS의 timescaledb 지원 종료로 plain Postgres 테이블로 유지합니다(`backend/app/models/stress_event.py:4-5`). 원시 생체신호 업로드는 사용자 동의가 있을 때만 수행되며, 클라이언트(Android Keystore 보관 AES-256-GCM 키)가 암호화한 ciphertext 상태로 S3에 저장됩니다. `stress_events.log_text` 같은 자유 텍스트 메모는 현재 Postgres에 저장되며, 원시 생체신호 암호화 경로와 별도로 취급됩니다.
 
 ### 2.5 API 요약
 
 - `auth/*` — 익명 발급(`/anon`), Google OAuth 교환(`/google`), 이메일 로그인/가입(`/email/login`, `/email/signup`), OTP 비밀번호 재설정(`/password/forgot`, `/password/reset`), `/refresh`, `/logout`. 익명→Google 업그레이드는 `/auth/google` 내부에서 처리
 - `me`, `account/{,restore}` — 프로필 조회/수정(GET·PATCH `/me`), 30일 유예 삭제(DELETE `/account`) 및 복구(POST `/account/restore`)
-- `events/*` — 스트레스 이벤트 CRUD (list / `{id}` GET·PATCH·DELETE, POST)
+- `events/*` — 스트레스 이벤트 CRUD (list / `{event_id}` GET·PATCH·DELETE, POST)
 - `cycles/*` — `/period-start`, `/current`, `/history`, `/{cycle_id}` PATCH
 - `sleep-logs/*` — 수면 로그 CRUD + `/latest`
 - `categories/*` — 트리거/카테고리 CRUD
@@ -346,7 +346,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 - `devices/fcm-token` — FCM 토큰 POST 등록 및 logout/account-switch cleanup용 DELETE unregister
 - `ws/realtime` — Backend ↔ Flutter 실시간 fan-out 채널 (auth: 연결 직후 첫 JSON 메시지 `{type:"auth", token:"<jwt>"}`, 5초 타임아웃; Watch↔Phone 통신은 별도 Wear Data Layer 사용)
 
-스프린트 1 단계의 헬스체크: `GET /health → {"status":"ok","version":"0.1.0"}`. Swagger는 `/docs`, ReDoc은 `/redoc`, OpenAPI는 `/openapi.json`.
+헬스체크: `GET /health → {"status":"ok","version":"0.8.0"}` (값은 `backend/app/config.py`의 `app_version` 기본값과 동일하며 배포마다 갱신). Swagger는 `/docs`, ReDoc은 `/redoc`, OpenAPI는 `/openapi.json`.
 
 ### 2.6 로컬 개발
 
@@ -379,6 +379,10 @@ poetry run mypy app/
 
 ### 2.7 스테이징 배포
 
+기본 배포 경로는 GitHub Actions 워크플로 [`deploy-staging.yml`](.github/workflows/deploy-staging.yml) (OIDC → ECR buildx push → Alembic 일회성 태스크 → ECS 롤링 디플로이 → `make smoke-staging`). `master` 머지 또는 `workflow_dispatch`로 트리거됩니다.
+
+아래 명령은 **최초 부트스트랩 또는 인프라/시크릿 변경 시의 수동 경로**입니다 (워크플로가 ECR 푸시 + Alembic + ECS 업데이트만 담당하므로, Terraform이나 시크릿 회전은 여전히 수동):
+
 ```bash
 cd backend
 AWS_PROFILE=little-signals-staging ./scripts/bootstrap-terraform-state.sh
@@ -388,12 +392,12 @@ AWS_PROFILE=little-signals-staging terraform init -backend-config=backend.hcl
 AWS_PROFILE=little-signals-staging terraform apply -var-file=staging.tfvars
 cd ..
 AWS_PROFILE=little-signals-staging make ecr-login
-AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.7.0
+AWS_PROFILE=little-signals-staging make ecr-push IMAGE_TAG=0.8.0
 cd infra
 ECR_URL="$(AWS_PROFILE=little-signals-staging terraform output -raw ecr_repository_url)"
 AWS_PROFILE=little-signals-staging terraform apply \
   -var-file=staging.tfvars \
-  -var "container_image=$ECR_URL:0.7.0"
+  -var "container_image=$ECR_URL:0.8.0"
 cd ..
 AWS_PROFILE=little-signals-staging ./scripts/run-staging-migration.sh
 make smoke-staging
