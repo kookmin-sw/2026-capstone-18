@@ -332,7 +332,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 
 - `auth/*` — 익명 발급(`/anon`), Google OAuth 교환(`/google`), 이메일 로그인/가입(`/email/login`, `/email/signup`), OTP 비밀번호 재설정(`/password/forgot`, `/password/reset`), `/refresh`, `/logout`. 익명→Google 업그레이드는 `/auth/google` 내부에서 처리
 - `me`, `account/{,restore}` — 프로필 조회/수정(GET·PATCH `/me`), 30일 유예 삭제(DELETE `/account`) 및 복구(POST `/account/restore`)
-- `events/*` — 스트레스 이벤트 CRUD (list / `{id}` GET·PATCH·DELETE, POST)
+- `events/*` — 스트레스 이벤트 CRUD (list / `{event_id}` GET·PATCH·DELETE, POST)
 - `cycles/*` — `/period-start`, `/current`, `/history`, `/{cycle_id}` PATCH
 - `sleep-logs/*` — 수면 로그 CRUD + `/latest`
 - `categories/*` — 트리거/카테고리 CRUD
