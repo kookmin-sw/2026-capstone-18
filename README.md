@@ -336,7 +336,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 - `sync/{upload,download}` — 옵트인 암호화 백업
 - `sync/biosignals` — 옵트인 원시 생체신호 업로드
 - `devices/fcm-token` — FCM 토큰 등록
-- `ws/realtime` — Watch ↔ Phone 실시간 채널 (JWT in query)
+- `ws/realtime` — Backend ↔ Flutter 실시간 fan-out 채널 (auth: 연결 직후 첫 JSON 메시지 `{type:"auth", token:"<jwt>"}`, 5초 타임아웃; Watch↔Phone 통신은 별도 Wear Data Layer 사용)
 - `insights/tips/{pattern_key}` — Bedrock(Haiku 4.5) 기반 패턴 카드 팁, 24h 캐시 (§2.8)
 - `reports/weekly` — 주간 잡이 미리 생성한 한국어 리포트 조회 (§2.8)
 

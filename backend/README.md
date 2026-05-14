@@ -210,7 +210,7 @@ Watch streams 60-second sample windows over Wearable Data Layer (BT)
 ```
 User toggles "Contribute raw biosignals" in Settings
   → Phone generates per-device 256-bit AES key in AndroidKeyStore (StrongBox when available)
-  → Phone encrypts a 60-second window of raw signals with AES-256-GCM (key never leaves the device — server cannot decrypt; reinstalling the app makes prior uploads permanently unreadable)
+  → Phone encrypts a 60-second window of raw signals with AES-256-GCM. **The encryption key never leaves the device** (AndroidKeyStore, StrongBox when available); the resulting ciphertext IS uploaded to S3, where SSE-KMS provides a second layer of at-rest encryption. The server only ever sees opaque ciphertext + object metadata, and reinstalling the app makes prior uploads permanently unreadable.
   → POST /api/v1/sync/biosignals  → backend issues a presigned PUT URL
   → Phone PUTs ciphertext to S3 (bucket: biosignals)
   → Backend records s3_object_key + signal_type + recorded_at in DB
@@ -384,22 +384,23 @@ Router: [`app/sync/router.py`](app/sync/router.py), prefix `/api/v1/sync`.
 
 ```json
 {
-  "type": "event.created",
+  "type": "events.created",
   "payload": { "...": "..." }
 }
 ```
 
-**Server → client types:**
-- `event.created` — new stress event from another device
-- `event.updated` — log added to an existing event
-- `cycle.updated` — period start logged on another device
-- `insight.ready` — weekly insight generated
-- `pong` — heartbeat response
+**Server → client types** (defined as the `OutboundMessageType` Literal in [`app/schemas/realtime.py`](app/schemas/realtime.py)):
+- `events.created` — new stress event from another device
+- `events.updated` — fields edited on an existing event (e.g., log_text added)
+- `events.deleted` — stress event removed
+- `cycles.period_started` — period start logged on another device
+- `settings.updated` — user settings (e.g., notification preferences) changed
+- `system.heartbeat` — server heartbeat, also sent in response to a client `ping`
 
 **Client → server types:**
-- `ping` — heartbeat
-- `subscribe` — opt-in subscription to specific event types
-- `ack` — acknowledge a server message
+- `ping` — heartbeat. The server replies with a `system.heartbeat` envelope and touches the connection's `last_heartbeat_at` row in `websocket_connections`.
+
+Server → client types are typed with a Pydantic `Literal` so adding a new type requires a backend code change — clients can `switch` on the type without worrying about typos. The schema does not currently include a client-initiated `subscribe` / `ack` flow; all server pushes fan out to every connection owned by the authenticated user.
 
 **Lifecycle:** clients reconnect with exponential backoff (500ms → 30s cap). The server closes idle connections after ~5 minutes; clients re-establish and call `GET /events?since=...` to backfill any missed deltas.
 
