@@ -346,7 +346,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 - `devices/fcm-token` — FCM 토큰 POST 등록 및 logout/account-switch cleanup용 DELETE unregister
 - `ws/realtime` — Backend ↔ Flutter 실시간 fan-out 채널 (auth: 연결 직후 첫 JSON 메시지 `{type:"auth", token:"<jwt>"}`, 5초 타임아웃; Watch↔Phone 통신은 별도 Wear Data Layer 사용)
 
-스프린트 1 단계의 헬스체크: `GET /health → {"status":"ok","version":"0.1.0"}`. Swagger는 `/docs`, ReDoc은 `/redoc`, OpenAPI는 `/openapi.json`.
+헬스체크: `GET /health → {"status":"ok","version":"0.8.0"}` (값은 `backend/app/config.py`의 `app_version` 기본값과 동일하며 배포마다 갱신). Swagger는 `/docs`, ReDoc은 `/redoc`, OpenAPI는 `/openapi.json`.
 
 ### 2.6 로컬 개발
 
