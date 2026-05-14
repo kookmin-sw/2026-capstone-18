@@ -6,14 +6,14 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
 from app.db.dependencies import get_db
 from app.models.fcm_token import FcmToken
 from app.models.user import User
-from app.schemas.devices import FcmTokenRegister, FcmTokenResponse
+from app.schemas.devices import FcmTokenRegister, FcmTokenResponse, FcmTokenUnregister
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -45,3 +45,23 @@ async def register_fcm_token(
     await db.flush()
     await db.refresh(row)
     return row
+
+
+@router.delete(
+    "/fcm-token",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Unregister an FCM device token (idempotent)",
+)
+async def unregister_fcm_token(
+    payload: FcmTokenUnregister,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """Delete the row matching (user, token). 204 even if the row never existed
+    so callers don't learn whether a token was registered."""
+    await db.execute(
+        delete(FcmToken).where(
+            FcmToken.user_id == user.id,
+            FcmToken.token == payload.token,
+        )
+    )

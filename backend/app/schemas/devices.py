@@ -13,6 +13,12 @@ class FcmTokenRegister(BaseModel):
     platform: Literal["android", "ios"]
 
 
+class FcmTokenUnregister(BaseModel):
+    """Body for DELETE /devices/fcm-token. Token-only; platform is implicit."""
+
+    token: str = Field(min_length=1, max_length=512)
+
+
 class FcmTokenResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
