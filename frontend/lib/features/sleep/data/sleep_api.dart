@@ -35,10 +35,10 @@ class SleepApi {
   }) async {
     final queryParameters = <String, String>{'limit': limit.toString()};
     if (start != null) {
-      queryParameters['start'] = _apiDate(start);
+      queryParameters['start'] = _apiRangeStart(start);
     }
     if (end != null) {
-      queryParameters['end'] = _apiDate(end);
+      queryParameters['end'] = _apiRangeEnd(end);
     }
 
     final response = await _apiClient.get(
@@ -102,9 +102,19 @@ class SleepApi {
     return source;
   }
 
-  String _apiDate(DateTime date) {
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day';
+  String _apiRangeStart(DateTime date) {
+    return DateTime(date.year, date.month, date.day).toUtc().toIso8601String();
+  }
+
+  String _apiRangeEnd(DateTime date) {
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      23,
+      59,
+      59,
+      999,
+    ).toUtc().toIso8601String();
   }
 }

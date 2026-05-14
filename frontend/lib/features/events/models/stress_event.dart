@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 enum StressEventState { detectedUnlogged, logged }
 
 class StressEvent {
@@ -162,13 +160,6 @@ class StressEvent {
     final parsed = DateTime.tryParse(raw);
     if (parsed == null) return DateTime.now();
 
-    final local = parsed.toLocal();
-    assert(() {
-      debugPrint('StressEvent.detectedAt raw=$raw');
-      debugPrint('StressEvent.detectedAt isUtc=${parsed.isUtc}');
-      debugPrint('StressEvent.detectedAt local=$local');
-      return true;
-    }());
-    return local;
+    return parsed.toLocal();
   }
 }

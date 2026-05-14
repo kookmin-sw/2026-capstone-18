@@ -27,7 +27,7 @@ class BiosignalCaptureService : Service() {
         const val EXTRA_DURATION_SEC = "duration_sec"
         const val EXTRA_ACCESS_TOKEN = "access_token"
         const val EXTRA_BACKEND_BASE = "backend_base"
-        const val EXTRA_SOURCE = "source"  // "watch" or "synthetic"
+        const val EXTRA_SOURCE = "source"
         private const val NOTIFICATION_ID = 1042
         private const val CHANNEL_ID = "biosignal_capture"
     }
@@ -66,7 +66,7 @@ class BiosignalCaptureService : Service() {
         val wear = WearMessageClient.forContext(applicationContext)
 
         captureJob = scope.launch {
-            // Wear API calls (Tasks.await) must run off the main thread.
+
             if (source == "watch") {
                 val nodeId = wear.connectedNodeId()
                 if (nodeId == null) {
@@ -89,7 +89,7 @@ class BiosignalCaptureService : Service() {
             val client = OkHttpClient()
             val eventsClient = EventsClient(client, backendBase, accessToken)
 
-            // Phase 2: streaming inference path.
+
             val onnxPath = com.littlesignals.app.inference.ModelAssets.extractFromContext(applicationContext).absolutePath
             val engine = com.littlesignals.app.inference.OnnxInferenceEngine.create(onnxPath)
             val preprocessor = com.littlesignals.app.inference.StreamingPreprocessor()
@@ -135,17 +135,14 @@ class BiosignalCaptureService : Service() {
                     updateNotification(elapsedSec)
                     CaptureChannels.emit(state = "capturing", elapsedSec = elapsedSec, windowsUploaded = windowsUploaded)
 
-                    // Drain samples every second so streaming inference can keep up.
                     val drainedHr    = syntheticSource?.drainHr()    ?: watchSource?.drainHr()    ?: emptyList()
                     val drainedPpg   = syntheticSource?.drainPpg()   ?: watchSource?.drainPpg()   ?: emptyList()
                     val drainedEda   = syntheticSource?.drainEda()   ?: watchSource?.drainEda()   ?: emptyList()
                     val drainedAccel = syntheticSource?.drainAccel() ?: watchSource?.drainAccel() ?: emptyList()
 
-                    // Inference path — unchanged
                     preprocessor.appendBatch(drainedPpg, drainedEda, drainedAccel)
                     coordinator.tick(currentMs = nowMs)
 
-                    // Window accumulation for S3 upload
                     windowHr.addAll(drainedHr)
                     windowPpg.addAll(drainedPpg)
                     windowEda.addAll(drainedEda)
@@ -212,8 +209,8 @@ class BiosignalCaptureService : Service() {
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (nm.getNotificationChannel(CHANNEL_ID) == null) {
                 nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, "Biosignal capture", NotificationManager.IMPORTANCE_LOW)
-                        .apply { description = "Foreground capture session" }
+                    NotificationChannel(CHANNEL_ID, "생체신호 캡처", NotificationManager.IMPORTANCE_LOW)
+                        .apply { description = "생체신호 캡처 세션 상태" }
                 )
             }
         }
@@ -223,7 +220,7 @@ class BiosignalCaptureService : Service() {
         ensureNotificationChannel()
         val mm = elapsedSec / 60
         val ss = elapsedSec % 60
-        val text = "Capturing — %02d:%02d".format(mm, ss)
+        val text = "캡처 중 — %02d:%02d".format(mm, ss)
         val tapIntent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
         )
@@ -238,7 +235,7 @@ class BiosignalCaptureService : Service() {
             .setSmallIcon(android.R.drawable.ic_menu_recent_history)
             .setOngoing(true)
             .setContentIntent(tapIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "중지", stopIntent)
             .build()
     }
 

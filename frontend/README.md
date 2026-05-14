@@ -2,9 +2,9 @@
 
 ## Overview
 
-`frontend/`는 Luma의 Flutter 기반 Android app입니다. 사용자-facing 화면에서 stress logging, cycle-aware insight, sleep UI, notification registration, wearable-oriented biosignal capture UI를 담당합니다.
+`frontend/`는 Luma의 Flutter 기반 Android 앱입니다. 사용자-facing 화면에서 stress logging, cycle-aware insight, sleep UI, Health Connect 기반 수면/주기 불러오기, notification registration, wearable-oriented biosignal capture UI를 담당합니다.
 
-앱은 staging backend와 REST API로 통신하며, Provider 기반 상태 관리로 화면과 data/API/native layer를 연결합니다. Root README가 전체 프로젝트 showcase 문서라면, 이 문서는 frontend module을 실행하고 구조를 이해하고 검증하기 위한 engineering README입니다.
+앱은 staging FastAPI backend와 REST API로 통신하고, Provider 기반 상태 관리로 UI, data/API layer, native Android layer를 연결합니다. 이 문서는 root README보다 실행과 구조 이해에 초점을 둔 frontend engineering README입니다.
 
 ## Tech Stack
 
@@ -14,9 +14,10 @@
 | State management | Provider |
 | Backend communication | REST API client layer |
 | Push registration | Firebase Messaging / FCM |
-| Auth frontend flow | Google Sign-In frontend flow, anonymous auth |
+| Auth frontend flow | Anonymous auth, Google Sign-In frontend flow |
+| Health data import | Android Health Connect via MethodChannel |
 | Native bridge | MethodChannel / EventChannel |
-| Native integration | Android foreground service |
+| Native integration | Android foreground service, Kotlin, ONNX Runtime |
 | Wear boundary | Wear Data Layer |
 | Android package | `com.littlesignals.app` |
 
@@ -28,7 +29,7 @@ frontend/
 │   ├── core/       # app config, ApiClient, secure storage, theme, shared widgets, UI formatters
 │   ├── features/   # domain providers, models, API adapters, services
 │   └── screens/    # Home, Insight, My/Profile, Stress Log, Cycle, Sleep, Watch UI
-├── android/        # Android package, native capture service, Wear Data Layer boundary
+├── android/        # Android package, Health Connect bridge, native capture/inference service
 └── test/           # Flutter unit/widget/regression smoke tests
 ```
 
@@ -38,7 +39,7 @@ frontend/
 
 `lib/screens`는 실제 화면 composition을 담당합니다. 화면은 backend endpoint를 직접 다루지 않고 Provider state와 action을 사용합니다.
 
-`android`는 Flutter app의 Android runtime과 native capture layer를 포함합니다. `test`는 app flow, provider behavior, formatter, notification copy, native bridge controller 등을 검증합니다.
+`android`는 Flutter app의 Android runtime, Health Connect MethodChannel, Wear Data Layer boundary, foreground biosignal capture service, phone-side ONNX inference, raw window upload code를 포함합니다.
 
 ## Implemented Features
 
@@ -46,20 +47,25 @@ frontend/
 - Anonymous auth
 - Google Sign-In frontend request flow
 - Home dashboard
-- Stress log create/edit
+- Stress log create/edit/delete
 - Trigger/category management
 - Cycle current/history/create/update flow
 - My Cycle auto-save UX
+- Health Connect cycle import
 - Sleep log display states
+- Health Connect sleep import
 - Insight calendar / report UI
 - AI selected-period report card/detail UI
 - Profile / nickname editing
 - Notification permission
 - FCM device token registration
+- WebSocket realtime event handling
 - Watch / biosignal capture UI
 - Raw biosignal consent toggle
 - Capture source picker
 - Capture status / summary screen
+- Phone-side native ONNX stress detection prototype
+- AES-GCM encrypted raw biosignal window upload
 - Korean UI copy polish
 - Regression smoke tests
 
@@ -75,17 +81,28 @@ Frontend에서 사용하는 주요 backend API는 다음과 같습니다.
 | Cycle history | `/api/v1/cycles/history` |
 | Trigger/category | `/api/v1/categories` |
 | Consent | `/api/v1/consent` |
-| Sleep latest | `/api/v1/sleep-logs/latest` |
+| Sleep logs | `/api/v1/sleep-logs/latest`, `/api/v1/sleep-logs` |
 | FCM device token | `/api/v1/devices/fcm-token` |
 | AI selected-period report | `/api/v1/reports/range` |
+| Realtime events | `WSS /ws/realtime` |
 | Biosignal batch metadata | `/api/v1/sync/biosignals/batch` |
 | Raw biosignal object upload | presigned S3 PUT upload flow |
 
-API base URL은 `lib/core/config/api_config.dart`에서 관리합니다. Shared `ApiClient`는 request ID, JSON decode, auth header, token refresh, error mapping을 담당합니다.
+`/ws/realtime`은 backend-to-Flutter realtime channel입니다. Client는 WebSocket 연결 후 첫 JSON message로 `{"type":"auth","token":"..."}`를 전송합니다. Watch-to-phone communication은 WebSocket이 아니라 Wear Data Layer를 사용합니다.
+
+## Health Connect Import
+
+Sleep/Cycle sync UX는 Health Connect import flow입니다. Galaxy Watch raw biosignal capture와 별도 기능입니다.
+
+- Flutter `WatchSleepService` / `WatchCycleService`는 `MethodChannel('littlesignals/health')`를 호출합니다.
+- Android `HealthChannels`는 `READ_SLEEP`, `READ_MENSTRUATION` 권한을 요청하고 `SleepSessionRecord`, `MenstruationPeriodRecord`를 읽습니다.
+- Sleep import는 `fellAsleepAt`, `wokeUpAt`, `endedOn`, `source`를 받아 기존 sleep API로 저장합니다.
+- Cycle import는 `periodStart`, nullable `periodEnd`, `estimatedCycleLength`, `source`를 받아 기존 cycle provider/API flow로 저장합니다.
+- 권한 없음, 데이터 없음, Health Connect 사용 불가, native error는 분리된 사용자-facing copy로 처리합니다.
 
 ## Native Capture Infrastructure
 
-Luma frontend에는 wearable-oriented biosignal capture infrastructure가 포함되어 있습니다. 이 범위는 raw biosignal capture/upload UX와 phone-side native plumbing을 설명합니다.
+Luma frontend에는 wearable-oriented biosignal capture infrastructure가 포함되어 있습니다. 이 범위는 raw biosignal capture/upload UX와 phone-side native integration을 설명합니다.
 
 - Flutter `BiosignalCaptureService`
   - `MethodChannel('littlesignals/capture')`
@@ -102,15 +119,17 @@ Luma frontend에는 wearable-oriented biosignal capture infrastructure가 포함
 - `WatchSourceController`
   - HR, PPG, EDA, accelerometer sample buffering
 - `SyntheticSampleSource`
-  - capture/upload plumbing 확인용 synthetic source
+  - capture/upload/inference plumbing 확인용 synthetic source
+- `StreamingInferenceCoordinator` / `StressPipeline`
+  - 300초 buffer 기반 phone-side ONNX inference
+  - detection decision 발생 시 backend stress event 생성
 - `WindowUploader`
-  - 1분 단위 window 생성
+  - 1분 단위 raw biosignal window 생성
+  - Android Keystore 기반 AES-GCM 암호화
   - `/api/v1/sync/biosignals/batch` 호출
-  - backend가 반환한 presigned S3 PUT URL로 raw payload 업로드
-- Capture summary UI
-  - elapsed time, uploaded window count, estimated data size 표시
+  - backend가 반환한 presigned S3 PUT URL로 ciphertext payload 업로드
 
-간단한 흐름은 다음과 같습니다.
+이 capture path는 capstone demo를 위한 wearable-oriented prototype pipeline입니다. Sleep/Cycle Health Connect import와 섞지 않습니다.
 
 ```mermaid
 flowchart LR
@@ -121,8 +140,10 @@ flowchart LR
     Source --> Synthetic["SyntheticSampleSource"]
     Wear --> Receiver["WatchSampleReceiver"]
     Receiver --> Buffer["WatchSourceController"]
-    Synthetic --> Uploader["WindowUploader"]
-    Buffer --> Uploader
+    Synthetic --> Inference["Phone-side ONNX inference"]
+    Buffer --> Inference
+    Inference --> Events["POST /api/v1/events"]
+    Inference --> Uploader["WindowUploader<br/>AES-GCM encrypted windows"]
     Uploader --> Batch["/api/v1/sync/biosignals/batch"]
     Batch --> S3["Presigned S3 PUT"]
 ```
@@ -148,7 +169,7 @@ flutter analyze
 flutter test
 ```
 
-Regression smoke tests는 auth navigation, anonymous auth, main tabs, Home dashboard, stress log create/edit, trigger management, cycle auto-save, sleep display states, notification copy, nickname/session cleanup, provider reset 같은 주요 app flow를 검증합니다.
+Regression smoke tests는 auth navigation, anonymous auth, main tabs, Home dashboard, stress log create/edit/delete, trigger management, cycle auto-save, sleep display states, notification copy, nickname/session cleanup, provider reset 같은 주요 app flow를 검증합니다.
 
 Android native unit tests는 Android project에서 실행할 수 있습니다.
 
@@ -163,6 +184,9 @@ cd android
 - Android package는 현재 `com.littlesignals.app`입니다.
 - Google OAuth runtime env key는 현재 `LITTLESIGNALS_GOOGLE_SERVER_CLIENT_ID`입니다.
 - Android package 및 일부 runtime env key는 build/runtime compatibility를 위해 유지됩니다.
+- Health Connect import는 Android 기기 권한과 실제 Health Connect 데이터에 의존합니다.
+- Watch source capture는 Wear OS 기기 pairing, sensor permission, Wear Data Layer reachability에 의존합니다.
+- Synthetic capture source는 demo/testing용으로 native capture/upload/inference plumbing을 확인할 때 사용할 수 있습니다.
 
 다음 local secret 또는 generated file은 commit하지 않습니다.
 

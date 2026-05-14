@@ -142,13 +142,8 @@ class ApiClient {
 
     final encodedBody = body == null ? null : jsonEncode(body);
 
-    debugPrint('REQUEST: $method $uri');
-    debugPrint('API FULL URI: $uri');
-    if (method == 'POST' && path == '/api/v1/events') {
-      debugPrint(
-        'POST /api/v1/events REQUEST BODY: ${encodedBody ?? '<empty body>'}',
-        wrapWidth: 1024,
-      );
+    if (kDebugMode) {
+      debugPrint('REQUEST: $method $uri');
     }
 
     final response = await switch (method) {
@@ -159,30 +154,11 @@ class ApiClient {
       _ => throw ApiException(message: '지원하지 않는 요청 방식이에요.'),
     }.timeout(const Duration(seconds: 20));
 
-    debugPrint('RESPONSE: ${response.statusCode} $method $uri');
-    _logResponseBody(response);
+    if (kDebugMode) {
+      debugPrint('RESPONSE: ${response.statusCode} $method $uri');
+    }
 
     return response;
-  }
-
-  void _logResponseBody(http.Response response) {
-    final body = response.statusCode == 422
-        ? _fullBodyForLog(response.body)
-        : _trimBodyForLog(response.body);
-
-    debugPrint('RESPONSE BODY: $body', wrapWidth: 1024);
-  }
-
-  String _fullBodyForLog(String body) {
-    if (body.isEmpty) return '<empty body>';
-    return body;
-  }
-
-  String _trimBodyForLog(String body) {
-    if (body.isEmpty) return '<empty body>';
-    const maxLength = 1200;
-    if (body.length <= maxLength) return body;
-    return '${body.substring(0, maxLength)}... <truncated>';
   }
 
   dynamic _decodeOrThrow(http.Response response) {

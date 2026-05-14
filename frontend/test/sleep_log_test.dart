@@ -1,4 +1,9 @@
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:little_signals/core/network/api_client.dart';
+import 'package:little_signals/core/storage/secure_token_storage.dart';
+import 'package:little_signals/features/sleep/data/sleep_api.dart';
 import 'package:little_signals/features/sleep/models/sleep_log.dart';
 
 void main() {
@@ -39,4 +44,37 @@ void main() {
     expect(sleepLog.toUpdateJson(), isNot(contains('sleep_quality')));
     expect(sleepLog.toUpdateJson(), isNot(contains('note')));
   });
+
+  test('SleepApi list sends explicit day boundary datetimes', () async {
+    Uri? capturedUri;
+    final api = SleepApi(
+      apiClient: ApiClient(
+        tokenStorage: _MemoryTokenStorage(),
+        httpClient: MockClient((request) async {
+          capturedUri = request.url;
+          return http.Response('{"items":[]}', 200);
+        }),
+      ),
+    );
+    final start = DateTime(2026, 5, 1);
+    final end = DateTime(2026, 5, 31);
+
+    await api.listSleepLogs(start: start, end: end);
+
+    expect(capturedUri, isNotNull);
+    expect(
+      capturedUri!.queryParameters['start'],
+      DateTime(2026, 5, 1).toUtc().toIso8601String(),
+    );
+    expect(
+      capturedUri!.queryParameters['end'],
+      DateTime(2026, 5, 31, 23, 59, 59, 999).toUtc().toIso8601String(),
+    );
+    expect(capturedUri!.queryParameters['limit'], '200');
+  });
+}
+
+class _MemoryTokenStorage extends SecureTokenStorage {
+  @override
+  Future<String?> readAccessToken() async => null;
 }
