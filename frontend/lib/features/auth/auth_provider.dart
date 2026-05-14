@@ -253,6 +253,69 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
+  Future<bool> forgotPassword(String email) async {
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await authApi.forgotPassword(email);
+      return true;
+    } on ApiException catch (error) {
+      _errorMessage = error.message;
+    } catch (error, stackTrace) {
+      debugPrint('AUTH forgot password unexpected error: $error');
+      debugPrint('$stackTrace');
+      _errorMessage = '잠시 후 다시 시도해 주세요.';
+    }
+    notifyListeners();
+    return false;
+  }
+
+  Future<bool> resetPasswordWithOtp({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    _status = AuthStatus.checking;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final tokens = await authApi.resetPassword(
+        email: email,
+        otp: otp,
+        newPassword: newPassword,
+      );
+      await tokenStorage.saveTokens(tokens);
+      await _saveSessionMetadata(tokens, fallbackType: 'email');
+
+      _localNickname = await tokenStorage.readNickname();
+      _user = _applySessionMetadata(_applyLocalNickname(await authApi.me()));
+      _status = AuthStatus.authenticated;
+      _errorMessage = null;
+      notifyListeners();
+      return true;
+    } on ApiException catch (error) {
+      await tokenStorage.clear();
+      _user = null;
+      _sessionAccountType = null;
+      _sessionEmail = null;
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = error.message;
+    } catch (error, stackTrace) {
+      debugPrint('AUTH reset password unexpected error: $error');
+      debugPrint('$stackTrace');
+      await tokenStorage.clear();
+      _user = null;
+      _sessionAccountType = null;
+      _sessionEmail = null;
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = '비밀번호를 변경하지 못했어요. 잠시 후 다시 시도해 주세요.';
+    }
+
+    notifyListeners();
+    return false;
+  }
+
   Future<void> refreshMe() async {
     try {
       _localNickname = await tokenStorage.readNickname();

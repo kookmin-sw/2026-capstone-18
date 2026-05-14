@@ -111,6 +111,51 @@ class AuthApi {
     }
   }
 
+  Future<void> forgotPassword(String email) async {
+    // Backend always returns 200 to defend against account enumeration,
+    // so this call effectively cannot fail on the happy/unknown paths.
+    // Network/5xx errors still throw ApiException — caller decides how
+    // to message them.
+    try {
+      await _apiClient.post(
+        '/api/v1/auth/password/forgot',
+        body: {'email': email},
+        auth: false,
+      );
+    } on ApiException catch (error) {
+      throw _mapEmailAuthError(
+        error,
+        fallback: '잠시 후 다시 시도해 주세요.',
+      );
+    }
+  }
+
+  Future<AuthTokens> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/api/v1/auth/password/reset',
+        body: {
+          'email': email,
+          'otp': otp,
+          'new_password': newPassword,
+        },
+        auth: false,
+      );
+      return AuthTokens.fromJson(
+        _asMap(response),
+      ).copyWith(accountType: 'email', email: email);
+    } on ApiException catch (error) {
+      throw _mapEmailAuthError(
+        error,
+        fallback: '비밀번호를 변경하지 못했어요. 잠시 후 다시 시도해 주세요.',
+      );
+    }
+  }
+
   Future<AppUser> me() async {
     final response = await _apiClient.get('/api/v1/me');
     return AppUser.fromJson(_asMap(response));
