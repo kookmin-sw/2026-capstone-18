@@ -163,7 +163,7 @@
 | 하드웨어 | Android 폰 (Galaxy Z Flip 5 등) | Flutter 앱 실기기 테스트 | Frontend | — |
 | SDK | Samsung Health Sensor SDK 1.4.1 (`samsung-health-sensor-api-1.4.1.aar`) | Watch 센서 채널 접근 | Watch | 저장소에 포함 |
 
-각 도구의 정확한 버전 핀은 `backend/pyproject.toml`, `backend/infra/versions.tf`, `frontend/pubspec.yaml`, `watch/sensor-capture/build.gradle.kts`에서 확인합니다.
+각 도구의 정확한 버전 핀은 `backend/pyproject.toml`, `backend/infra/main.tf` (`terraform { required_version = ">= 1.7.0" }`), `frontend/pubspec.yaml`, `watch/sensor-capture/build.gradle.kts`에서 확인합니다.
 
 ---
 
