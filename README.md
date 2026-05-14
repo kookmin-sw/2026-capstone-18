@@ -314,7 +314,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 | IAM Role (`ecs_execution`, `ecs_task`, `scheduler`) | 시크릿 풀링 / 런타임 권한 / 스케줄러의 `RunTask` + `PassRole` |
 | ECR (lifecycle policy 포함) | 컨테이너 이미지 레지스트리, 미사용 태그 자동 정리 |
 | RDS Postgres 15 | 관계형 데이터(`stress_events`, `cycles`, `raw_biosignal_uploads` 등) |
-| S3 `sync` (Seoul, SSE, versioning, lifecycle) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`) |
+| S3 `sync` (Seoul, SSE-KMS, versioning, abort-MPU 라이프사이클) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`). 객체 만료 정책 없음 — 사용자가 `DELETE /api/v1/sync`로 초기화 |
 | S3 `biosignals` (Seoul, SSE-KMS, versioning, lifecycle) | 옵트인 원시 생체신호 — 디바이스 Keystore의 AES-256-GCM으로 클라이언트 측 암호화된 사이퍼텍스트만 저장 (서버 복호화 불가), S3에서 SSE-KMS로 이중 보호 |
 | EventBridge Scheduler + ECS RunTask | 6개 스케줄 (`backend/infra/scheduler.tf`): `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 (`cron(15 */6 * * ? *)`, 매시각 15분) · `weekly_reports` 토 17:00 UTC (= 일 02:00 KST, §2.8) · `prewarm_range_reports` 매일 18:00 UTC (= 03:00 KST, AI 리포트 캐시 사전 워밍) · `send_morning_tips` 매일 22:00 UTC (= 07:00 KST, 아침 푸시) · `send_sleep_nudges` 매일 02:00 UTC (= 11:00 KST, 수면 기록 리마인더) |
 | AWS Bedrock (Anthropic Claude Haiku 4.5) | 패턴 팁 + 주간 리포트 생성, IAM에서 Haiku 4.5 인퍼런스 프로파일 + 그 하부 foundation-model에만 `InvokeModel` 허용 (§2.8) |
