@@ -487,12 +487,14 @@ Database credentials are injected into the ECS task as environment variables sou
 
 ## 11. Background jobs
 
-Two scheduled jobs run as one-off ECS tasks (not Lambda — the codepath is shared with the API and we wanted Python parity).
+Scheduled jobs run as one-off ECS tasks (not Lambda — the codepath is shared with the API and we wanted Python parity).
 
 | Job | Cadence | Entry point | What it does |
 | :--- | :--- | :--- | :--- |
 | `purge_accounts` | Daily, 03:00 UTC | [`app.jobs.purge_accounts`](app/jobs/purge_accounts.py) | Hard-deletes accounts whose `deleted_at` is older than the grace period; writes one `audit_log` row per deletion. |
 | `purge_biosignals` | Every 6 hours | [`app.jobs.purge_biosignals`](app/jobs/purge_biosignals.py) | Deletes S3 blobs and DB pointers past their 12-month retention window (`raw_biosignal_uploads.expires_at`); writes one `audit_log` row per purge batch. |
+| `weekly_reports` | Sat 17:00 UTC (= Sun 02:00 KST) | [`app.jobs.weekly_reports_job`](app/jobs/weekly_reports_job.py) | Generates Bedrock-backed Korean weekly report rows for any user who logged a stress event in the last completed Mon–Sun week. |
+| `prewarm_range_reports` | Daily, 18:00 UTC (= 03:00 KST) | [`app.jobs.prewarm_range_reports_job`](app/jobs/prewarm_range_reports_job.py) | Pre-generates AI range reports (7/14/30-day windows) for users active in the last 30 days. Idempotent — skips cache rows already newer than the latest stress event in the range. Result: the AI Report screen serves from DB cache (~70 ms) instead of calling Bedrock live (~8 s) on first view. |
 
 Each invocation:
 

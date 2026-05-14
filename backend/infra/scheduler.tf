@@ -303,6 +303,58 @@ resource "aws_scheduler_schedule" "weekly_reports" {
   }
 }
 
+resource "aws_scheduler_schedule" "prewarm_range_reports" {
+  name        = "${local.name_prefix}-prewarm-range-reports"
+  group_name  = aws_scheduler_schedule_group.main.name
+  description = "Nightly Bedrock prewarm for AI range reports. 03:00 KST = 18:00 UTC. Warms 7/14/30-day ranges for users active in the last 30 days so the AI Report screen serves from DB cache (~70ms) instead of waking Bedrock (~8s) on first view."
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression          = "cron(0 18 ? * * *)"
+  schedule_expression_timezone = "UTC"
+
+  target {
+    arn      = aws_ecs_cluster.main.arn
+    role_arn = aws_iam_role.scheduler.arn
+
+    ecs_parameters {
+      task_definition_arn = aws_ecs_task_definition.cron.arn_without_revision
+      launch_type         = "FARGATE"
+      task_count          = 1
+
+      network_configuration {
+        subnets          = aws_subnet.private[*].id
+        security_groups  = [aws_security_group.ecs.id]
+        assign_public_ip = false
+      }
+    }
+
+    dead_letter_config {
+      arn = aws_sqs_queue.scheduler_dlq.arn
+    }
+
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts       = 2
+    }
+
+    input = jsonencode({
+      containerOverrides = [
+        {
+          name = "cron"
+          command = [
+            "sh",
+            "-c",
+            "export DATABASE_URL=\"${local.cron_db_url}\" && export AI_FEATURES_ENABLED=true && cd /app && PYTHONPATH=/app python scripts/prewarm_range_reports.py",
+          ]
+        }
+      ]
+    })
+  }
+}
+
 resource "aws_scheduler_schedule" "send_morning_tips" {
   name        = "${local.name_prefix}-send-morning-tips"
   group_name  = aws_scheduler_schedule_group.main.name
