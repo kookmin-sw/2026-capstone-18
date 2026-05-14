@@ -32,7 +32,6 @@
 ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy_2.0-D71F00?logo=sqlalchemy&logoColor=white)
 ![Pydantic](https://img.shields.io/badge/Pydantic_v2-E92063?logo=pydantic&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL_15-4169E1?logo=postgresql&logoColor=white)
-![TimescaleDB](https://img.shields.io/badge/TimescaleDB-FDB515?logo=timescale&logoColor=white)
 ![Poetry](https://img.shields.io/badge/Poetry-60A5FA?logo=poetry&logoColor=white)
 ![Wear OS](https://img.shields.io/badge/Wear_OS-4285F4?logo=wearos&logoColor=white)
 
@@ -123,15 +122,19 @@
 │   └── src/
 │       ├── dataset/          # WESAD / Stress-Predict 다운로드·전처리
 │       ├── mamba_model.py    # Pure PyTorch Mamba 아키텍처
-│       ├── train.py          # 5-Fold GroupKFold 학습 루프
+│       ├── pipeline.py       # 학습·평가 공용 전처리/추론 헬퍼
+│       ├── train_kfold.py    # 5-Fold GroupKFold 학습 루프
 │       ├── train_LOSO.py     # Leave-One-Subject-Out 검증
-│       └── train_fp_fold1.py # 단일 fold full-precision 학습
+│       └── train_final_model.py # 배포용 단일 모델 학습 (Hold-out validation)
 ├── backend/                  # FastAPI 백엔드 + Terraform 인프라
 │   ├── app/                  # 라우터·서비스·모델·스키마·관측성
 │   ├── alembic/              # DB 마이그레이션
 │   ├── infra/                # Terraform (ECS, RDS, ALB, S3, EventBridge)
 │   ├── scripts/              # 부트스트랩·마이그레이션·스모크 테스트
 │   └── docs/                 # 스프린트별 배포 런북
+├── frontend/                 # Flutter Android 앱 + Kotlin native capture/inference layer
+│   ├── lib/                  # Dart UI, providers, feature data layer
+│   └── android/app/src/main/kotlin/com/littlesignals/app/  # capture/, inference/ (ONNX), notifications/
 ├── watch/
 │   └── sensor-capture/       # Wear OS 원시 센서 수집 유틸 (Kotlin)
 ├── README.md
@@ -223,11 +226,11 @@ Galaxy Watch 8 SDK 출력에 맞춰 25Hz 목표 주파수로 동기화된 60초 
 
 $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, y_i)$$
 
-현실적인 노이즈가 포함된 StressPredict의 Stress 이벤트 누락에 가장 큰 수학적 페널티를 부여하기 위해 그리드 서치 기반 가중치($w_i$)를 적용했습니다:
+통제 환경(WESAD)에서 명확하게 라벨링된 Stress 이벤트의 분류 손실에 가장 큰 수학적 페널티를 부여해 라벨 노이즈가 적은 신호에서 결정 경계를 우선 학습시키도록 그리드 서치 기반 가중치($w_i$)를 적용했습니다. StressPredict는 일상/Ambulatory 환경 노이즈가 크기 때문에 두 클래스 모두 동일한 1.0 가중치를 부여합니다 (`AI/src/train_kfold.py:35-51`, CLI 기본값 `--wesad_stress_w 2.0`).
 * **WESAD Baseline:** 0.5
-* **WESAD Stress:** 1.0
+* **WESAD Stress:** 2.0
 * **StressPredict Baseline:** 1.0
-* **StressPredict Stress:** 2.0
+* **StressPredict Stress:** 1.0
 
 ---
 
@@ -313,7 +316,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 | RDS Postgres 15 | 관계형 데이터(`stress_events`, `cycles`, `raw_biosignal_uploads` 등) |
 | S3 `sync` (Seoul, SSE, versioning, lifecycle) | 옵트인 암호화 백업 블롭 (`/api/v1/sync`) |
 | S3 `biosignals` (Seoul, SSE-KMS, versioning, lifecycle) | 옵트인 원시 생체신호 — 디바이스 Keystore의 AES-256-GCM으로 클라이언트 측 암호화된 사이퍼텍스트만 저장 (서버 복호화 불가), S3에서 SSE-KMS로 이중 보호 |
-| EventBridge Scheduler + ECS RunTask | `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 · `weekly_reports` 토 17:00 UTC (= 일 02:00 KST, §2.8) |
+| EventBridge Scheduler + ECS RunTask | 6개 스케줄 (`backend/infra/scheduler.tf`): `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 (`cron(15 */6 * * ? *)`, 매시각 15분) · `weekly_reports` 토 17:00 UTC (= 일 02:00 KST, §2.8) · `prewarm_range_reports` 매일 18:00 UTC (= 03:00 KST, AI 리포트 캐시 사전 워밍) · `send_morning_tips` 매일 22:00 UTC (= 07:00 KST, 아침 푸시) · `send_sleep_nudges` 매일 02:00 UTC (= 11:00 KST, 수면 기록 리마인더) |
 | AWS Bedrock (Anthropic Claude Haiku 4.5) | 패턴 팁 + 주간 리포트 생성, IAM에서 Haiku 4.5 인퍼런스 프로파일 + 그 하부 foundation-model에만 `InvokeModel` 허용 (§2.8) |
 | SQS DLQ + CloudWatch Metric Alarm | 스케줄러 실패 격리 + DLQ depth 알람 |
 | CloudWatch Log Groups (`backend`, `cron`) | structlog JSON 로그 수집 |
@@ -323,22 +326,25 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 
 ### 2.4 데이터 모델 (요약)
 
-`users`, `user_settings`, `stress_events`(하이퍼테이블, `detected_at`), `cycles`, `raw_biosignal_uploads`(하이퍼테이블, `recorded_at`, 옵트인), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `audit_log`(append-only, `(action, occurred_at)` 인덱스). 원시 생체신호 업로드는 사용자 동의가 있을 때만 수행되며, 클라이언트(Android Keystore 보관 AES-256-GCM 키)가 암호화한 ciphertext 상태로 S3에 저장됩니다. `stress_events.log_text` 같은 자유 텍스트 메모는 현재 Postgres에 저장되며, 원시 생체신호 암호화 경로와 별도로 취급됩니다.
+`users`, `user_settings`, `stress_events`(append-only, 복합 PK `(id, detected_at)`), `cycles`, `sleep_logs`, `trigger_categories`, `raw_biosignal_uploads`(복합 PK `(id, recorded_at)`, 옵트인), `sync_blobs`, `websocket_connections`, `fcm_tokens`, `pattern_tips`(24h 캐시, `(user_id, pattern_key)` 유니크 — §2.8), `weekly_reports`(주간 잡 출력, `(user_id, week_start)` 유니크 — §2.8), `range_reports`(기간 선택 AI 리포트 캐시, `(user_id, frm, to)` 유니크 — §2.8), `audit_log`(append-only, `(action, occurred_at)` 인덱스). `stress_events`와 `raw_biosignal_uploads`는 TimescaleDB hypertable로 계획했으나 AWS RDS의 timescaledb 지원 종료로 plain Postgres 테이블로 유지합니다(`backend/app/models/stress_event.py:4-5`). 원시 생체신호 업로드는 사용자 동의가 있을 때만 수행되며, 클라이언트(Android Keystore 보관 AES-256-GCM 키)가 암호화한 ciphertext 상태로 S3에 저장됩니다. `stress_events.log_text` 같은 자유 텍스트 메모는 현재 Postgres에 저장되며, 원시 생체신호 암호화 경로와 별도로 취급됩니다.
 
 ### 2.5 API 요약
 
-- `auth/*` — 익명 발급, Google OAuth 교환, 이메일 로그인/가입, OTP 비밀번호 재설정, refresh, logout
-- `account/*` — 등록, 익명→등록 전환, 30일 유예 삭제
-- `events/*` — 스트레스 이벤트 CRUD
-- `cycles/*` — 생리 기록, 현재 phase, 히스토리
-- `settings/*` — 사용자 환경설정
-- `consent/*` — 동의 토글 + 감사 기록
-- `sync/{upload,download}` — 옵트인 암호화 백업
+- `auth/*` — 익명 발급(`/anon`), Google OAuth 교환(`/google`), 이메일 로그인/가입(`/email/login`, `/email/signup`), OTP 비밀번호 재설정(`/password/forgot`, `/password/reset`), `/refresh`, `/logout`. 익명→Google 업그레이드는 `/auth/google` 내부에서 처리
+- `me`, `account/{,restore}` — 프로필 조회/수정(GET·PATCH `/me`), 30일 유예 삭제(DELETE `/account`) 및 복구(POST `/account/restore`)
+- `events/*` — 스트레스 이벤트 CRUD (list / `{id}` GET·PATCH·DELETE, POST)
+- `cycles/*` — `/period-start`, `/current`, `/history`, `/{cycle_id}` PATCH
+- `sleep-logs/*` — 수면 로그 CRUD + `/latest`
+- `categories/*` — 트리거/카테고리 CRUD
+- `dashboard/today` — 홈 대시보드 종합 카드 (오늘 phase·최근 스트레스·수면 요약)
+- `insights/*` — `/calendar`, `/trends`, `/phase-averages`, `/heatmap`, `/patterns`, `/morning-tip` (24h 캐시, Bedrock — `send_morning_tips` 잡과 동일 캐시 공유), `/tips/{pattern_key}` (24h 캐시, Bedrock — §2.8)
+- `reports/*` — `/weekly` (주간 잡 결과 조회 §2.8), `/range?frm&to` (기간 선택 AI 리포트 — 미생성 시 즉시 Bedrock 호출 후 캐시), `/drilldown` (특정 이벤트/패턴 상세)
+- `settings/*` — 사용자 환경설정 GET·PATCH
+- `consent/*` — 동의 토글 + 감사 기록 GET·PATCH
+- `sync/{upload,download}` — 옵트인 암호화 백업 (DELETE `/sync`는 백업 초기화)
 - `sync/biosignals`, `sync/biosignals/batch` — 옵트인 원시 생체신호 metadata 등록 및 batch upload 준비
-- `devices/fcm-token` — FCM 토큰 등록 및 logout/account-switch cleanup용 unregister
+- `devices/fcm-token` — FCM 토큰 POST 등록 및 logout/account-switch cleanup용 DELETE unregister
 - `ws/realtime` — Backend ↔ Flutter 실시간 fan-out 채널 (auth: 연결 직후 첫 JSON 메시지 `{type:"auth", token:"<jwt>"}`, 5초 타임아웃; Watch↔Phone 통신은 별도 Wear Data Layer 사용)
-- `insights/tips/{pattern_key}` — Bedrock(Haiku 4.5) 기반 패턴 카드 팁, 24h 캐시 (§2.8)
-- `reports/weekly` — 주간 잡이 미리 생성한 한국어 리포트 조회 (§2.8)
 
 스프린트 1 단계의 헬스체크: `GET /health → {"status":"ok","version":"0.1.0"}`. Swagger는 `/docs`, ReDoc은 `/redoc`, OpenAPI는 `/openapi.json`.
 
@@ -349,7 +355,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 ```bash
 cd backend
 poetry install
-docker compose up -d        # Postgres 15 + TimescaleDB + Adminer
+docker compose up -d        # Postgres 15 + Adminer
 make migrate                # alembic upgrade head
 poetry run uvicorn app.main:app --reload
 ```
@@ -401,7 +407,7 @@ make smoke-staging
 
 기존 통계 기반 패턴 탐지(§1의 Mamba 탐지와는 별개) 위에 LLM이 두 가지 형태로 사용자 경험을 보강합니다. 모든 호출은 백엔드 ECS에서 출발하며, 폰은 결과 텍스트만 받습니다.
 
-**왜 별도 레이어인가**: §1의 Mamba는 *탐지*(60초 생체신호 윈도우의 마지막 5초 구간을 Baseline/Stress 이진 분류), 이 레이어는 *해석/요약*(이미 일어난 패턴을 자연어로 풀어주는 생성형). 두 모델은 입력·운영·비용 특성이 모두 달라 같은 코드 경로에 묶지 않았습니다.
+**왜 별도 레이어인가**: §1의 Mamba는 *탐지*(300초 슬라이딩 버퍼의 마지막 60초 구간 1500 샘플을 Baseline/Stress 이진 분류 — `StressPipeline.kt:61-112`), 이 레이어는 *해석/요약*(이미 일어난 패턴을 자연어로 풀어주는 생성형). 두 모델은 입력·운영·비용 특성이 모두 달라 같은 코드 경로에 묶지 않았습니다.
 
 | 표면 | 트리거 | 캐시/주기 | 출력 |
 | :--- | :--- | :--- | :--- |
@@ -520,7 +526,7 @@ Standalone 10분 캡처가 성공하면 워치의 다음 경로에 결과가 생
 ├── 2026-05-06T15-30-00Z/
 │   ├── heart_rate.csv          timestamp_ms, hr_bpm, ibi_ms, hr_status
 │   ├── ppg_green.csv           timestamp_ms, ppg_green, status
-│   ├── eda.csv                 timestamp_ms, resistance_kohm, status
+│   ├── eda.csv                 timestamp_ms, skin_conductance, status   # μS
 │   ├── accel.csv               timestamp_ms, x, y, z
 │   └── metadata.json           start/end ts, watch model, observed sample rates
 └── 2026-05-06T15-30-00Z.zip    # ML 팀에 전달하는 단일 산출물
