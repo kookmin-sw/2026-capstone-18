@@ -91,3 +91,53 @@ def test_classify_within_staleness_window_uses_cycle() -> None:
     phase, day = classifier(datetime(2026, 5, 30, 12, tzinfo=UTC))
     assert phase == "luteal"  # day 30 still classifies as luteal via compute_phase
     assert day == 30
+
+
+def test_is_period_ongoing_overrides_day_based_phase() -> None:
+    """A period flagged as still ongoing must stay 'menstrual' past day 5.
+
+    Without this guard, day-11 events get classified as 'follicular' by the
+    backend while the frontend (which honors `is_period_ongoing`) correctly
+    shows 'menstrual'. That divergence corrupts AI reports + Cycle x Stress.
+    """
+    from app.services.insights.cycle_lookup import CycleSnapshot, classify
+
+    snapshot = CycleSnapshot(
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        is_period_ongoing=True,
+    )
+    classifier = classify(cycles=[snapshot])
+
+    phase, day = classifier(datetime(2026, 5, 11, 12, 0, tzinfo=UTC))
+
+    assert phase == "menstrual"
+    assert day == 11
+
+
+def test_is_period_ongoing_false_falls_back_to_day_based_phase() -> None:
+    """Default behavior (no flag) must still classify day 11 as 'follicular'."""
+    from app.services.insights.cycle_lookup import CycleSnapshot, classify
+
+    snapshot = CycleSnapshot(
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        is_period_ongoing=False,
+    )
+    classifier = classify(cycles=[snapshot])
+
+    phase, day = classifier(datetime(2026, 5, 11, 12, 0, tzinfo=UTC))
+
+    assert phase == "follicular"
+    assert day == 11
+
+
+def test_default_constructor_is_backward_compatible() -> None:
+    """Constructing CycleSnapshot without is_period_ongoing must still work."""
+    from app.services.insights.cycle_lookup import CycleSnapshot
+
+    snapshot = CycleSnapshot(
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+    )
+    assert snapshot.is_period_ongoing is False
