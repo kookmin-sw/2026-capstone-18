@@ -5,7 +5,7 @@ FastAPI service powering the Little Signals stress-detection and cycle-tracking 
 - **Staging**: `https://api-staging.friendlykr.com`
 - **Health**: `GET /health` → `{"status": "ok", "version": "..."}`
 - **API docs**: `/docs` (Swagger UI), `/redoc` (ReDoc), `/openapi.json` (raw OpenAPI 3.1)
-- **WebSocket**: `wss://.../ws/realtime?token=<jwt>`
+- **WebSocket**: `wss://.../ws/realtime` (JWT delivered as the first JSON message after connect — see §8)
 
 ---
 
@@ -52,7 +52,7 @@ FastAPI service powering the Little Signals stress-detection and cycle-tracking 
 
 ## 1. What this service does
 
-Little Signals' watch detects stress on-device and the phone displays the dashboard. The backend is intentionally narrow — it exists to:
+Little Signals' watch streams biosignal windows to the paired phone, which runs ONNX Mamba inference and displays the dashboard. The backend is intentionally narrow — it exists to:
 
 1. **Authenticate users** anonymously first, then optionally upgrade to Google OAuth via Supabase.
 2. **Persist structured app data** — stress events, cycle records, settings, consent state, FCM tokens — in a relational schema with B-tree-indexed time-series tables for high-volume rows.
@@ -60,7 +60,7 @@ Little Signals' watch detects stress on-device and the phone displays the dashbo
 4. **Receive opt-in encrypted blobs** (full app backup; raw biosignal segments) and store them in S3 — the server never holds the decryption keys.
 5. **Run scheduled cleanup jobs** to honor the 30-day grace deletion and 12-month biosignal retention windows, with every hard-delete and purge written to an immutable audit table.
 
-What this service does *not* do: ML inference (lives on the watch), heavy media processing, multi-region failover, or any business logic that could be done on-device.
+What this service does *not* do: ML inference (runs on the phone via ONNX Runtime against `wesad_mamba_v1.onnx`), heavy media processing, multi-region failover, or any business logic that could be done on-device.
 
 ---
 
@@ -70,13 +70,14 @@ What this service does *not* do: ML inference (lives on the watch), heavy media 
                 ┌────────────────────────────────────┐
                 │  Galaxy Watch 8 (Wear OS, Kotlin)  │
                 │  ▸ Samsung Health Sensor SDK       │
-                │  ▸ On-device Mamba inference       │
-                │  ▸ Detection decision + event UI   │
+                │  ▸ 60 s sample-window streaming    │
+                │  ▸ Detection event UI              │
                 └──────────────┬─────────────────────┘
                                │ Wearable Data Layer (BT)
                                ▼
                 ┌────────────────────────────────────┐
                 │  Phone (Android, Flutter)          │
+                │  ▸ ONNX Mamba stress inference     │
                 │  ▸ Encrypts opt-in blobs locally   │
                 │  ▸ JWT in Android Keystore         │
                 └─────┬──────────────────────┬───────┘
@@ -193,9 +194,9 @@ backend/
 ### 5.1 Stress event from watch to backend
 
 ```
-Watch detects stress (on-device Mamba)
-  → Watch → Phone via Wearable Data Layer (BT)
-  → Phone POST /api/v1/events  (JWT in Authorization)
+Watch streams 60-second sample windows over Wearable Data Layer (BT)
+  → Phone runs ONNX Mamba inference (`frontend/android/app/src/main/assets/wesad_mamba_v1.onnx`)
+  → On positive detection, Phone POST /api/v1/events  (JWT in Authorization)
   → ALB → ECS Fargate (FastAPI)
   → JWT signature verified against cached Supabase JWKS
   → Insert into stress_events (composite PK on (id, detected_at))
@@ -208,9 +209,8 @@ Watch detects stress (on-device Mamba)
 
 ```
 User toggles "Contribute raw biosignals" in Settings
-  → Phone generates per-user key in Android Keystore
-  → Phone shows a recovery phrase, waits for user confirmation
-  → Phone encrypts a 60-second window of raw signals (XChaCha20-Poly1305)
+  → Phone generates per-device 256-bit AES key in AndroidKeyStore (StrongBox when available)
+  → Phone encrypts a 60-second window of raw signals with AES-256-GCM (key never leaves the device — server cannot decrypt; reinstalling the app makes prior uploads permanently unreadable)
   → POST /api/v1/sync/biosignals  → backend issues a presigned PUT URL
   → Phone PUTs ciphertext to S3 (bucket: biosignals)
   → Backend records s3_object_key + signal_type + recorded_at in DB
@@ -222,7 +222,7 @@ User toggles "Contribute raw biosignals" in Settings
 
 ```
 App in foreground:
-  Phone holds WSS /ws/realtime?token=<jwt> open
+  Phone opens WSS /ws/realtime, then sends `{"type":"auth","token":"<jwt>"}` as the first message (5 s server timeout)
   Backend marks user "online" in websocket_connections
   Backend pushes `event.created`, `cycle.updated`, `insight.ready` directly
 
@@ -257,7 +257,7 @@ Single Postgres 15 logical database with enabled.
 | `fcm_tokens` | Per-device FCM registration tokens for background push. | `id`, `user_id`, `token`, `platform`, `last_seen_at` |
 | `audit_log` | Append-only record of consent changes, hard-deletes, biosignal purges. | `id`, `actor_id`, `target_user_id`, `action`, `metadata`, `occurred_at` |
 
-Free-text fields (e.g., `stress_events.log_text`) are encrypted client-side before they reach the backend. Raw biosignal blobs are encrypted with user-held keys; the server only ever sees ciphertext + object metadata.
+Raw biosignal blobs are AES-256-GCM encrypted client-side (key in AndroidKeyStore) before upload to S3; the server only ever sees ciphertext + object metadata. `stress_events.log_text` (free-text memo) is currently stored plaintext in Postgres — acknowledged hardening item tracked for a future PR.
 
 ### 6.2 Time-series tables
 
@@ -310,7 +310,7 @@ Router: [`app/events/router.py`](app/events/router.py), prefix `/api/v1/events`.
 
 | Method & path | Purpose |
 | :--- | :--- |
-| `POST /events` | Create a stress event (typically from the phone forwarding a watch detection). |
+| `POST /events` | Create a stress event (created on the phone after ONNX inference against a watch-supplied sample window). |
 | `GET /events` | List events for the caller; supports time-window and cycle-phase filters. |
 | `GET /events/{event_id}` | Single event detail. |
 | `PATCH /events/{event_id}` | Add user-supplied log chips / free text after the fact. |
@@ -378,7 +378,7 @@ Router: [`app/sync/router.py`](app/sync/router.py), prefix `/api/v1/sync`.
 
 **Endpoint:** `WSS /ws/realtime`. Defined in [`app/realtime/router.py`](app/realtime/router.py).
 
-**Authentication:** JWT passed as a query parameter (`?token=...`) — verified at upgrade. Connections without a valid token are rejected immediately.
+**Authentication:** JWT delivered as the first JSON message after `accept`: `{"type":"auth","token":"<jwt>"}`. Server waits up to 5 seconds for this message and closes with WS 1008 otherwise. Token is verified against cached Supabase JWKS. This avoids token leakage in access logs and traces (query-string tokens commonly end up in ALB and CloudWatch records).
 
 **Message envelope:**
 
