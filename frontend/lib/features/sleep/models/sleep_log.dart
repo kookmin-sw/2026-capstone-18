@@ -1,4 +1,6 @@
 class SleepLog {
+  static const defaultImportedRating = 'okay';
+
   final String id;
   final DateTime fellAsleepAt;
   final DateTime wokeUpAt;
@@ -47,6 +49,7 @@ class SleepLog {
       'fell_asleep_at': fellAsleepAt.toUtc().toIso8601String(),
       'woke_up_at': wokeUpAt.toUtc().toIso8601String(),
       'ended_on': _date(endedOn),
+      'rating': defaultImportedRating,
     };
   }
 

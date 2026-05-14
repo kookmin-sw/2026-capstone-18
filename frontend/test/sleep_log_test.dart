@@ -16,7 +16,7 @@ void main() {
     expect(sleepLog.durationLabel, '7시간 15분');
   });
 
-  test('SleepLog create and update payloads contain only time fields', () {
+  test('SleepLog create payload includes backend-required default rating', () {
     final sleepLog = SleepLog(
       id: 'sleep-1',
       fellAsleepAt: DateTime(2026, 5, 8, 23, 30),
@@ -26,8 +26,9 @@ void main() {
 
     expect(
       sleepLog.toCreateJson().keys,
-      containsAll(['fell_asleep_at', 'woke_up_at', 'ended_on']),
+      containsAll(['fell_asleep_at', 'woke_up_at', 'ended_on', 'rating']),
     );
+    expect(sleepLog.toCreateJson()['rating'], SleepLog.defaultImportedRating);
     expect(sleepLog.toCreateJson(), isNot(contains('sleep_quality')));
     expect(sleepLog.toCreateJson(), isNot(contains('note')));
 
