@@ -310,7 +310,7 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 | Application Load Balancer | HTTPS(443) 단일 default forward → `backend` target group, HTTP(80)→HTTPS(443) 301 리다이렉트 (`backend/infra/alb.tf`). 경로 기반 라우팅은 ML 데모(`/api/v1/ml-demo/*` → `ml_demo` target group, `backend/infra/ml_demo.tf`)만 별도 listener rule로 분리 |
 | ACM 인증서 + Route53 | `api-staging.friendlykr.com` TLS, DNS 검증 자동화, A 레코드 자동 등록 |
 | ECS Fargate (desired_count = 1, 512 CPU / 1024 MiB) + ECS Cluster | FastAPI 애플리케이션 + WebSocket 호스팅 (오토스케일링 미설정 — 베타 코호트 100명 규모에 맞춘 단일 태스크) |
-| ECS Task Definition (`backend`, `cron`) | 서비스 컨테이너와 EventBridge가 호출하는 일회성 잡 컨테이너 분리 |
+| ECS Task Definition (`backend`, `cron`, `ml-demo`) | 서비스 컨테이너 · EventBridge가 호출하는 일회성 잡 컨테이너 · `/api/v1/ml-demo/*` 데모 서비스 (`backend/infra/ml_demo.tf`) 분리 |
 | IAM Role (`ecs_execution`, `ecs_task`, `scheduler`) | 시크릿 풀링 / 런타임 권한 / 스케줄러의 `RunTask` + `PassRole` |
 | ECR (lifecycle policy 포함) | 컨테이너 이미지 레지스트리, 미사용 태그 자동 정리 |
 | RDS Postgres 15 | 관계형 데이터(`stress_events`, `cycles`, `raw_biosignal_uploads` 등) |
@@ -319,8 +319,8 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 | EventBridge Scheduler + ECS RunTask | 6개 스케줄 (`backend/infra/scheduler.tf`): `purge_accounts` 매일 03:00 UTC · `purge_biosignals` 6시간 주기 (`cron(15 */6 * * ? *)`, 매시각 15분) · `weekly_reports` 토 17:00 UTC (= 일 02:00 KST, §2.8) · `prewarm_range_reports` 매일 18:00 UTC (= 03:00 KST, AI 리포트 캐시 사전 워밍) · `send_morning_tips` 매일 22:00 UTC (= 07:00 KST, 아침 푸시) · `send_sleep_nudges` 매일 02:00 UTC (= 11:00 KST, 수면 기록 리마인더) |
 | AWS Bedrock (Anthropic Claude Haiku 4.5) | 패턴 팁 + 주간 리포트 생성, IAM에서 Haiku 4.5 인퍼런스 프로파일 + 그 하부 foundation-model에만 `InvokeModel` 허용 (§2.8) |
 | SQS DLQ + CloudWatch Metric Alarm | 스케줄러 실패 격리 + DLQ depth 알람 |
-| CloudWatch Log Groups (`backend`, `cron`) | structlog JSON 로그 수집 |
-| Secrets Manager (`supabase`, `firebase`) | Supabase 서비스 키 / Firebase Admin 자격증명 |
+| CloudWatch Log Groups (`backend`, `cron`, `otel_collector`, `ml_demo`) | structlog JSON 로그 수집 (`backend`·`cron`) + OTel 콜렉터 로그 + ML 데모 서비스 로그 |
+| Secrets Manager (`supabase`, `firebase`, `sentry`) | Supabase 서비스 키 / Firebase Admin 자격증명 / Sentry DSN (`backend/infra/secrets.tf`) |
 
 전체 정의는 [`backend/infra/`](backend/infra/) — `networking.tf`, `alb.tf`, `ecs.tf`, `ecr.tf`, `rds.tf`, `s3.tf`, `scheduler.tf`, `secrets.tf`.
 
