@@ -149,6 +149,50 @@ class SupabaseAuthClient:
         if r.status_code not in (204, 200):
             raise SupabaseAuthError(r.status_code, r.text)
 
+    async def request_password_recovery(self, *, email: str) -> int:
+        """POST /recover. Returns the Supabase status code; caller decides
+        how to log it (4xx and 5xx are intentionally NOT raised — the public
+        endpoint always returns 200 to the user to defend against account
+        enumeration).
+        """
+        async with self._client() as http:
+            r = await http.post("/recover", json={"email": email})
+        return r.status_code
+
+    async def verify_recovery_otp_and_set_password(
+        self, *, email: str, otp: str, new_password: str
+    ) -> SupabaseSession:
+        """Verify the recovery OTP, then update password.
+
+        Two-step:
+          1. POST /verify {type:"recovery", email, token: otp} → access_token
+          2. PUT /user {password: new_password} authenticated with that token
+
+        Returns a SupabaseSession reflecting the post-password-change state.
+        Raises SupabaseAuthError on either step's non-success.
+        """
+        async with self._client() as http:
+            verify_r = await http.post(
+                "/verify",
+                json={"type": "recovery", "email": email, "token": otp},
+            )
+        if verify_r.status_code != 200:
+            raise SupabaseAuthError(verify_r.status_code, verify_r.text)
+
+        verify_payload = verify_r.json()
+        access_token: str = verify_payload["access_token"]
+
+        async with self._client() as http:
+            update_r = await http.put(
+                "/user",
+                json={"password": new_password},
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        if update_r.status_code != 200:
+            raise SupabaseAuthError(update_r.status_code, update_r.text)
+
+        return self._session_from_response(verify_payload)
+
     async def admin_update_user(
         self,
         user_id: uuid.UUID,

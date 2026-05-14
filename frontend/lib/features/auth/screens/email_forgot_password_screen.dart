@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 
@@ -6,7 +7,9 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_gradient_background.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../core/widgets/soft_primary_button.dart';
+import '../auth_provider.dart';
 import 'auth_form_widgets.dart';
+import 'email_reset_password_screen.dart';
 
 class EmailForgotPasswordScreen extends StatefulWidget {
   const EmailForgotPasswordScreen({super.key});
@@ -19,6 +22,7 @@ class EmailForgotPasswordScreen extends StatefulWidget {
 class _EmailForgotPasswordScreenState extends State<EmailForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -102,14 +106,32 @@ class _EmailForgotPasswordScreenState extends State<EmailForgotPasswordScreen> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) {
       _showSnackBar('이메일을 한 번 더 확인해 주세요.');
       return;
     }
+    if (_submitting) return;
 
-    _showSnackBar('비밀번호 재설정 기능은 곧 사용할 수 있어요.');
+    final email = _emailController.text.trim();
+    setState(() => _submitting = true);
+    final ok = await context.read<AuthProvider>().forgotPassword(email);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+
+    if (!ok) {
+      _showSnackBar(
+        context.read<AuthProvider>().errorMessage ?? '잠시 후 다시 시도해 주세요.',
+      );
+      return;
+    }
+    // Backend always returns 200 (no enumeration). Navigate regardless.
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EmailResetPasswordScreen(email: email),
+      ),
+    );
   }
 
   void _showSnackBar(String message) {

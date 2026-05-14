@@ -14,6 +14,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,11 +31,14 @@ from app.schemas.auth import (
     EmailSignUpRequest,
     GoogleSignInRequest,
     LogoutResponse,
+    PasswordForgotRequest,
+    PasswordResetRequest,
     RefreshRequest,
     TokenResponse,
 )
 from app.services.user_settings import ensure_user_settings
 
+logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -347,3 +351,84 @@ async def sign_out(request: Request) -> LogoutResponse:
     with contextlib.suppress(SupabaseAuthError):
         await client.sign_out(token)
     return LogoutResponse(status="ok")
+
+
+@router.post(
+    "/password/forgot",
+    summary="Send a password-reset OTP by email (always returns 200)",
+)
+@limiter.limit("5/minute")
+async def request_password_recovery(
+    request: Request,
+    payload: PasswordForgotRequest,
+) -> dict[str, str]:
+    """Always returns {status:"ok"} regardless of whether the email exists,
+    so attackers cannot enumerate accounts via the recovery endpoint.
+    Supabase 5xx responses log WARN for ops visibility (but the user still
+    sees 200)."""
+    client = _get_supabase_client()
+    try:
+        status_code = await client.request_password_recovery(email=payload.email)
+    except Exception as exc:  # noqa: BLE001 — never propagate; user always sees 200
+        logger.warning(
+            "recovery_supabase_unavailable",
+            email=payload.email,
+            error=str(exc),
+        )
+        return {"status": "ok"}
+
+    if 200 <= status_code < 300:
+        logger.info("recovery_sent", email=payload.email)
+    elif status_code == 404:
+        logger.info("recovery_unknown_email", email=payload.email)
+    elif status_code >= 500:
+        logger.warning(
+            "recovery_supabase_unavailable",
+            email=payload.email,
+            status_code=status_code,
+        )
+    else:
+        logger.info(
+            "recovery_unexpected_status",
+            email=payload.email,
+            status_code=status_code,
+        )
+    return {"status": "ok"}
+
+
+@router.post(
+    "/password/reset",
+    response_model=TokenResponse,
+    summary="Verify recovery OTP and set new password",
+)
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    payload: PasswordResetRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TokenResponse:
+    client = _get_supabase_client()
+    try:
+        session = await client.verify_recovery_otp_and_set_password(
+            email=payload.email,
+            otp=payload.otp,
+            new_password=payload.new_password,
+        )
+    except SupabaseAuthError as exc:
+        if exc.status_code in (400, 401, 403):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"status": "error", "reason": "invalid_otp"},
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"status": "error", "reason": "supabase_unavailable"},
+        ) from exc
+
+    await _ensure_user_row(db, session.user_id, anon_id=None)
+    return TokenResponse(
+        access_token=session.access_token,
+        refresh_token=session.refresh_token,
+        expires_in=session.expires_in,
+        is_anonymous=session.is_anonymous,
+    )
