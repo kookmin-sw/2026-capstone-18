@@ -141,3 +141,125 @@ def test_default_constructor_is_backward_compatible() -> None:
         cycle_length_days=28,
     )
     assert snapshot.is_period_ongoing is False
+    assert snapshot.period_length is None
+
+
+def test_user_logged_short_period_pushes_follicular_earlier() -> None:
+    """User logged period_length=3 (i.e. their period actually ended on day 3).
+    Day 4 must now be 'follicular' to match the frontend insight — not 'menstrual'
+    as the canonical 5-day model would say."""
+    from app.services.insights.cycle_lookup import CycleSnapshot, classify
+
+    snapshot = CycleSnapshot(
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        period_length=3,
+    )
+    classifier = classify(cycles=[snapshot])
+
+    phase, day = classifier(datetime(2026, 5, 4, 12, 0, tzinfo=UTC))
+
+    assert phase == "follicular"
+    assert day == 4
+
+
+def test_user_logged_long_period_keeps_menstrual_through_day_7() -> None:
+    """User logged period_length=7. Day 7 must stay 'menstrual', not flip to
+    'follicular' on the canonical day-5 boundary."""
+    from app.services.insights.cycle_lookup import CycleSnapshot, classify
+
+    snapshot = CycleSnapshot(
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        period_length=7,
+    )
+    classifier = classify(cycles=[snapshot])
+
+    phase, day = classifier(datetime(2026, 5, 7, 12, 0, tzinfo=UTC))
+
+    assert phase == "menstrual"
+    assert day == 7
+
+
+def test_period_length_none_falls_back_to_canonical_five_days() -> None:
+    """When period_length is None (period_end_date not logged), the backend
+    classifier uses the canonical 5-day boundary — backwards-compatible with
+    rows that never had period_end_date set."""
+    from app.services.insights.cycle_lookup import CycleSnapshot, classify
+
+    snapshot = CycleSnapshot(
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        period_length=None,
+    )
+    classifier = classify(cycles=[snapshot])
+
+    # Day 5 → still menstrual; day 6 → follicular
+    assert classifier(datetime(2026, 5, 5, 12, 0, tzinfo=UTC)) == ("menstrual", 5)
+    assert classifier(datetime(2026, 5, 6, 12, 0, tzinfo=UTC)) == ("follicular", 6)
+
+
+def test_is_period_ongoing_takes_precedence_over_period_length() -> None:
+    """If period_length=3 BUT is_period_ongoing=True (user hasn't yet logged
+    period_end), the ongoing flag still wins — phase stays 'menstrual'."""
+    from app.services.insights.cycle_lookup import CycleSnapshot, classify
+
+    snapshot = CycleSnapshot(
+        period_start_date=date(2026, 5, 1),
+        cycle_length_days=28,
+        is_period_ongoing=True,
+        period_length=3,
+    )
+    classifier = classify(cycles=[snapshot])
+
+    phase, day = classifier(datetime(2026, 5, 11, 12, 0, tzinfo=UTC))
+
+    assert phase == "menstrual"
+    assert day == 11
+
+
+def test_from_row_derives_period_length_from_end_date() -> None:
+    """CycleSnapshot.from_row computes period_length from period_end_date when set."""
+    from types import SimpleNamespace
+    from typing import cast
+
+    from app.models.cycle import Cycle
+    from app.services.insights.cycle_lookup import CycleSnapshot
+
+    # Duck-typed Cycle row — from_row only accesses 4 attributes.
+    row = cast(
+        Cycle,
+        SimpleNamespace(
+            period_start_date=date(2026, 5, 1),
+            period_end_date=date(2026, 5, 4),
+            cycle_length_days=28,
+            is_period_ongoing=False,
+        ),
+    )
+    snapshot = CycleSnapshot.from_row(row)
+    assert snapshot.period_length == 4
+    assert snapshot.cycle_length_days == 28
+    assert snapshot.is_period_ongoing is False
+
+
+def test_from_row_returns_none_period_length_when_end_date_absent() -> None:
+    """from_row returns period_length=None when period_end_date is None."""
+    from types import SimpleNamespace
+    from typing import cast
+
+    from app.models.cycle import Cycle
+    from app.services.insights.cycle_lookup import CycleSnapshot
+
+    row = cast(
+        Cycle,
+        SimpleNamespace(
+            period_start_date=date(2026, 5, 1),
+            period_end_date=None,
+            cycle_length_days=None,  # also exercises the 28-day default
+            is_period_ongoing=True,
+        ),
+    )
+    snapshot = CycleSnapshot.from_row(row)
+    assert snapshot.period_length is None
+    assert snapshot.cycle_length_days == 28
+    assert snapshot.is_period_ongoing is True

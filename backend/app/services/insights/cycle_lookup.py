@@ -9,8 +9,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 
 from app.services.cycle_phase import compute_phase
+
+if TYPE_CHECKING:
+    from app.models.cycle import Cycle
 
 
 @dataclass(frozen=True)
@@ -18,6 +22,26 @@ class CycleSnapshot:
     period_start_date: date
     cycle_length_days: int
     is_period_ongoing: bool = False
+    period_length: int | None = None
+
+    @classmethod
+    def from_row(cls, row: Cycle) -> CycleSnapshot:
+        """Hydrate from a `cycles` SQLAlchemy row. Derives `period_length` from
+        `period_end_date - period_start_date + 1` when `period_end_date` is set,
+        else `None` (which falls back to the canonical 5-day menstrual boundary
+        in `compute_phase`). Defaults `cycle_length_days` to 28 when null.
+        """
+        period_length: int | None
+        if row.period_end_date is not None and row.period_end_date >= row.period_start_date:
+            period_length = (row.period_end_date - row.period_start_date).days + 1
+        else:
+            period_length = None
+        return cls(
+            period_start_date=row.period_start_date,
+            cycle_length_days=row.cycle_length_days or 28,
+            is_period_ongoing=row.is_period_ongoing,
+            period_length=period_length,
+        )
 
 
 PhaseTuple = tuple[str, int]
@@ -49,6 +73,7 @@ def classify(*, cycles: list[CycleSnapshot]) -> Callable[[datetime], PhaseTuple]
                     period_start_date=cyc.period_start_date,
                     cycle_length_days=length,
                     is_period_ongoing=cyc.is_period_ongoing,
+                    period_length=cyc.period_length,
                 )
         return ("pre_period", 0)
 

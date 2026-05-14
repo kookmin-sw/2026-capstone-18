@@ -80,16 +80,7 @@ class RangeReportGenerator:
         cycles_rows = (
             (await db.execute(select(Cycle).where(Cycle.user_id == user_id))).scalars().all()
         )
-        classifier = classify(
-            cycles=[
-                CycleSnapshot(
-                    period_start_date=c.period_start_date,
-                    cycle_length_days=c.cycle_length_days or 28,
-                    is_period_ongoing=c.is_period_ongoing,
-                )
-                for c in cycles_rows
-            ]
-        )
+        classifier = classify(cycles=[CycleSnapshot.from_row(c) for c in cycles_rows])
         period_end_dt = datetime.combine(period_end, time.max, tzinfo=UTC)
         if cycles_rows:
             phase_tuple = classifier(period_end_dt)
