@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Luma — quiet signals from your wrist</title>
+  <meta name="description" content="Luma reads stress and cycle signals on your Galaxy Watch and guides you with a breath, on-device. Built for women, by Kookmin Capstone 18." />
+  <meta name="theme-color" content="#FBF8FF" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Luma — quiet signals from your wrist" />
+  <meta property="og:description" content="Real-time stress and cycle awareness for Galaxy Watch 8. On-device AI, soft guidance." />
+  <meta property="og:image" content="https://kookmin-sw.github.io/2026-capstone-18/docs/images/watch_hero.png" />
+  <meta property="og:type" content="website" />
+
+  <!-- Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="preload" as="image" href="docs/images/watch_hero.png" fetchpriority="high" />
+
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <link rel="icon" type="image/png" href="docs/images/logo.png" />
+</head>
+<body>
+  <!-- Soft animated background blob -->
+  <div class="blob" aria-hidden="true"></div>
+
+  <header class="nav">
+    <a class="nav-brand" href="#top" aria-label="Luma home">
+      <img src="docs/images/luma-wordmark.svg" alt="Luma" />
+    </a>
+    <a class="nav-cta" href="https://github.com/kookmin-sw/2026-capstone-18" target="_blank" rel="noopener">GitHub</a>
+  </header>
+
+  <main id="top">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-text" data-animate="hero-text">
+        <h1 class="hero-title">
+          <span>Quiet signals,</span>
+          <span class="grad">before the storm.</span>
+        </h1>
+        <p class="hero-sub">
+          Luma reads your body's earliest stress cues from your Galaxy Watch and guides you back with a single breath — on device, in real time.
+        </p>
+        <a class="btn-primary" href="#how">See how it works</a>
+      </div>
+      <div class="hero-art" data-animate="hero-art">
+        <img src="docs/images/watch_hero.png" alt="Galaxy Watch displaying the Luma logo" loading="eager" />
+      </div>
+    </section>
+
+    <!-- Three pillars -->
+    <section class="pillars" id="how" data-section>
+      <article class="pillar" data-animate>
+        <div class="pillar-mark">01</div>
+        <h3>Detect</h3>
+        <p>PPG, HRV, EDA — read continuously. A small Mamba model spots pre-stress on the watch itself.</p>
+      </article>
+      <article class="pillar" data-animate>
+        <div class="pillar-mark">02</div>
+        <h3>Guide</h3>
+        <p>One soft haptic. A wrist breathing cue. No notification spam, no charts to read.</p>
+      </article>
+      <article class="pillar" data-animate>
+        <div class="pillar-mark">03</div>
+        <h3>Track</h3>
+        <p>Cycle and sleep folded into the same quiet timeline. You see patterns, not numbers.</p>
+      </article>
+    </section>
+
+    <!-- Phone strip -->
+    <section class="phones" data-section>
+      <div class="phones-rail">
+        <img src="docs/images/screen-home.jpg"     alt="Home screen"     data-parallax="0.3" data-animate loading="lazy" />
+        <img src="docs/images/screen-insights.jpg" alt="Insights screen" data-parallax="0.6" data-animate loading="lazy" />
+        <img src="docs/images/screen-sleep.jpg"    alt="Sleep screen"    data-parallax="0.3" data-animate loading="lazy" />
+      </div>
+    </section>
+
+    <!-- Tech ribbon -->
+    <section class="ribbon" data-section>
+      <p data-animate>On-device AI · Galaxy Watch 8 · AWS Seoul</p>
+    </section>
+
+    <!-- Footer / CTA -->
+    <footer class="foot" data-section>
+      <div data-animate>
+        <h2>Built quietly at Kookmin University.</h2>
+        <p>2026 Capstone 18 · Open source.</p>
+        <div class="foot-links">
+          <a href="https://github.com/kookmin-sw/2026-capstone-18" target="_blank" rel="noopener">Source on GitHub</a>
+          <a href="https://kookmin-sw.github.io/2026-capstone-18/" target="_blank" rel="noopener">Team page</a>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script src="assets/js/main.js" defer></script>
+</body>
+</html>
