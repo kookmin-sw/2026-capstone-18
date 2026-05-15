@@ -226,7 +226,7 @@ Galaxy Watch 8 SDK 출력에 맞춰 25Hz 목표 주파수로 동기화된 60초 
 
 $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, y_i)$$
 
-통제 환경(WESAD)에서 명확하게 라벨링된 Stress 이벤트의 분류 손실에 가장 큰 수학적 페널티를 부여해 라벨 노이즈가 적은 신호에서 결정 경계를 우선 학습시키도록 그리드 서치 기반 가중치($w_i$)를 적용했습니다. StressPredict는 일상/Ambulatory 환경 노이즈가 크기 때문에 두 클래스 모두 동일한 1.0 가중치를 부여합니다 (`AI/src/train_kfold.py:35-51`, CLI 기본값 `--wesad_stress_w 2.0`).
+통제 환경(WESAD)에서 명확하게 라벨링된 Stress 이벤트의 분류 손실에 가장 큰 수학적 페널티를 부여해 라벨 노이즈가 적은 신호에서 결정 경계를 우선 학습시키도록 그리드 서치 기반 가중치($w_i$)를 적용했습니다. StressPredict는 일상/Ambulatory 환경 노이즈가 크기 때문에 두 클래스 모두 동일한 1.0 가중치를 부여합니다 (`AI/src/train_kfold.py:34-51`, CLI 기본값 `--wesad_stress_w 2.0`).
 * **WESAD Baseline:** 0.5
 * **WESAD Stress:** 2.0
 * **StressPredict Baseline:** 1.0
