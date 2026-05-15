@@ -1,0 +1,66 @@
+{
+  "metadata": {
+    "dataset": "WESAD + StressPredict (Female Subset)",
+    "model": "MambaTSC",
+    "validation_strategy": "5-Fold Cross Validation + Final Deployment Model"
+  },
+  "folds": {
+    "fold_2": {
+      "accuracy": 0.895,
+      "f1_score": 0.821,
+      "precision": 0.801,
+      "recall": 0.843,
+      "mean_fa": 1.5,
+      "ux_score": 78.9
+    },
+    "fold_5": {
+      "accuracy": 0.872,
+      "f1_score": 0.775,
+      "precision": 0.779,
+      "recall": 0.771,
+      "mean_fa": 3.17,
+      "ux_score": 54.5
+    },
+    "fold_1": {
+      "accuracy": 0.858,
+      "f1_score": 0.765,
+      "precision": 0.726,
+      "recall": 0.808,
+      "mean_fa": 1.58,
+      "ux_score": 51.0
+    },
+    "fold_3": {
+      "accuracy": 0.809,
+      "f1_score": 0.663,
+      "precision": 0.67,
+      "recall": 0.657,
+      "mean_fa": 0.25,
+      "ux_score": 43.4
+    },
+    "fold_4": {
+      "accuracy": 0.752,
+      "f1_score": 0.544,
+      "precision": 0.573,
+      "recall": 0.518,
+      "mean_fa": 0.0,
+      "ux_score": 0.0
+    }
+  },
+  "averages": {
+    "accuracy": 0.837,
+    "f1_score": 0.714,
+    "precision": 0.71,
+    "recall": 0.719,
+    "mean_fa": 1.3,
+    "ux_score": 45.6
+  },
+  "final_model": {
+    "accuracy": 0.751,
+    "f1_score": 0.522,
+    "precision": 0.58,
+    "recall": 0.474,
+    "mean_fa": 0.25,
+    "ux_score": 61.7,
+    "name": "Official WESAD w2.0"
+  }
+}
