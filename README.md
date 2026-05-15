@@ -336,9 +336,9 @@ $$L = \frac{1}{N} \sum_{i=1}^{N} w_i \cdot (1 - p_{t,i})^3 \cdot \text{CE}(x_i, 
 - `cycles/*` — `/period-start`, `/current`, `/history`, `/{cycle_id}` PATCH
 - `sleep-logs/*` — 수면 로그 CRUD + `/latest`
 - `categories/*` — 트리거/카테고리 CRUD
-- `dashboard/today` — 홈 대시보드 종합 카드 (오늘 phase·최근 스트레스·수면 요약)
-- `insights/*` — `/calendar`, `/trends`, `/phase-averages`, `/heatmap`, `/patterns`, `/morning-tip` (24h 캐시, Bedrock — `send_morning_tips` 잡과 동일 캐시 공유), `/tips/{pattern_key}` (24h 캐시, Bedrock — §2.8)
-- `reports/*` — `/weekly` (주간 잡 결과 조회 §2.8), `/range?frm&to` (기간 선택 AI 리포트 — 미생성 시 즉시 Bedrock 호출 후 캐시), `/drilldown` (특정 이벤트/패턴 상세)
+- `dashboard/today` — 백엔드 aggregate route. 현재 Flutter Home은 이 단일 endpoint 대신 `events`, `cycles`, `consent`, `insights/morning-tip` 등 feature API를 fan-out 호출해 화면 상태를 조립
+- `insights/*` — 백엔드 insight surface. 현재 Flutter 앱이 직접 호출하는 insight endpoint는 `/morning-tip` (24h 캐시, Bedrock — `send_morning_tips` 잡과 동일 캐시 공유)와 `/tips/{pattern_key}` (24h 캐시, Bedrock — §2.8)이며, 달력·phase chart·heatmap UI는 frontend가 `events + cycles` 데이터를 조합해 계산
+- `reports/*` — `/range?frm&to` (기간 선택 AI 리포트 — 미생성 시 즉시 Bedrock 호출 후 캐시)가 현재 Flutter의 주요 wired report flow. `/weekly`는 주간 잡 결과 조회용 backend/API surface이며, `/drilldown`은 확장 surface로 유지
 - `settings/*` — 사용자 환경설정 GET·PATCH
 - `consent/*` — 동의 토글 + 감사 기록 GET·PATCH
 - `sync/{upload,download}` — 옵트인 암호화 백업 (DELETE `/sync`는 백업 초기화)
@@ -456,8 +456,10 @@ EventBridge Scheduler  ──Sat 17:00 UTC──►  ECS RunTask (cron task defi
                                                 │
                                                 └─ db.commit()
 
-폰  ──GET /reports/weekly──►  API ──최신 행 SELECT──►  Markdown 화면
+백엔드/API surface  ──GET /reports/weekly──►  API ──최신 행 SELECT
 ```
+
+현재 Flutter 앱의 주요 AI 리포트 화면은 사용자가 선택한 기간을 기준으로 `GET /reports/range?frm&to`를 호출합니다. `/reports/weekly`는 scheduled weekly report 결과를 조회하는 backend/API surface이며, 현재 앱 내 주 navigation flow의 기본 report 화면은 아닙니다.
 
 **관련 파일**
 
@@ -723,7 +725,7 @@ flowchart LR
 
 ### 4.8 Backend Integration
 
-Frontend는 staging backend와 다음 API 흐름을 사용합니다.
+Frontend는 staging backend와 다음 API 흐름을 사용합니다. 이 표는 현재 Flutter/Android frontend가 실제로 호출하는 wired API를 기준으로 정리합니다.
 
 | 기능 | API |
 | :--- | :--- |
@@ -732,17 +734,19 @@ Frontend는 staging backend와 다음 API 흐름을 사용합니다.
 | Stress events | `GET /api/v1/events`, `POST /api/v1/events`, `PATCH /api/v1/events/{id}`, `DELETE /api/v1/events/{id}` |
 | Cycle | `GET /api/v1/cycles/current`, `GET /api/v1/cycles/history`, `POST /api/v1/cycles/period-start`, `PATCH /api/v1/cycles/{id}` |
 | Trigger/category | `GET /api/v1/categories`, `POST /api/v1/categories`, `PATCH /api/v1/categories/{id}`, `DELETE /api/v1/categories/{id}` |
-| Dashboard | `GET /api/v1/dashboard/today` |
-| Insights | `GET /api/v1/insights/calendar`, `/trends`, `/phase-averages`, `/heatmap`, `/patterns`, `/morning-tip`, `/tips/{pattern_key}` |
-| Reports | `GET /api/v1/reports/weekly`, `GET /api/v1/reports/range?frm={YYYY-MM-DD}&to={YYYY-MM-DD}`, `GET /api/v1/reports/drilldown` |
+| Home dashboard | Feature API fan-out: `GET /api/v1/events`, `GET /api/v1/cycles/current`, `GET /api/v1/consent`, `GET /api/v1/insights/morning-tip` |
+| Insight local aggregation | Frontend가 `events + cycles` 데이터를 조합해 calendar, Cycle × Stress, phase distribution/average, heatmap-style UI를 계산합니다. 현재 app flow에서는 `/api/v1/insights/calendar`, `/trends`, `/phase-averages`, `/heatmap`, `/patterns`를 호출하지 않습니다 |
+| AI insights | `GET /api/v1/insights/morning-tip`, `GET /api/v1/insights/tips/{pattern_key}` |
+| Selected-period AI report | `GET /api/v1/reports/range?frm={YYYY-MM-DD}&to={YYYY-MM-DD}` |
 | Consent | `GET /api/v1/consent`, `PATCH /api/v1/consent` |
 | Settings | `GET /api/v1/settings`, `PATCH /api/v1/settings` |
 | Sleep logs | `GET /api/v1/sleep-logs/latest`, `GET /api/v1/sleep-logs`, `POST /api/v1/sleep-logs`, `PATCH /api/v1/sleep-logs/{id}`, `DELETE /api/v1/sleep-logs/{id}` |
 | Device token | `POST /api/v1/devices/fcm-token`, `DELETE /api/v1/devices/fcm-token` |
 | Realtime fan-out | `WSS /ws/realtime` (auth: 첫 JSON 메시지 `{type:"auth", token:"<jwt>"}`, 5초 타임아웃) |
+| Privacy/sync backup | `GET /api/v1/sync/download`, `POST /api/v1/sync/upload`, `DELETE /api/v1/sync` |
 | Raw biosignal sync | `POST /api/v1/sync/biosignals/batch`, presigned S3 `PUT` upload flow |
 
-Stress, cycle, sleep, trigger, profile, consent, report data는 feature별 API adapter에서 domain model로 변환된 뒤 Provider를 통해 화면에 전달됩니다. Raw biosignal upload는 Android native `WindowUploader`가 batch metadata를 backend에 등록하고, backend가 반환한 presigned S3 PUT URL로 채널별 payload를 업로드하는 구조입니다.
+Stress, cycle, sleep, trigger, profile, consent, report data는 feature별 API adapter에서 domain model로 변환된 뒤 Provider를 통해 화면에 전달됩니다. Home dashboard는 현재 `/api/v1/dashboard/today` 단일 호출이 아니라 feature API fan-out으로 조립됩니다. Weekly/drilldown report endpoint는 backend/API surface로 존재할 수 있으나, 현재 Flutter의 주요 wired report flow는 selected-period `/api/v1/reports/range`입니다. Raw biosignal upload는 Android native `WindowUploader`가 batch metadata를 backend에 등록하고, backend가 반환한 presigned S3 PUT URL로 채널별 payload를 업로드하는 구조입니다.
 
 ### 4.9 Native Capture Integration
 

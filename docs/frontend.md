@@ -10,7 +10,6 @@ Flutter Android 앱의 아키텍처, 데이터 흐름, backend / Health Connect 
 - [Health Connect Import](#health-connect-import)
 - [Watch / Raw Biosignal Capture](#watch--raw-biosignal-capture)
 - [Realtime / Notification Boundary](#realtime--notification-boundary)
-- [Demo-safe Wording](#demo-safe-wording)
 
 ---
 
@@ -150,22 +149,21 @@ Watch는 sensor node입니다. Phone native layer가 inference node입니다. Ba
 
 현재 frontend에서 사용하는 주요 backend integration:
 
-- Anonymous auth
-- Google Sign-In frontend request flow
-- `/api/v1/me`
-- `/api/v1/events`
-- `/api/v1/cycles/current`
-- `/api/v1/cycles/history`
-- `/api/v1/categories`
-- `/api/v1/consent`
-- `/api/v1/sleep-logs/latest`
-- `/api/v1/sleep-logs`
-- `/api/v1/devices/fcm-token` registration/unregister
-- `/api/v1/reports/range`
-- `/api/v1/sync/biosignals/batch`
-- `/ws/realtime`
+- Auth: `/api/v1/auth/anon`, `/api/v1/auth/google`, `/api/v1/auth/email/login`, `/api/v1/auth/email/signup`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/password/forgot`, `/api/v1/auth/password/reset`
+- User/account: `/api/v1/me`, `/api/v1/account`, `/api/v1/account/restore`
+- Stress events: `/api/v1/events`
+- Cycle: `/api/v1/cycles/current`, `/api/v1/cycles/history`, `/api/v1/cycles/period-start`, `/api/v1/cycles/{id}`
+- Trigger/category: `/api/v1/categories`
+- Consent/settings: `/api/v1/consent`, `/api/v1/settings`
+- Sleep logs: `/api/v1/sleep-logs/latest`, `/api/v1/sleep-logs`, `/api/v1/sleep-logs/{id}`
+- AI tips: `/api/v1/insights/morning-tip`, `/api/v1/insights/tips/{pattern_key}`
+- Selected-period AI report: `/api/v1/reports/range`
+- Privacy/sync backup: `/api/v1/sync/download`, `/api/v1/sync/upload`, `DELETE /api/v1/sync`
+- FCM device token: `/api/v1/devices/fcm-token` registration/unregister
+- Raw biosignal batch metadata: `/api/v1/sync/biosignals/batch`
+- Realtime fan-out: `/ws/realtime`
 
-Frontend state는 Provider가 관리하고, backend endpoint는 feature data API adapter가 캡슐화합니다.
+Frontend state는 Provider가 관리하고, backend endpoint는 feature data API adapter가 캡슐화합니다. Home dashboard는 `/api/v1/dashboard/today` 단일 호출이 아니라 events, cycles, consent, AI tip 등 feature API를 조합하는 fan-out 구조입니다. Insight calendar, Cycle × Stress, phase distribution/average, heatmap-style UI는 현재 `/api/v1/insights/calendar`, `/trends`, `/phase-averages`, `/heatmap`, `/patterns`를 호출하지 않고 frontend에서 `events + cycles` 데이터를 조합해 계산합니다. 현재 주요 report 화면은 selected-period `/api/v1/reports/range`를 사용하며, weekly/drilldown report endpoint는 앱 navigation에 직접 wired된 primary frontend flow로 문서화하지 않습니다.
 
 ---
 
@@ -280,26 +278,3 @@ Frontend handles:
 수신한 realtime envelope에 event id만 있으면 frontend는 backend에서 event detail을 fetch하고 provider state에 반영합니다.
 
 FCM은 device token registration, logout/account-switch unregister, background push entry path를 위한 infrastructure로 연결되어 있습니다. 다만 notification grouping, retry policy, user preference/cooldown UX까지 포함한 production-complete notification product layer로 표현하지 않습니다.
-
----
-
-## Demo-safe Wording
-
-안전한 표현:
-
-- “Health Connect 기반 수면/주기 import가 구현되어 있습니다.”
-- “Galaxy Watch는 sensor node, Android phone native layer는 inference node입니다.”
-- “Wear Data Layer 기반 watch-to-phone biosignal streaming이 구현되어 있습니다.”
-- “Phone-side ONNX inference path와 stress event creation path가 구현되어 있습니다.”
-- “Raw biosignal upload payload는 Android Keystore 기반 AES-GCM으로 암호화됩니다.”
-- “Backend realtime은 `/ws/realtime`, background notification은 FCM을 사용합니다.”
-- “FCM token registration/unregister와 push notification infrastructure가 구현되어 있습니다.”
-
-피해야 할 표현:
-
-- “Galaxy Watch가 직접 stress inference를 수행합니다.”
-- “Sleep/Cycle이 Galaxy Watch에서 realtime으로 직접 sync됩니다.”
-- “모든 free-text user data가 client-side encrypted입니다.”
-- “완성된 production wearable stress detector입니다.”
-- “FCM notification이 항상 realtime으로 보장됩니다.”
-- “완성형 production notification product layer가 모두 구현되어 있습니다.”

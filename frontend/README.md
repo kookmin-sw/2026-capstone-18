@@ -75,20 +75,24 @@ Frontend에서 사용하는 주요 backend API는 다음과 같습니다.
 
 | 기능 | API |
 | :--- | :--- |
-| User profile | `/api/v1/me` |
-| Stress events | `/api/v1/events` |
-| Cycle current | `/api/v1/cycles/current` |
-| Cycle history | `/api/v1/cycles/history` |
+| Auth | `/api/v1/auth/anon`, `/api/v1/auth/google`, `/api/v1/auth/email/login`, `/api/v1/auth/email/signup`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/password/forgot`, `/api/v1/auth/password/reset` |
+| User/account | `/api/v1/me`, `/api/v1/account`, `/api/v1/account/restore` |
+| Stress events | `/api/v1/events`, `/api/v1/events/{id}` |
+| Cycle | `/api/v1/cycles/current`, `/api/v1/cycles/history`, `/api/v1/cycles/period-start`, `/api/v1/cycles/{id}` |
 | Trigger/category | `/api/v1/categories` |
-| Consent | `/api/v1/consent` |
-| Sleep logs | `/api/v1/sleep-logs/latest`, `/api/v1/sleep-logs` |
+| Consent/settings | `/api/v1/consent`, `/api/v1/settings` |
+| Sleep logs | `/api/v1/sleep-logs/latest`, `/api/v1/sleep-logs`, `/api/v1/sleep-logs/{id}` |
+| AI tips | `/api/v1/insights/morning-tip`, `/api/v1/insights/tips/{pattern_key}` |
 | FCM device token | `POST /api/v1/devices/fcm-token`, `DELETE /api/v1/devices/fcm-token` |
 | AI selected-period report | `/api/v1/reports/range` |
+| Privacy/sync backup | `GET /api/v1/sync/download`, `POST /api/v1/sync/upload`, `DELETE /api/v1/sync` |
 | Realtime events | `WSS /ws/realtime` |
 | Biosignal batch metadata | `/api/v1/sync/biosignals/batch` |
 | Raw biosignal object upload | encrypted ciphertext via presigned S3 PUT upload flow |
 
 `/ws/realtime`은 backend-to-Flutter realtime channel입니다. Client는 WebSocket 연결 후 첫 JSON message로 `{"type":"auth","token":"..."}`를 전송합니다. Watch-to-phone communication은 WebSocket이 아니라 Wear Data Layer를 사용합니다.
+
+Home dashboard는 `/api/v1/dashboard/today` 단일 호출이 아니라 events, cycles, consent, AI tip 등 feature API fan-out으로 구성됩니다. Insight calendar, Cycle × Stress, phase distribution/average, heatmap-style UI는 현재 `/api/v1/insights/calendar`, `/trends`, `/phase-averages`, `/heatmap`, `/patterns`를 호출하지 않고 frontend에서 `events + cycles` 데이터를 조합해 계산합니다. 현재 frontend의 주요 report flow는 selected-period `/api/v1/reports/range`이며, weekly/drilldown report는 앱 navigation에 직접 wired된 primary frontend flow가 아닙니다.
 
 FCM은 현재 device token registration, logout/account-switch unregister, foreground/background notification entry path를 위한 push infrastructure로 연결되어 있습니다. 전체 알림 제품 로직(그룹핑, retry policy, notification preference/cooldown UX 전체)을 production-complete notification system으로 주장하지 않습니다.
 
@@ -171,7 +175,7 @@ flutter analyze
 flutter test
 ```
 
-Regression smoke tests는 auth navigation, anonymous auth, main tabs, Home dashboard, stress log create/edit/delete, trigger management, cycle auto-save, sleep display states, notification copy, nickname/session cleanup, provider reset 같은 주요 app flow를 검증합니다.
+현재 `frontend/test/`에는 25개 Dart test file이 있습니다. Regression smoke tests는 auth navigation, anonymous auth, main tabs, Home dashboard, stress log create/edit/delete, trigger management, cycle auto-save, sleep display states, notification copy, nickname/session cleanup, provider reset 같은 주요 app flow를 검증합니다.
 
 Android native unit tests는 Android project에서 실행할 수 있습니다.
 
